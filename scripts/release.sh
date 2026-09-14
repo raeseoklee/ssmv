@@ -46,5 +46,5 @@ CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   echo 'Release is ad-hoc signed and NOT notarized. Disclose this in release notes.' >&2
 fi
-shasum -a 256 "$archive" > "$archive.sha256"
+printf '%s  %s\n' "$checksum" "$(basename "$archive")" > "$archive.sha256"
 echo "Ready: $archive and dist/Casks/ssmv.rb"
