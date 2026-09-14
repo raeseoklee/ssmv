@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 — 2026-09-14
+
+- Fix Homebrew installation failures caused by sandboxed document registration. Register the app’s own document claims on normal launch and explain the first-launch step.
+
 ## 0.1.4 — 2026-09-14
 
 - Register SSMV with Launch Services during Homebrew installation so Finder can list it in Open With before first launch.

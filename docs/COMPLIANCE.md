@@ -94,9 +94,10 @@ fixture now exports its final marker; see [measurements](PERFORMANCE.md#pdf-expo
 
 ## Finder registration and full-screen controls — 0.1.4
 
-The Homebrew postflight now registers only the installed SSMV bundle with
-Launch Services, in both ad-hoc and notarized casks. It does not reset the
-registration database or assign default document handlers. The existing
+The initial Homebrew postflight attempted to register the installed SSMV bundle
+with Launch Services. Installation testing exposed a sandbox restriction;
+version 0.1.5 replaces that step with registration on normal launch. Neither
+approach resets the database or assigns default document handlers. The existing
 Markdown type declarations and Viewer/Alternate rank are retained. Signature
 verification and app-specific quarantine handling remain unchanged.
 
@@ -104,3 +105,20 @@ Full-screen controls use AppKit's native presentation options, without mouse
 tracking, overlays, or global preference changes. The proposed Dock policy is
 preserved. Tests verify the option combination and unchanged windowed state;
 direct hover interaction was not tested while the Mac was locked.
+
+
+## Homebrew registration compatibility — 0.1.5
+
+Actual installation testing found that Homebrew's sandbox denies the
+`com.apple.lsd.modifydb` Mach service. Both `lsregister` and `LSRegisterURL`
+return -10822 inside that sandbox, and a required postflight step rolls back the
+installation. The tap correction removes registration from postflight without
+weakening the sandbox or changing signature/quarantine checks.
+
+SSMV registers only its own bundle through `LSRegisterURL` on normal launch.
+Installation instructions therefore ask users to open SSMV once. An internal
+`--register-documents` mode performs the same app-scoped registration and exits
+before creating UI or touching preferences. No default handlers are assigned.
+The 0.1.4 full-screen behavior is retained. Other-Mac state and direct hover
+interaction remain unverified; local supported-extension and default-handler
+queries validate the installed registration path.

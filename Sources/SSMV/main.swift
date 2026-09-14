@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import MarkdownCore
 import UniformTypeIdentifiers
 
@@ -30,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // Install hooks may be sandboxed; register our document claims on normal launch.
+    _ = LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
     NSApp.setActivationPolicy(.regular)
     buildMenu()
     if windows.isEmpty { showWelcome() }
@@ -561,6 +564,14 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     renderTask?.cancel()
     if !hasPDFExport { appDelegate?.windows.removeAll { $0 === self } }
   }
+}
+
+if CommandLine.arguments.dropFirst().first == "--register-documents" {
+  let result = LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
+  if result != noErr {
+    FileHandle.standardError.write(Data("Document registration failed: \(result)\n".utf8))
+  }
+  exit(result == noErr ? 0 : 1)
 }
 
 let app = NSApplication.shared

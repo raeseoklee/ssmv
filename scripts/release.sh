@@ -41,37 +41,39 @@ cask "ssmv" do
 
   app "SSMV.app"
 
-  postflight_steps do
 CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   cat >> dist/Casks/ssmv.rb <<'CASK'
-    # Verify the ad-hoc bundle before allowing it to open.
+  # The ad-hoc release is not notarized. Verify the bundle before allowing it
+  # to open, matching this tap's existing app distribution behavior.
+  postflight_steps do
     run "/usr/bin/codesign", args: ["--verify", "--strict", "{{appdir}}/SSMV.app"]
     run "/usr/bin/xattr", args: ["-d", "-r", "com.apple.quarantine", "{{appdir}}/SSMV.app"]
+  end
+
 CASK
 fi
 cat >> dist/Casks/ssmv.rb <<'CASK'
-    # Register document claims on fresh installs, not only after the app is opened.
-    run "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
-        args: ["-f", "{{appdir}}/SSMV.app"]
-  end
-
   uninstall quit: "io.github.irae.ssmv"
 
   zap trash: "~/Library/Preferences/io.github.irae.ssmv.plist"
+
+  caveats <<~EOS
+    Open SSMV once after installation to register it in Finder's Open With menu.
 CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   cat >> dist/Casks/ssmv.rb <<'CASK'
 
-  caveats <<~EOS
     SSMV is ad-hoc signed and not Apple notarized. After checksum and bundle
     signature checks, this cask removes quarantine from SSMV.app only so it
     can launch. This bypasses Gatekeeper's first-launch check for this app;
     it does not provide Apple notarization or change global security settings.
-  EOS
 CASK
 fi
-echo 'end' >> dist/Casks/ssmv.rb
+cat >> dist/Casks/ssmv.rb <<'CASK'
+  EOS
+end
+CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   echo 'Release is ad-hoc signed and NOT notarized. Disclose this in release notes.' >&2
 fi
