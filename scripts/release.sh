@@ -25,6 +25,8 @@ ditto -c -k --norsrc --keepParent dist/SSMV.app "$archive"
 checksum="$(shasum -a 256 "$archive" | cut -d ' ' -f 1)"
 mkdir -p dist/Casks
 cat > dist/Casks/ssmv.rb <<CASK
+# frozen_string_literal: true
+
 cask "ssmv" do
   version "$VERSION"
   sha256 "$checksum"
@@ -32,10 +34,11 @@ cask "ssmv" do
   url "https://github.com/$GITHUB_REPOSITORY/releases/download/v#{version}/SSMV-#{version}.zip"
   name "SSMV"
   name "So Simple Markdown Viewer"
-  desc "Lightweight native Markdown viewer for macOS"
+  desc "Native Markdown viewer with PDF export"
   homepage "https://github.com/$GITHUB_REPOSITORY"
 
   depends_on macos: ">= :ventura"
+
   app "SSMV.app"
 
   uninstall quit: "io.github.irae.ssmv"
