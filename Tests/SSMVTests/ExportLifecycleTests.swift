@@ -20,6 +20,23 @@ struct ExportLifecycleTests {
     try check(owner, viewer)
   }
 
+  @Test func fullScreenUsesNativeToolbarRevealWithoutChangingWindowedMode() throws {
+    try withHiddenViewer { _, viewer in
+      let window = try #require(viewer.window)
+      let applicationOptions = NSApp.presentationOptions
+      let proposed: NSApplication.PresentationOptions = [.fullScreen, .hideDock, .hideMenuBar]
+      let result = viewer.window(window, willUseFullScreenPresentationOptions: proposed)
+      #expect(result.contains([.fullScreen, .hideDock, .autoHideMenuBar, .autoHideToolbar]))
+      #expect(!result.contains(.hideMenuBar))
+      #expect(!result.contains(.autoHideDock))
+      #expect(window.toolbar?.isVisible == true)
+      #expect(NSApp.presentationOptions == applicationOptions)
+      #expect(
+        viewer.window(window, willUseFullScreenPresentationOptions: [.fullScreen])
+          .contains(.autoHideDock))
+    }
+  }
+
   @Test func closingExportStaysTrackedUntilCleanupCompletes() throws {
     try withHiddenViewer { owner, viewer in
       let window = try #require(viewer.window)

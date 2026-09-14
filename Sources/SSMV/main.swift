@@ -531,6 +531,17 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     return true
   }
 
+  func window(
+    _ window: NSWindow,
+    willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions
+  ) -> NSApplication.PresentationOptions {
+    // Let AppKit reveal the title and toolbar with the menu bar at the top edge.
+    var options = proposedOptions.subtracting(.hideMenuBar)
+    options.formUnion([.fullScreen, .autoHideMenuBar, .autoHideToolbar])
+    if !options.contains(.hideDock) { options.insert(.autoHideDock) }
+    return options
+  }
+
   func finishPDFExport(_ error: Error?) {
     exportJob = nil
     if isClosing { appDelegate?.windows.removeAll { $0 === self } }

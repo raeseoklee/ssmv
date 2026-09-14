@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 — 2026-09-14
+
+- Register SSMV with Launch Services during Homebrew installation so Finder can list it in Open With before first launch.
+- Automatically hide the title and toolbar in full screen; reveal them at the top edge using native macOS controls.
+
 ## 0.1.3 — 2026-09-14
 
 - Fix truncated PDF exports when native text layout exceeds 10 million points.

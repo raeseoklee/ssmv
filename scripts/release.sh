@@ -41,19 +41,21 @@ cask "ssmv" do
 
   app "SSMV.app"
 
+  postflight_steps do
 CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   cat >> dist/Casks/ssmv.rb <<'CASK'
-  # The ad-hoc release is not notarized. Verify the bundle before allowing it
-  # to open, matching this tap's existing app distribution behavior.
-  postflight_steps do
+    # Verify the ad-hoc bundle before allowing it to open.
     run "/usr/bin/codesign", args: ["--verify", "--strict", "{{appdir}}/SSMV.app"]
     run "/usr/bin/xattr", args: ["-d", "-r", "com.apple.quarantine", "{{appdir}}/SSMV.app"]
-  end
-
 CASK
 fi
 cat >> dist/Casks/ssmv.rb <<'CASK'
+    # Register document claims on fresh installs, not only after the app is opened.
+    run "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
+        args: ["-f", "{{appdir}}/SSMV.app"]
+  end
+
   uninstall quit: "io.github.irae.ssmv"
 
   zap trash: "~/Library/Preferences/io.github.irae.ssmv.plist"

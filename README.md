@@ -14,7 +14,15 @@ brew install --cask raeseoklee/tap/ssmv
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.1.3 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.1.4 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+
+Homebrew registers the app for Finder’s **Open With** menu during installation.
+If an older installation is missing from that menu, refresh the tap and reinstall:
+
+```sh
+brew update
+brew reinstall --cask raeseoklee/tap/ssmv
+```
 
 ## Use
 
@@ -25,6 +33,7 @@ Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV*
 - Remove a document with **−**, its context menu, or **⌘⌫**. This removes only the sidebar entry; it never deletes the source file.
 - The document list, selection, sidebar visibility, and appearance persist between launches. File paths are saved; moved or deleted files must be reopened.
 - Choose **View → System Appearance**, **Light**, or **Dark**.
+- In full screen (**⌃⌘F**), the title and toolbar hide automatically. Move the pointer to the top edge to reveal them.
 - Choose **File → Export as PDF…** to save the selected document as a paginated A4 PDF with a white background, independent of the screen theme or text size. A separate progress window shows the current stage and offers **Cancel**; you can keep reading or switch documents during export.
 
 ## Markdown support

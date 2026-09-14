@@ -90,3 +90,17 @@ Forced termination can still leave temporary files. PDF link filtering, the
 Validation includes snapshot consistency, cancellation, destination preservation,
 launch failure, window-close cleanup, and a height-cap regression. The 15 MiB
 fixture now exports its final marker; see [measurements](PERFORMANCE.md#pdf-export--013).
+
+
+## Finder registration and full-screen controls — 0.1.4
+
+The Homebrew postflight now registers only the installed SSMV bundle with
+Launch Services, in both ad-hoc and notarized casks. It does not reset the
+registration database or assign default document handlers. The existing
+Markdown type declarations and Viewer/Alternate rank are retained. Signature
+verification and app-specific quarantine handling remain unchanged.
+
+Full-screen controls use AppKit's native presentation options, without mouse
+tracking, overlays, or global preference changes. The proposed Dock policy is
+preserved. Tests verify the option combination and unchanged windowed state;
+direct hover interaction was not tested while the Mac was locked.
