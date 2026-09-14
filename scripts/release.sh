@@ -41,11 +41,35 @@ cask "ssmv" do
 
   app "SSMV.app"
 
+CASK
+if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
+  cat >> dist/Casks/ssmv.rb <<'CASK'
+  # The ad-hoc release is not notarized. Verify the bundle before allowing it
+  # to open, matching this tap's existing app distribution behavior.
+  postflight_steps do
+    run "/usr/bin/codesign", args: ["--verify", "--strict", "{{appdir}}/SSMV.app"]
+    run "/usr/bin/xattr", args: ["-d", "-r", "com.apple.quarantine", "{{appdir}}/SSMV.app"]
+  end
+
+CASK
+fi
+cat >> dist/Casks/ssmv.rb <<'CASK'
   uninstall quit: "io.github.irae.ssmv"
 
   zap trash: "~/Library/Preferences/io.github.irae.ssmv.plist"
-end
 CASK
+if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
+  cat >> dist/Casks/ssmv.rb <<'CASK'
+
+  caveats <<~EOS
+    SSMV is ad-hoc signed and not Apple notarized. After checksum and bundle
+    signature checks, this cask removes quarantine from SSMV.app only so it
+    can launch. This bypasses Gatekeeper's first-launch check for this app;
+    it does not provide Apple notarization or change global security settings.
+  EOS
+CASK
+fi
+echo 'end' >> dist/Casks/ssmv.rb
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then
   echo 'Release is ad-hoc signed and NOT notarized. Disclose this in release notes.' >&2
 fi

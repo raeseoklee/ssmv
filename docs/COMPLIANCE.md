@@ -49,8 +49,18 @@ receive read-only repository permissions without persisted Git credentials.
 
 Version 0.1.0 is a universal Apple Silicon/Intel build with an **ad-hoc signature**.
 It is **not Developer ID signed or notarized**. This limitation is disclosed in
-installation and release documentation. The SSMV Homebrew cask does not disable
-Gatekeeper or remove quarantine. A future notarized release requires a Developer
+installation and release documentation. At initial publication, the SSMV Homebrew cask preserved quarantine. A future notarized release requires a Developer
 ID Application certificate and Apple notarization credentials.
 
 See [Security](../SECURITY.md) for runtime boundaries and reporting.
+
+## Homebrew installation correction — 2026-09-14
+
+After a reported launch failure, installation behavior was compared with this
+tap’s bium cask. Both apps were ad-hoc signed, but only bium removed quarantine
+after installation. SSMV’s cask now checks the bundle signature and removes
+quarantine from SSMV.app after Homebrew verifies the archive checksum. This
+bypasses Gatekeeper’s first-launch check for that app without changing global
+security settings. It does not add Apple notarization or prove malware absence.
+The cask and installation documentation disclose the change. The release archive
+and its checksum are unchanged. Notarized releases omit these install steps.

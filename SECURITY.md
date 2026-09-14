@@ -14,8 +14,11 @@ user chooses the destination; only a completed PDF replaces an existing file.
 Removing a document from the sidebar does not delete its original file.
 
 The initial release is ad-hoc signed and **not notarized**. Its Homebrew cask
-checks the archive SHA-256 and does not remove quarantine or disable Gatekeeper.
-Prefer building from source if you do not want to approve an unnotarized binary.
+checks the archive SHA-256 and verifies the bundle signature, then removes
+quarantine from the installed SSMV.app only. This bypasses Gatekeeper’s
+first-launch check for that app; it does not constitute Apple notarization or
+change global security settings. The cask discloses this installation behavior.
+Build from source if you do not want to use this binary installation method.
 
 Report vulnerabilities through [GitHub private vulnerability reporting](https://github.com/raeseoklee/ssmv/security/advisories/new).
 Do not include private Markdown files or credentials in public issues. See the
