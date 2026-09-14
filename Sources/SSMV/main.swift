@@ -3,7 +3,7 @@ import MarkdownCore
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
   var windows: [ViewerWindow] = []
 
   override init() {
@@ -11,10 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     PreferencesMigration.migrate(
       defaults: .standard,
       legacyDomain: UserDefaults.standard.persistentDomain(forName: "io.github.irae.mdview") ?? [:])
-  }
-
-  func menuNeedsUpdate(_ menu: NSMenu) {
-    MenuShortcutLabel.annotate(menu)
   }
 
   @objc func showShortcutHelp(_ sender: Any?) {
@@ -103,7 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menu(_ title: String) -> NSMenu {
       let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
       let submenu = NSMenu(title: title)
-      submenu.delegate = self
       item.submenu = submenu
       main.addItem(item)
       return submenu

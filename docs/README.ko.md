@@ -16,7 +16,7 @@ brew install --cask raeseoklee/tap/ssmv
 
 직접 설치하려면 [GitHub Releases](https://github.com/raeseoklee/ssmv/releases)에서 앱을 받아 압축을 풀고 `SSMV.app`을 응용 프로그램 폴더로 옮기세요. Apple Silicon과 Intel에서 모두 실행할 수 있는 Universal 앱입니다.
 
-**0.1.0은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
+**0.1.1은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
 
 ## 사용법
 

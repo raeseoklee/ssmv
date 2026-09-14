@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — 2026-09-14
+
+- Remove the added `(Fn)` suffix from menu titles and use native macOS labels.
+- Keep keyboard shortcuts and the Fn explanation in Help and documentation.
+
 ## 0.1.0
 
 Initial public release of **SSMV — So Simple Markdown Viewer** for macOS 13 and later.
