@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 — 2026-09-14
+
+- Fix truncated PDF exports when native text layout exceeds 10 million points.
+- Keep the app responsive during export with a separate helper and a cancellable progress window.
+- Export the loaded document snapshot; preserve existing PDFs on cancellation or failure.
+- Wait for export cleanup when closing its window or quitting the app.
+
 ## 0.1.2 — 2026-09-14
 
 - Display documents incrementally with on-demand viewport layout.

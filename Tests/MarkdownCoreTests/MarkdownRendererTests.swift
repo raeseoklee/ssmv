@@ -97,7 +97,7 @@ import Testing
 @Test @MainActor func incrementalRenderingKeepsTableCellsAcrossChunks() async throws {
   let source =
     "| Name | Value |\n| --- | ---: |\n"
-    + String(repeating: "| plain **bold** | 42 |\n", count: 150)
+    + String(repeating: "| plain **bold** | 42 |\n", count: 1200)
   let parsed = try MarkdownDocument.parse(source)
   let actual = NSMutableAttributedString()
   var chunks = 0
@@ -117,6 +117,6 @@ import Testing
     as? NSParagraphStyle
   let cell = last?.textBlocks.first as? NSTextTableBlock
   #expect(cell?.startingColumn == 1)
-  #expect(cell?.startingRow == 150)
+  #expect(cell?.startingRow == 1200)
   #expect(last?.alignment == .right)
 }

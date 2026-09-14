@@ -57,7 +57,8 @@ scroll restoration, PDF pagination, and PDF link filtering.
   take longer. A 15 MiB mixed document still needs about 1 GiB of process memory.
 - Viewport layout reduces opening memory; it does not remove the cost of laying
   out everything. Forcing full layout of the table fixture still peaked around
-  486 MiB. PDF export remains synchronous and requires full document layout.
+  486 MiB. In 0.1.2, PDF export runs synchronously in the app and requires full
+  document layout. Version 0.1.3 moves this work to a cancellable helper (below).
 - Find and Select All operate on text already constructed while loading is in
   progress. PDF export is available after construction completes.
 - The Mac was locked, so interactive scrolling and visual inspection of the
@@ -81,3 +82,35 @@ The viewport approach follows AppKit's
 [noncontiguous layout](https://developer.apple.com/documentation/appkit/nslayoutmanager/allowsnoncontiguouslayout)
 and [background layout](https://developer.apple.com/documentation/appkit/nslayoutmanager/backgroundlayoutenabled)
 controls. SSMV disables idle whole-document layout and uses on-demand layout.
+
+
+## PDF export — 0.1.3
+
+The original 15 MiB PDF measurement (13,434 pages, 32.9 MiB, 53 seconds) was
+incomplete: `NSTextView.sizeToFit()` clamped the print view at its default
+10,000,000-point maximum height, although the text layout needed 14,664,720 points.
+Version 0.1.3 removes that cap. A regression uses three lines with large paragraph
+spacing to reproduce the boundary without generating thousands of pages.
+
+The same generated 15 MiB source now produces **19,700 A4 pages**, **50,811,259
+bytes (48.5 MiB)**, in **57.4 seconds** on the machine above. The final
+`END_OF_DOCUMENT` marker was visually verified on the final PDF page. The
+standalone helper peaked at about **1.46 GiB RSS**; this excludes the interactive
+app's memory. These numbers describe this repeated heading/list/code fixture,
+not a general Markdown-to-PDF size ratio.
+
+The export helper still performs synchronous full-document layout, but the
+interactive app is free to read and switch documents. Its progress window shows
+stages rather than an estimated percentage. Cancel stops the helper; closing
+the document window or quitting also cancels and waits for cleanup. A completed
+PDF replaces the destination only after success. Export captures the loaded
+source, so later file edits or document selection changes do not change it.
+
+In a separate 1 MiB export through the actual export job, completion took 2.62
+seconds (1,314 pages). A main-actor heartbeat requested every 10 ms ran 192 times
+with a maximum gap of 15.7 ms. This demonstrates cooperative app-side waiting,
+not a measured input latency. Helper cancellation, failure, snapshot consistency,
+existing-file preservation, and window-close cleanup have automated tests.
+The Mac remained locked, so the new progress window and direct user interaction
+have not been visually exercised. The export still consumes time and memory
+proportional to document complexity; it is not a faster pagination engine.

@@ -9,5 +9,6 @@ let package = Package(
     .target(name: "MarkdownCore"),
     .executableTarget(name: "SSMV", dependencies: ["MarkdownCore"]),
     .testTarget(name: "MarkdownCoreTests", dependencies: ["MarkdownCore"]),
+    .testTarget(name: "SSMVTests", dependencies: ["SSMV"]),
   ]
 )

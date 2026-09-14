@@ -16,7 +16,9 @@ public enum PDFExporter {
     return text
   }
 
-  public static func export(_ document: AttributedString, title: String, to url: URL) throws {
+  public static func export(
+    _ document: AttributedString, title: String, to url: URL, progress: (String) -> Void = { _ in }
+  ) throws {
     // Publish only a completed PDF so a failed export preserves an existing destination.
     let temporaryURL = url.deletingLastPathComponent()
       .appendingPathComponent(".ssmv-\(UUID().uuidString).pdf")
@@ -38,21 +40,11 @@ public enum PDFExporter {
       info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = temporaryURL
 
       let width = info.paperSize.width - info.leftMargin - info.rightMargin
-      let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 1))
-      view.appearance = appearance
-      view.isEditable = false
-      view.isHorizontallyResizable = false
-      view.isVerticallyResizable = true
-      view.textContainerInset = .zero
-      view.textContainer?.lineFragmentPadding = 0
-      view.textContainer?.widthTracksTextView = true
-      view.textContainer?.containerSize = NSSize(width: width, height: .greatestFiniteMagnitude)
-      view.backgroundColor = .white
-      view.textStorage?.setAttributedString(printableText(document))
-      view.layoutManager?.ensureLayout(for: view.textContainer!)
-      view.sizeToFit()
-      // An empty Markdown file still exports as a valid single-page PDF.
-      if view.frame.height < 1 { view.setFrameSize(NSSize(width: width, height: 1)) }
+      progress("Formatting document…")
+      let text = printableText(document)
+      progress("Laying out pages…")
+      let view = printView(text, width: width, appearance: appearance)
+      progress("Writing PDF…")
       let operation = NSPrintOperation(view: view, printInfo: info)
       operation.jobTitle = title
       operation.showsPrintPanel = false
@@ -65,6 +57,29 @@ public enum PDFExporter {
     } else {
       try FileManager.default.moveItem(at: temporaryURL, to: url)
     }
+  }
+
+  static func printView(_ text: NSAttributedString, width: CGFloat, appearance: NSAppearance)
+    -> NSTextView
+  {
+    let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 1))
+    view.appearance = appearance
+    view.isEditable = false
+    view.isHorizontallyResizable = false
+    view.isVerticallyResizable = true
+    // NSTextView defaults to a 10-million-point height cap, which truncates long PDFs.
+    view.maxSize = NSSize(width: width, height: .greatestFiniteMagnitude)
+    view.textContainerInset = .zero
+    view.textContainer?.lineFragmentPadding = 0
+    view.textContainer?.widthTracksTextView = true
+    view.textContainer?.containerSize = NSSize(width: width, height: .greatestFiniteMagnitude)
+    view.backgroundColor = .white
+    view.textStorage?.setAttributedString(text)
+    view.layoutManager?.ensureLayout(for: view.textContainer!)
+    view.sizeToFit()
+    // An empty Markdown file still exports as a valid single-page PDF.
+    if view.frame.height < 1 { view.setFrameSize(NSSize(width: width, height: 1)) }
+    return view
   }
 
   public enum ExportError: LocalizedError {

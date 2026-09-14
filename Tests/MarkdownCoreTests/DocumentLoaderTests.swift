@@ -88,3 +88,24 @@ private func waitUntil(_ condition: @escaping @Sendable () -> Bool) async throws
   await #expect(throws: CancellationError.self) { try await task.value }
   #expect(!parser.hasStarted("cancelled"))
 }
+
+@Test func loadedSnapshotRetainsMatchingSourceAfterFileChanges() async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let url = directory.appendingPathComponent("snapshot.md")
+  let original = "# Original\n\nA **bold** sentence with [a link](relative.md).\n"
+  try original.write(to: url, atomically: true, encoding: .utf8)
+  let loader = DocumentLoader()
+  let snapshot = try await loader.loadSnapshot(url)
+  try "# Changed\n\nReplacement content.".write(to: url, atomically: true, encoding: .utf8)
+
+  #expect(snapshot.source == original)
+  #expect(
+    snapshot.document
+      == (try MarkdownDocument.parse(
+        original, baseURL: url.deletingLastPathComponent())))
+  let refreshed = try await loader.loadSnapshot(url)
+  #expect(refreshed.source != snapshot.source)
+  #expect(String(refreshed.document.characters).contains("Replacement content."))
+}

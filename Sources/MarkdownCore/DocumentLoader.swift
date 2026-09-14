@@ -1,25 +1,44 @@
 import Foundation
 
+/// Immutable source and parsed content from the same file read.
+public struct DocumentSnapshot: Sendable {
+  public let source: String
+  public let document: AttributedString
+
+  public init(source: String, document: AttributedString) {
+    self.source = source
+    self.document = document
+  }
+}
+
 /// Bounds synchronous Foundation parsing while keeping cancellation responsive.
 public actor DocumentLoader {
   public static let shared = DocumentLoader()
 
-  private let parser: @Sendable (URL) throws -> AttributedString
+  private let parser: @Sendable (URL) throws -> DocumentSnapshot
   private var pending: [(URL, Request)] = []
   private var active = 0
 
   public init() {
     parser = { url in
-      try MarkdownDocument.parse(
-        MarkdownDocument.read(url), baseURL: url.deletingLastPathComponent())
+      let source = try MarkdownDocument.read(url)
+      let document = try MarkdownDocument.parse(source, baseURL: url.deletingLastPathComponent())
+      return DocumentSnapshot(source: source, document: document)
     }
   }
 
   internal init(parser: @escaping @Sendable (URL) throws -> AttributedString) {
-    self.parser = parser
+    self.parser = { url in
+      let document = try parser(url)
+      return DocumentSnapshot(source: String(document.characters), document: document)
+    }
   }
 
   public func load(_ url: URL) async throws -> AttributedString {
+    try await loadSnapshot(url).document
+  }
+
+  public func loadSnapshot(_ url: URL) async throws -> DocumentSnapshot {
     try Task.checkCancellation()
     let request = Request()
     return try await withTaskCancellationHandler {
@@ -47,7 +66,7 @@ public actor DocumentLoader {
       active += 1
       let parser = self.parser
       Task.detached(priority: .userInitiated) {
-        let result: Result<AttributedString, Error> = autoreleasepool {
+        let result: Result<DocumentSnapshot, Error> = autoreleasepool {
           guard !request.isFinished else { return .failure(CancellationError()) }
           return Result { try parser(url) }
         }
@@ -56,7 +75,7 @@ public actor DocumentLoader {
     }
   }
 
-  private func completed(_ request: Request, result: Result<AttributedString, Error>) {
+  private func completed(_ request: Request, result: Result<DocumentSnapshot, Error>) {
     active -= 1
     request.finish(result)
     startPending()
@@ -65,12 +84,12 @@ public actor DocumentLoader {
   /// Cancellation and parser completion can race; exactly one resumes the caller.
   private final class Request: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<AttributedString, Error>?
+    private var continuation: CheckedContinuation<DocumentSnapshot, Error>?
     private var finished = false
 
     var isFinished: Bool { lock.withLock { finished } }
 
-    func install(_ continuation: CheckedContinuation<AttributedString, Error>) -> Bool {
+    func install(_ continuation: CheckedContinuation<DocumentSnapshot, Error>) -> Bool {
       let accepted = lock.withLock {
         guard !finished else { return false }
         self.continuation = continuation
@@ -80,9 +99,9 @@ public actor DocumentLoader {
       return accepted
     }
 
-    func finish(_ result: Result<AttributedString, Error>) {
+    func finish(_ result: Result<DocumentSnapshot, Error>) {
       let continuation = lock.withLock {
-        guard !finished else { return nil as CheckedContinuation<AttributedString, Error>? }
+        guard !finished else { return nil as CheckedContinuation<DocumentSnapshot, Error>? }
         finished = true
         let continuation = self.continuation
         self.continuation = nil

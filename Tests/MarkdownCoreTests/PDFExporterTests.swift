@@ -68,3 +68,16 @@ private func exportFixture(_ source: String, name: String) throws -> PDFDocument
     }
   }
 }
+
+@Test @MainActor func pdfPrintViewDoesNotTruncateVeryTallDocuments() {
+  _ = NSApplication.shared
+  let style = NSMutableParagraphStyle()
+  style.paragraphSpacing = 6_000_000
+  let text = NSAttributedString(
+    string: "A\nB\nEND_OF_DOCUMENT",
+    attributes: [.font: NSFont.systemFont(ofSize: 12), .paragraphStyle: style])
+  let view = PDFExporter.printView(text, width: 511.28, appearance: NSAppearance(named: .aqua)!)
+  let usedHeight = view.layoutManager!.usedRect(for: view.textContainer!).maxY
+  #expect(usedHeight > 10_000_000)
+  #expect(view.frame.height >= usedHeight)
+}

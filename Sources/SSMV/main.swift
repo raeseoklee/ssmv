@@ -36,6 +36,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    let exporting = windows.filter { $0.hasPDFExport }
+    guard !exporting.isEmpty else { return .terminateNow }
+    for viewer in exporting { viewer.cancelPDFExport() }
+    Task {
+      while exporting.contains(where: { $0.hasPDFExport }) {
+        try? await Task.sleep(for: .milliseconds(50))
+      }
+      sender.reply(toApplicationShouldTerminate: true)
+    }
+    return .terminateLater
+  }
+
   func application(_ sender: NSApplication, openFiles filenames: [String]) {
     open(filenames.map { URL(fileURLWithPath: $0) })
     sender.reply(toOpenOrPrint: .success)
@@ -56,8 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func open(_ url: URL) { open([url]) }
 
   func open(_ urls: [URL]) {
+    let available = windows.filter { !$0.isClosing }
     let viewer =
-      windows.first(where: { $0.window?.isKeyWindow == true }) ?? windows.first
+      available.first(where: { $0.window?.isKeyWindow == true }) ?? available.first
       ?? ViewerWindow(owner: self)
     if !windows.contains(where: { $0 === viewer }) { windows.append(viewer) }
     viewer.addDocuments(urls)
@@ -185,6 +199,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private var shelf = DocumentShelf()
   private var scrollPositions: [URL: NSPoint] = [:]
   private var parsed: AttributedString?
+  private var source: String?
+  var exportJob: PDFExportJob?
+  private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
   private var renderTask: Task<Void, Never>?
   private var renderGeneration = 0
@@ -295,6 +312,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
         current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
     }
     parsed = nil
+    source = nil
     fileURL = url
     window?.title = url.lastPathComponent
     window?.representedURL = url
@@ -309,9 +327,10 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     showMessage("Opening document…", detail: url.lastPathComponent)
     loadTask = Task { [weak self] in
       do {
-        let document = try await DocumentLoader.shared.load(url)
+        let snapshot = try await DocumentLoader.shared.loadSnapshot(url)
         guard let self, !Task.isCancelled, self.generation == request else { return }
-        self.parsed = document
+        self.parsed = snapshot.document
+        self.source = snapshot.source
         self.render(restoring: self.scrollPositions[url] ?? .zero)
       } catch {
         guard let self, !Task.isCancelled, self.generation == request else { return }
@@ -357,6 +376,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       displayedURL = nil
       scrollRestoration.clear()
       parsed = nil
+      source = nil
       fileURL = nil
       window?.title = "SSMV"
       window?.representedURL = nil
@@ -457,7 +477,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   @objc func exportPDF(_ sender: Any?) {
-    guard !isRendering, let document = parsed, let fileURL, let window else { return }
+    guard exportJob == nil, !isRendering, let source, let fileURL, let window else { return }
     let panel = NSSavePanel()
     panel.title = "Export as PDF"
     panel.allowedContentTypes = [.pdf]
@@ -465,18 +485,19 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     panel.nameFieldStringValue = fileURL.deletingPathExtension().lastPathComponent + ".pdf"
     panel.beginSheetModal(for: window) { response in
       guard response == .OK, let destination = panel.url else { return }
-      do {
-        try PDFExporter.export(document, title: fileURL.lastPathComponent, to: destination)
-      } catch {
-        let alert = NSAlert(error: error)
-        alert.beginSheetModal(for: window)
+      guard self.exportJob == nil else { return }
+      let job = PDFExportJob()
+      self.exportJob = job
+      job.start(source: source, fileURL: fileURL, destination: destination, owner: window) {
+        [weak self] error in
+        self?.finishPDFExport(error)
       }
     }
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
     if menuItem.action == #selector(exportPDF(_:)) {
-      return parsed != nil && fileURL != nil && !isRendering
+      return source != nil && fileURL != nil && !isRendering && exportJob == nil
     }
     return true
   }
@@ -510,14 +531,32 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     return true
   }
 
+  func finishPDFExport(_ error: Error?) {
+    exportJob = nil
+    if isClosing { appDelegate?.windows.removeAll { $0 === self } }
+    if let error, let window, window.isVisible {
+      NSAlert(error: error).beginSheetModal(for: window)
+    }
+  }
+
+  var hasPDFExport: Bool { exportJob != nil }
+
+  func cancelPDFExport() { exportJob?.cancelExport() }
+
   func windowWillClose(_ notification: Notification) {
+    isClosing = true
+    exportJob?.cancelExport()
     loadTask?.cancel()
     renderTask?.cancel()
-    appDelegate?.windows.removeAll { $0 === self }
+    if !hasPDFExport { appDelegate?.windows.removeAll { $0 === self } }
   }
 }
 
 let app = NSApplication.shared
+if CommandLine.arguments.dropFirst().first == "--export-pdf" {
+  app.setActivationPolicy(.prohibited)
+  exit(runPDFExportHelper(CommandLine.arguments))
+}
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()

@@ -14,6 +14,12 @@ references and UI preferences are stored in macOS UserDefaults, not uploaded.
 
 PDF export strips local-file and custom URL schemes from link annotations. The
 user chooses the destination; only a completed PDF replaces an existing file.
+Export runs another instance of the same signed executable in a private helper
+mode, with no shell or external program. The current document source and PDF
+are temporarily stored in a per-export directory accessible only to the current
+user (0700). Normal completion, cancellation, and orderly app exit remove these
+files; a crash or forced termination can leave temporary files. The app retains
+the loaded source in memory so subsequent disk edits do not change an export.
 Removing a document from the sidebar does not delete its original file.
 
 The initial release is ad-hoc signed and **not notarized**. Its Homebrew cask

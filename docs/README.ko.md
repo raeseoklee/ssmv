@@ -16,7 +16,7 @@ brew install --cask raeseoklee/tap/ssmv
 
 직접 설치하려면 [GitHub Releases](https://github.com/raeseoklee/ssmv/releases)에서 앱을 받아 압축을 풀고 `SSMV.app`을 응용 프로그램 폴더로 옮기세요. Apple Silicon과 Intel에서 모두 실행할 수 있는 Universal 앱입니다.
 
-**0.1.2는 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
+**0.1.3은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
 
 ## 사용법
 
@@ -29,7 +29,7 @@ Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으
 - **−** 버튼, 우클릭 메뉴 또는 **⌘⌫**로 목록에서 문서를 제거합니다. 원본 파일은 삭제되지 않습니다.
 - 앱을 다시 실행해도 문서 목록, 선택한 문서, 사이드바 표시 여부, 화면 모드 설정은 유지됩니다. 파일 경로를 저장하므로 파일을 옮기면 새 위치에서 다시 열어야 합니다. 삭제한 파일은 열 수 없습니다.
 - **View → System Appearance / Light / Dark**에서 시스템 설정 따르기, 라이트 모드, 다크 모드를 선택합니다.
-- **File → Export as PDF…**로 선택한 문서를 저장합니다. 화면 모드나 글자 크기와 관계없이 흰 배경의 A4 PDF로 저장하며, 긴 문서는 여러 페이지로 나눕니다.
+- **File → Export as PDF…**로 선택한 문서를 저장합니다. 화면 모드나 글자 크기와 관계없이 흰 배경의 A4 PDF로 저장하며, 긴 문서는 여러 페이지로 나눕니다. 별도 창에서 진행 단계를 확인하거나 **Cancel**로 취소할 수 있으며, 내보내는 동안에도 문서를 읽거나 다른 문서를 선택할 수 있습니다.
 
 ## 지원 범위와 제한
 

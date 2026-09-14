@@ -73,3 +73,20 @@ Native table cells are reused across inline spans. No new dependencies or
 subprocess parsing were introduced. The file-size and PDF link restrictions
 remain unchanged. See [performance measurements](PERFORMANCE.md) for validation
 and the limits of noninterruptible parsing and synchronous PDF export.
+
+
+## PDF correctness and cancellation — 0.1.3
+
+Removed the native text view's default height cap that truncated exceptionally
+long PDFs. PDF parsing, formatting, and print layout now run in a private mode
+of the same executable. No package, external executable, shell invocation, or
+network operation was added. Export uses a snapshot of the loaded source in a
+0700 temporary directory. Cancellation waits for helper termination and removes
+temporary files; only successful output is staged beside the chosen destination
+and atomically published. Orderly app exit waits for active export cleanup.
+Forced termination can still leave temporary files. PDF link filtering, the
+16 MiB input limit, and release signing behavior are unchanged.
+
+Validation includes snapshot consistency, cancellation, destination preservation,
+launch failure, window-close cleanup, and a height-cap regression. The 15 MiB
+fixture now exports its final marker; see [measurements](PERFORMANCE.md#pdf-export--013).
