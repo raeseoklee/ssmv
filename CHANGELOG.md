@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — 2026-09-14
+
+- Display documents incrementally with on-demand viewport layout.
+- Keep cancellation responsive with at most two background parsers.
+- Reduce temporary rendering allocations and reuse native table cells across inline formatting.
+- Preserve reading positions through repeated zoom and document switches.
+- Add large-document benchmarks and regression tests for streaming, cancellation, and scrolling.
+
 ## 0.1.1 — 2026-09-14
 
 - Remove the added `(Fn)` suffix from menu titles and use native macOS labels.

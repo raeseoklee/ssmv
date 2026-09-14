@@ -186,6 +186,11 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private var scrollPositions: [URL: NSPoint] = [:]
   private var parsed: AttributedString?
   private var loadTask: Task<Void, Never>?
+  private var renderTask: Task<Void, Never>?
+  private var renderGeneration = 0
+  private var isRendering = false
+  private var displayedURL: URL?
+  private var scrollRestoration = ScrollRestoration()
   private var generation = 0
   private var fontSize: CGFloat = 16
 
@@ -216,6 +221,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     textView.isIncrementalSearchingEnabled = true
     textView.isVerticallyResizable = true
     textView.isHorizontallyResizable = false
+    // Lay out the visible region on demand instead of blocking on the whole document.
+    textView.layoutManager?.allowsNonContiguousLayout = true
+    textView.layoutManager?.backgroundLayoutEnabled = false
     textView.textContainer?.widthTracksTextView = true
     textView.textContainer?.containerSize = NSSize(
       width: scroll.contentSize.width, height: .greatestFiniteMagnitude)
@@ -224,6 +232,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     textView.delegate = self
     textView.setAccessibilityLabel("Markdown document")
     scroll.documentView = textView
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(userStartedScrolling(_:)),
+      name: NSScrollView.willStartLiveScrollNotification, object: scroll)
     let reader = NSViewController()
     reader.view = scroll
     let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
@@ -279,8 +290,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   func load(_ url: URL) {
-    if let fileURL, shelf.urls.contains(fileURL) {
-      scrollPositions[fileURL] = textView.enclosingScrollView?.contentView.bounds.origin
+    if let fileURL, displayedURL == fileURL, shelf.urls.contains(fileURL) {
+      scrollPositions[fileURL] = scrollRestoration.positionToSave(
+        current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
     }
     parsed = nil
     fileURL = url
@@ -289,15 +301,18 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     generation += 1
     let request = generation
     loadTask?.cancel()
+    renderTask?.cancel()
+    renderGeneration += 1
+    isRendering = false
+    displayedURL = nil
+    scrollRestoration.clear()
     showMessage("Opening document…", detail: url.lastPathComponent)
     loadTask = Task { [weak self] in
       do {
         let document = try await DocumentLoader.shared.load(url)
         guard let self, !Task.isCancelled, self.generation == request else { return }
         self.parsed = document
-        self.render()
-        self.textView.layoutManager?.ensureLayout(for: self.textView.textContainer!)
-        self.textView.scroll(self.scrollPositions[url] ?? .zero)
+        self.render(restoring: self.scrollPositions[url] ?? .zero)
       } catch {
         guard let self, !Task.isCancelled, self.generation == request else { return }
         self.parsed = nil
@@ -336,6 +351,11 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     } else {
       generation += 1
       loadTask?.cancel()
+      renderTask?.cancel()
+      renderGeneration += 1
+      isRendering = false
+      displayedURL = nil
+      scrollRestoration.clear()
       parsed = nil
       fileURL = nil
       window?.title = "SSMV"
@@ -382,13 +402,62 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     return item
   }
 
-  private func render() {
-    guard let parsed else { return }
-    textView.textStorage?.setAttributedString(MarkdownRenderer.render(parsed, size: fontSize))
+  private func render(restoring position: NSPoint? = nil) {
+    guard let parsed, let fileURL else { return }
+    scrollRestoration.begin(
+      at: position, current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
+    renderTask?.cancel()
+    renderGeneration += 1
+    let request = renderGeneration
+    let size = fontSize
+    isRendering = true
+    renderTask = Task { [weak self] in
+      var started = false
+      do {
+        try await MarkdownRenderer.renderIncrementally(parsed, size: size) { [weak self] chunk in
+          guard let self, self.renderGeneration == request else { return }
+          autoreleasepool {
+            if !started {
+              self.textView.textStorage?.setAttributedString(chunk)
+              self.textView.scroll(.zero)
+              self.displayedURL = fileURL
+              started = true
+            } else {
+              self.textView.textStorage?.beginEditing()
+              self.textView.textStorage?.append(chunk)
+              self.textView.textStorage?.endEditing()
+            }
+          }
+        }
+        guard let self, !Task.isCancelled, self.renderGeneration == request else { return }
+        if !started {
+          self.textView.textStorage?.setAttributedString(NSAttributedString(string: ""))
+          self.displayedURL = fileURL
+        }
+        self.isRendering = false
+        // Do not override scrolling performed while chunks were appearing.
+        if let target = self.scrollRestoration.target,
+          self.textView.enclosingScrollView?.contentView.bounds.origin == .zero
+        {
+          self.textView.scroll(target)
+        }
+        self.scrollRestoration.clear()
+      } catch is CancellationError {
+        // A newer render or document owns the view now.
+      } catch {
+        guard let self, self.renderGeneration == request else { return }
+        self.isRendering = false
+        self.showMessage("Couldn’t display document", detail: error.localizedDescription)
+      }
+    }
+  }
+
+  @objc private func userStartedScrolling(_ notification: Notification) {
+    scrollRestoration.clear()
   }
 
   @objc func exportPDF(_ sender: Any?) {
-    guard let document = parsed, let fileURL, let window else { return }
+    guard !isRendering, let document = parsed, let fileURL, let window else { return }
     let panel = NSSavePanel()
     panel.title = "Export as PDF"
     panel.allowedContentTypes = [.pdf]
@@ -406,7 +475,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-    if menuItem.action == #selector(exportPDF(_:)) { return parsed != nil && fileURL != nil }
+    if menuItem.action == #selector(exportPDF(_:)) {
+      return parsed != nil && fileURL != nil && !isRendering
+    }
     return true
   }
 
@@ -441,6 +512,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   func windowWillClose(_ notification: Notification) {
     loadTask?.cancel()
+    renderTask?.cancel()
     appDelegate?.windows.removeAll { $0 === self }
   }
 }

@@ -16,7 +16,7 @@ brew install --cask raeseoklee/tap/ssmv
 
 직접 설치하려면 [GitHub Releases](https://github.com/raeseoklee/ssmv/releases)에서 앱을 받아 압축을 풀고 `SSMV.app`을 응용 프로그램 폴더로 옮기세요. Apple Silicon과 Intel에서 모두 실행할 수 있는 Universal 앱입니다.
 
-**0.1.1은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
+**0.1.2는 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
 
 ## 사용법
 
@@ -37,7 +37,9 @@ Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으
 
 이미지, HTML 렌더링, Mermaid, 수식, 구문 강조, 체크박스 조작, 문서 내부 앵커 이동은 지원하지 않습니다. Foundation Markdown 파서를 사용하므로 GitHub와 표시 방식이 완전히 같지는 않을 수 있습니다. PDF 내보내기에도 같은 제한이 적용됩니다.
 
-파일을 읽고 Markdown을 해석하는 작업은 백그라운드에서 처리합니다. 본문 배치는 메인 스레드에서 처리하므로 큰 문서를 열 때는 잠시 지연될 수 있습니다. 파일이 바뀌어도 자동으로 갱신하지 않습니다. 수정한 내용을 보려면 **⌘R**로 다시 읽으세요.
+파일을 읽고 Markdown을 해석하는 작업은 백그라운드에서 처리합니다. 해석이 끝나면 본문을 조금씩 표시하고, 화면에 보이는 부분부터 배치합니다. 읽는 중에도 다른 문서를 선택할 수 있으며 동시에 해석하는 문서는 최대 2개입니다. 이미 시작한 Foundation 해석 작업은 중간에 멈출 수 없어 두 작업이 모두 진행 중이면 새 문서가 기다릴 수 있습니다.
+
+아주 긴 문단이나 표, 멀리 떨어진 본문 검색, PDF 내보내기에는 시간이 걸릴 수 있습니다. PDF 내보내기는 본문 생성이 끝나면 사용할 수 있습니다. 파일 변경은 자동으로 반영하지 않으므로 수정한 내용을 보려면 **⌘R**로 다시 읽으세요.
 
 ## 단축키
 
@@ -84,3 +86,5 @@ Apple Silicon과 Intel을 모두 지원하는 Universal 앱을 빌드하려면 `
 - 변경 기록: [CHANGELOG.md](../CHANGELOG.md)
 - 라이선스: [MIT](../LICENSE). 앱 아이콘은 AI 이미지 생성 도구로 만들었으며 [생성 프롬프트](../Resources/AppIcon-prompt.txt)를 함께 공개합니다.
 - [보안 안내](../SECURITY.md) · [공개 전 검토](../docs/COMPLIANCE.md) · [외부 구성 요소와 출처 고지](../THIRD_PARTY_NOTICES.md)
+
+- 대용량 문서 측정 결과: [PERFORMANCE.md](PERFORMANCE.md)

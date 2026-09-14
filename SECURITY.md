@@ -4,9 +4,12 @@ SSMV is a local, read-only Markdown viewer. It has no account system, telemetry,
 embedded browser, remote image fetching, or Markdown script execution. Clicking
 an HTTP/HTTPS/mailto link hands it to the system's default application.
 
-Files must be regular UTF-8 files no larger than 16 MiB. Parsing is serialized;
-an already-running Foundation parse is not interruptible, but queued cancelled
-loads are skipped. Large documents can still take time to lay out. Local file
+Files must be regular UTF-8 files no larger than 16 MiB. At most two background
+parsers run concurrently. Cancelling a request releases its caller immediately;
+an already-running Foundation parse retains its slot until it finishes, while
+queued cancelled loads are skipped. Text construction yields between batches
+and layout is performed on demand. These limits do not guarantee bounded
+rendering memory or instant processing of pathological documents. Local file
 references and UI preferences are stored in macOS UserDefaults, not uploaded.
 
 PDF export strips local-file and custom URL schemes from link annotations. The

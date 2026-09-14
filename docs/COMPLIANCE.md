@@ -64,3 +64,12 @@ bypasses Gatekeeper’s first-launch check for that app without changing global
 security settings. It does not add Apple notarization or prove malware absence.
 The cask and installation documentation disclose the change. The release archive
 and its checksum are unchanged. Notarized releases omit these install steps.
+
+## Large-document processing — 0.1.2
+
+The viewer now limits background parsing to two workers, cancels obsolete
+waiters, constructs text in cooperative batches, and defers offscreen layout.
+Native table cells are reused across inline spans. No new dependencies or
+subprocess parsing were introduced. The file-size and PDF link restrictions
+remain unchanged. See [performance measurements](PERFORMANCE.md) for validation
+and the limits of noninterruptible parsing and synchronous PDF export.

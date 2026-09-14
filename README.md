@@ -14,7 +14,7 @@ brew install --cask raeseoklee/tap/ssmv
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.1.1 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.1.2 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
 
 ## Use
 
@@ -33,7 +33,9 @@ SSMV renders headings, paragraphs, emphasis, strikethrough, lists, block quotes,
 
 Images, HTML rendering, Mermaid diagrams, mathematical notation, syntax highlighting, interactive checkboxes, and in-document anchor navigation are not supported. Parsing uses Foundation Markdown and does not promise full GitHub rendering compatibility. These same limits apply to PDF export.
 
-Files are read and parsed in the background; text layout runs on the main thread and may pause briefly for large documents. There is no automatic file watching: use **⌘R** to reload changes.
+Files are read and parsed in the background. After parsing, text appears in cancellable batches and the visible region is laid out on demand. You can switch documents while loading; at most two parsers run at once. An in-progress Foundation parse cannot be interrupted, so new work may wait if both are busy.
+
+Very large paragraphs, tables, finding distant text, and PDF export can still take time. PDF export becomes available when text construction finishes. There is no automatic file watching: use **⌘R** to reload changes.
 
 ## Keyboard shortcuts
 
@@ -81,3 +83,5 @@ Use `UNIVERSAL=1 scripts/build-app.sh` to build for both Apple Silicon and Intel
 - License: [MIT](LICENSE). The app icon was created with an AI image-generation tool; its prompt is included in [Resources/AppIcon-prompt.txt](Resources/AppIcon-prompt.txt).
 
 - [Security](SECURITY.md) · [Publication review](docs/COMPLIANCE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+- Performance measurements: [PERFORMANCE.md](docs/PERFORMANCE.md)

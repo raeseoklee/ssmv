@@ -49,3 +49,21 @@ Not-tested: VoiceOver navigation
 Useful trailers include `Constraint:`, `Rejected:`, `Confidence:`, `Scope-risk:`, `Directive:`, `Tested:`, and `Not-tested:`. Only record claims that apply to your change.
 
 Contributions are provided under the project's [MIT License](LICENSE).
+
+## Large-document measurements
+
+Compile the benchmark with the same MarkdownCore implementation, then run one
+file per process to measure peak resident memory separately:
+
+```sh
+mkdir -p .build/benchmarks
+swiftc -O -swift-version 6 -parse-as-library Sources/MarkdownCore/*.swift scripts/benchmark.swift -o .build/benchmarks/benchmark
+/usr/bin/time -l .build/benchmarks/benchmark /path/to/document.md
+```
+
+The benchmark reports first-viewport time, complete text construction, and gaps
+between main-actor heartbeat checks. `--full-layout` additionally measures the
+whole-document layout required for comparison with older versions; the viewer
+does not force this on opening. `tail_preserved` expects a fixture ending in
+`END_OF_DOCUMENT`. This is a rendering harness, not an interactive UI test or an
+end-to-end Finder launch measurement. Use generated files without personal data.
