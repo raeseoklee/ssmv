@@ -37,7 +37,7 @@ cask "ssmv" do
   desc "Native Markdown viewer with PDF export"
   homepage "https://github.com/$GITHUB_REPOSITORY"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "SSMV.app"
 
