@@ -1,0 +1,11 @@
+Generated with the built-in image_gen tool. Source preserved in AppIcon-source.png.
+
+Use case: logo-brand. Create a finished macOS application icon for SSMV (So Simple Markdown Viewer), a minimal fast native document reader. Single square 1024x1024 icon asset, front-facing orthographic, centered, truly transparent background outside the icon. A macOS rounded-square squircle tile in deep graphite/slate with gentle tactile dimensionality and a restrained soft highlight, generous consistent outer transparent margin about 8%. Inside, one warm white paper sheet with a simple folded upper-right corner, and a bold dark geometric Markdown M with a small downward arrow as the central symbol. The symbol must be exceptionally legible at small dock sizes, clean broad strokes, no fine details. Quiet professional Apple-native utility aesthetic, precise optical balance, restrained depth and soft shadow, premium but understated. Only the Markdown M and down arrow; no SSMV lettering, no words, no watermarks, no mockup, no background scene. Transparent corners are required. Output one final app icon, not a presentation or variants grid.
+
+The returned image is 1254 × 1254 with alpha. scripts/build-icon.sh creates the ten macOS iconset renditions and AppIcon.icns using sips and iconutil.
+
+Dock sizing correction: retain the original alpha image; build-icon.sh center-crops its transparent 1254px canvas to 1170px before generating icon renditions. The opaque tile coverage increases from about 78% to 83%, without redrawing the artwork. Image-tool padding revisions were rejected because they flattened transparency.
+
+Final pixel calibration supersedes the 1170px crop: screenshot reference tiles span about 66px while the previous SSMV tile spans about 68px. Center-crop the original canvas to width 1212px × height 1200px before rendition scaling; opaque artwork of 975px × 965px maps to approximately 824px square on the 1024px rendition. No artwork is regenerated.
+
+User-confirmed Dock target: 68 × 68px, superseding the 66px comparison. Center-crop width 1170px × height 1158px to equalize the 975 × 965px source tile to approximately 853 × 853px on a 1024px canvas.

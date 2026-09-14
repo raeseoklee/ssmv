@@ -1,0 +1,23 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: swift test
+      - name: Universal app bundle
+        run: UNIVERSAL=1 scripts/build-app.sh
+      - name: Validate document registration
+        run: plutil -lint dist/SSMV.app/Contents/Info.plist
+      - name: Archive app with executable permissions
+        run: ditto -c -k --sequesterRsrc --keepParent dist/SSMV.app dist/SSMV-local.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SSMV-local-build
+          path: dist/SSMV-local.zip
