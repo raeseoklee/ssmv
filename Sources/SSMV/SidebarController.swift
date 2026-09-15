@@ -2,13 +2,16 @@ import AppKit
 import MarkdownCore
 
 @MainActor
-final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate,
+  NSMenuItemValidation
+{
   var onSelect: ((URL) -> Void)?
   var onSelectHeading: ((URL, Int) -> Void)?
   var onToggleOutline: (() -> Void)?
   var onAdd: (() -> Void)?
   var onDrop: (([URL]) -> Void)?
   var onRemove: (() -> Void)?
+  var onRemoveAll: (() -> Void)?
 
   final class Item {
     let url: URL
@@ -59,6 +62,11 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     let remove = menu.addItem(
       withTitle: "Remove from Sidebar", action: #selector(removeClickedDocument), keyEquivalent: "")
     remove.target = self
+    menu.addItem(.separator())
+    let removeAll = menu.addItem(
+      withTitle: "Remove All from Sidebar…", action: #selector(removeAllDocuments),
+      keyEquivalent: "")
+    removeAll.target = self
     table.menu = menu
     scroll.documentView = table
     let add = NSButton(
@@ -403,6 +411,12 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     onSelect?(item.url)
     onRemove?()
   }
+  func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(removeAllDocuments) { return !items.isEmpty }
+    if menuItem.action == #selector(removeClickedDocument) { return table.clickedRow >= 0 }
+    return true
+  }
+  @objc private func removeAllDocuments() { onRemoveAll?() }
   @objc private func toggleOutline() { onToggleOutline?() }
   @objc private func addDocuments() { onAdd?() }
   @objc private func removeDocument() { onRemove?() }

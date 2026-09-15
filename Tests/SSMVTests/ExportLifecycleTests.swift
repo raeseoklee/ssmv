@@ -20,6 +20,21 @@ struct ExportLifecycleTests {
     try check(owner, viewer)
   }
 
+  @Test func bulkRemovalRequiresExplicitConfirmation() {
+    let alert = ViewerWindow.removeAllConfirmation(count: 4)
+    #expect(alert.buttons.map(\.title) == ["Cancel", "Remove All"])
+    #expect(alert.buttons[0].keyEquivalent == "\r")
+    #expect(alert.buttons[1].hasDestructiveAction)
+    #expect(alert.informativeText.contains("4"))
+    #expect(alert.informativeText.contains("remain on disk"))
+    withHiddenViewer { _, viewer in
+      let item = NSMenuItem(
+        title: "Remove All", action: #selector(ViewerWindow.confirmRemoveAllDocuments),
+        keyEquivalent: "")
+      #expect(!viewer.validateMenuItem(item))
+    }
+  }
+
   @Test func updateNoticeGuidesThroughHomebrewOnly() {
     let alert = AppDelegate.updateAlert(version: "0.3.0")
     #expect(alert.messageText == "SSMV 0.3.0 is available")

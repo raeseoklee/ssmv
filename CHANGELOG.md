@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-09-15
+
+- Clear all sidebar documents from the File menu or sidebar context menu after explicit confirmation. Original files remain on disk; Cancel is the default action.
+
 ## 0.3.0 — 2026-09-15
 
 - Check the Homebrew tap at launch, at most daily, and offer copyable upgrade commands when a newer version is available. No automatic download or installation is performed.

@@ -218,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     add(file, "Open…", #selector(openDocument(_:)), "o", target: self)
     add(file, "Reload", #selector(ViewerWindow.reload(_:)), "r")
     add(file, "Remove from Sidebar", #selector(ViewerWindow.removeSelectedDocument), "\u{8}")
+    add(file, "Remove All from Sidebar…", #selector(ViewerWindow.confirmRemoveAllDocuments))
     file.addItem(.separator())
     let export = file.addItem(
       withTitle: "Export as PDF…", action: #selector(ViewerWindow.exportPDF(_:)), keyEquivalent: "e"
@@ -360,6 +361,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     sidebar.onAdd = { [weak owner] in owner?.openDocument(nil) }
     sidebar.onDrop = { [weak self] urls in self?.addDocuments(urls) }
     sidebar.onRemove = { [weak self] in self?.removeSelectedDocument() }
+    sidebar.onRemoveAll = { [weak self] in self?.confirmRemoveAllDocuments() }
     let toolbar = NSToolbar(identifier: "ReaderToolbar")
     toolbar.delegate = self
     toolbar.displayMode = .iconOnly
@@ -456,6 +458,29 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private func saveShelf() {
     if let data = try? JSONEncoder().encode(shelf) {
       UserDefaults.standard.set(data, forKey: "documentShelf")
+    }
+  }
+
+  static func removeAllConfirmation(count: Int) -> NSAlert {
+    let alert = NSAlert()
+    alert.messageText = "Remove all documents from the sidebar?"
+    alert.informativeText =
+      "This will clear all \(count) entries from the list. The original files will remain on disk."
+    alert.addButton(withTitle: "Cancel")
+    alert.addButton(withTitle: "Remove All")
+    alert.buttons[0].keyEquivalent = "\r"
+    alert.buttons[1].hasDestructiveAction = true
+    return alert
+  }
+
+  @objc func confirmRemoveAllDocuments() {
+    guard !shelf.urls.isEmpty, let window, window.attachedSheet == nil else { return }
+    Self.removeAllConfirmation(count: shelf.urls.count).beginSheetModal(for: window) {
+      [weak self] response in
+      guard response == .alertSecondButtonReturn, let self, !self.isClosing else { return }
+      self.shelf = DocumentShelf()
+      self.scrollPositions.removeAll()
+      self.removeSelectedDocument()
     }
   }
 
@@ -626,6 +651,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(confirmRemoveAllDocuments) {
+      return !shelf.urls.isEmpty && window?.attachedSheet == nil
+    }
     if menuItem.action == #selector(exportPDF(_:)) {
       return source != nil && fileURL != nil && !isRendering && exportJob == nil
     }
