@@ -77,6 +77,79 @@ struct SidebarOutlineTests {
     #expect(root.children.first?.heading?.title == "Ready")
   }
 
+  @Test func loadingOutlineAboveViewportKeepsVisibleFileInPlace() async throws {
+    _ = NSApplication.shared
+    let sidebar = SidebarController()
+    defer { sidebar.cancelAll() }
+    sidebar.view.frame = NSRect(x: 0, y: 0, width: 240, height: 200)
+    let urls = (0..<20).map { URL(fileURLWithPath: "/tmp/ssmv-scroll-\($0).md") }
+    sidebar.update(urls: urls, selected: urls.last)
+    sidebar.view.layoutSubtreeIfNeeded()
+    let table = try #require(findOutline(in: sidebar.view))
+    let first = try #require(
+      sidebar.outlineView(table, child: 0, ofItem: nil) as? SidebarController.Item)
+    sidebar.provideDocument(try MarkdownDocument.parse("# Initial"), for: urls[0])
+    try await waitUntil { first.loaded }
+    table.expandItem(first)
+    table.layoutSubtreeIfNeeded()
+    let target = sidebar.outlineView(table, child: 10, ofItem: nil)
+    let clip = try #require(table.enclosingScrollView?.contentView)
+    clip.scroll(to: NSPoint(x: 0, y: table.rect(ofRow: table.row(forItem: target)).minY))
+    let before = table.rect(ofRow: table.row(forItem: target)).minY - clip.bounds.minY
+    sidebar.provideDocument(
+      try MarkdownDocument.parse((0..<30).map { "# Heading \($0)" }.joined(separator: "\n\n")),
+      for: urls[0])
+    try await waitUntil { first.children.count == 30 }
+    let after = table.rect(ofRow: table.row(forItem: target)).minY - clip.bounds.minY
+    #expect(abs(after - before) < 1)
+  }
+
+  @Test func expandingFilesKeepsDisplayedRootOrder() async throws {
+    _ = NSApplication.shared
+    let sidebar = SidebarController()
+    defer { sidebar.cancelAll() }
+    let urls = ["A", "B", "C", "D"].map { URL(fileURLWithPath: "/tmp/ssmv-order-\($0).md") }
+    sidebar.update(urls: urls, selected: urls[0])
+    let table = try #require(findOutline(in: sidebar.view))
+    let roots = (0..<4).map {
+      sidebar.outlineView(table, child: $0, ofItem: nil) as! SidebarController.Item
+    }
+    for index in [3, 1, 0, 2] {
+      sidebar.provideDocument(try MarkdownDocument.parse("# Concurrent \(index)"), for: urls[index])
+      table.expandItem(roots[index])
+    }
+    try await waitUntil { roots.allSatisfy(\.loaded) }
+    #expect(
+      (0..<table.numberOfRows).compactMap { row -> URL? in
+        guard let item = table.item(atRow: row) as? SidebarController.Item, item.isFile else {
+          return nil
+        }
+        return item.url
+      } == urls)
+    for index in [3, 1, 0, 2, 3, 0, 1, 2] {
+      sidebar.invalidateOutline(urls[index])
+      sidebar.provideDocument(
+        try MarkdownDocument.parse("# Title\n\n## First\n\n## Second"), for: urls[index])
+      table.expandItem(roots[index])
+      try await waitUntil { roots[index].loaded }
+      table.expandItem(roots[index], expandChildren: true)
+      let displayed = (0..<table.numberOfRows).compactMap { row -> URL? in
+        guard let item = table.item(atRow: row) as? SidebarController.Item, item.isFile else {
+          return nil
+        }
+        return item.url
+      }
+      #expect(displayed == urls)
+      for root in roots {
+        let row = table.row(forItem: root)
+        let cell = try #require(
+          table.view(atColumn: 0, row: row, makeIfNecessary: true) as? NSTableCellView)
+        #expect(cell.textField?.stringValue == root.url.lastPathComponent)
+      }
+      table.collapseItem(roots[index])
+    }
+  }
+
   @Test func expandingInactiveFileLoadsLazilyAndRemovalDiscardsIt() async throws {
     _ = NSApplication.shared
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(

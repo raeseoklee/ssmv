@@ -135,7 +135,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     guard let item = items.first(where: { $0.url == url }) else { return }
     item.loaded = false
     item.children = []
-    refresh()
+    refresh(item: item)
   }
 
   func finishPendingDocument(_ url: URL, failed: Bool) {
@@ -145,7 +145,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     item.children = [
       Item(url: url, message: failed ? "Couldn’t read headings" : "Expand to load headings")
     ]
-    refresh()
+    refresh(item: item)
   }
 
   func provideDocument(_ document: AttributedString, for url: URL) {
@@ -186,7 +186,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         guard let self, !Task.isCancelled, self.generations[url] == generation else { return }
         item.children = [Item(url: url, message: "Couldn’t read headings")]
         item.loaded = true
-        self.refresh()
+        self.refresh(item: item)
       }
       guard let self, self.generations[url] == generation else { return }
       self.tasks[url] = nil
@@ -211,13 +211,22 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     }
     if item.children.isEmpty { item.children = [Item(url: item.url, message: "No headings")] }
     item.loaded = true
-    refresh()
+    refresh(item: item)
   }
 
-  private func refresh() {
+  private func refresh(item changedItem: Item? = nil) {
+    let clip = table.enclosingScrollView?.contentView
+    let origin = clip?.bounds.origin ?? .zero
+    let topRow = table.row(at: NSPoint(x: 0, y: origin.y))
+    let anchor = topRow >= 0 ? table.item(atRow: topRow) as? Item : nil
+    let anchorOffset = topRow >= 0 ? origin.y - table.rect(ofRow: topRow).minY : 0
     updating = true
     let expanded = items.filter { table.isItemExpanded($0) }
-    table.reloadData()
+    if let changedItem {
+      table.reloadItem(changedItem, reloadChildren: true)
+    } else {
+      table.reloadData()
+    }
     if outlineEnabled { for item in expanded { table.expandItem(item) } }
     func restore(_ item: Item) {
       if let heading = item.heading, expandedHeadings[item.url]?.contains(heading.id) == true {
@@ -234,13 +243,24 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     let selection =
       items.compactMap { selectedItem($0) }.first
       ?? items.first { $0.url == selectedURL }
-    if let selection, table.row(forItem: selection) >= 0 {
+    let visibleSelection =
+      selection.flatMap { table.row(forItem: $0) >= 0 ? $0 : nil }
+      ?? items.first { $0.url == selectedURL }
+    if let visibleSelection, table.row(forItem: visibleSelection) >= 0 {
       table.selectRowIndexes(
-        IndexSet(integer: table.row(forItem: selection)), byExtendingSelection: false)
+        IndexSet(integer: table.row(forItem: visibleSelection)), byExtendingSelection: false)
     } else {
       table.deselectAll(nil)
     }
     removeButton.isEnabled = selectedURL != nil
+    table.layoutSubtreeIfNeeded()
+    if let clip, let anchor {
+      let row = table.row(forItem: anchor)
+      if row >= 0 {
+        clip.scroll(to: NSPoint(x: origin.x, y: table.rect(ofRow: row).minY + anchorOffset))
+        table.enclosingScrollView?.reflectScrolledClipView(clip)
+      }
+    }
     updating = false
   }
 
