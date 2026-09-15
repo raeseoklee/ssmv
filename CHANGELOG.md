@@ -1,9 +1,9 @@
 # Changelog
 
-## 0.3.4 — 2026-09-15
+## Unreleased
 
 - Align the About description with document reading, heading navigation, and PDF export.
-- Refresh the README screenshot without the pointer overlay.
+
 
 ## 0.3.3 — 2026-09-15
 
@@ -39,9 +39,9 @@
 - Show or hide document outlines with the View menu or sidebar button; the preference persists across launches.
 - Load inactive outlines on expansion, cap each outline at 2,000 headings, and cancel outstanding outline work when disabled or removed.
 
-## 0.1.6 — 2026-09-15
+## 0.1.6 — 2026-09-15 (withdrawn)
 
-- Clarify the About description and add links to the source repository and MIT license.
+- Clarify the About description and add links to the source repository and MIT license. The standalone release was withdrawn; these changes remain included in later versions.
 
 ## 0.1.5 — 2026-09-14
 
