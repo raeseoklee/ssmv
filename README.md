@@ -2,9 +2,20 @@
 
 [한국어](docs/README.ko.md)
 
-SSMV is a native, read-only Markdown viewer for **macOS 13 and later**. Open local Markdown files from Finder, keep several documents in a collapsible sidebar, and export a document as PDF. Built with Swift and AppKit, it uses no web view, background server, or third-party packages.
+SSMV is a **lightweight Markdown viewer for macOS**. Open documents from Finder, jump to a section with the outline, and save a copy as PDF.
 
-![SSMV displaying Markdown with its document sidebar](docs/images/ssmv.png)
+**macOS 13+ · Apple Silicon & Intel · Free · MIT license**
+
+![SSMV in light mode with multiple documents and an expanded heading outline](docs/images/ssmv.png)
+
+## Features
+
+- **Open straight from Finder.** Use Open With, or set SSMV as your default for double-click access.
+- **Keep documents together.** Switch files in a collapsible sidebar and navigate by heading.
+- **Read comfortably.** Choose light or dark mode, adjust text size, and hide the controls in full screen.
+- **Save a PDF.** Export a paginated document while continuing to read.
+
+Built with Swift and AppKit, SSMV is read-only and uses no web view, background server, or third-party packages. See the [large-document measurements](docs/PERFORMANCE.md).
 
 ## Install
 
@@ -56,8 +67,6 @@ Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV*
 SSMV renders headings, paragraphs, emphasis, strikethrough, lists, block quotes, code blocks, tables, and links. Web links open in your default browser; relative Markdown links open in the sidebar. UTF-8 text, including Korean and emoji, is supported. Files are limited to 16 MiB.
 
 Images, HTML rendering, Mermaid diagrams, mathematical notation, syntax highlighting, interactive checkboxes, and in-document anchor navigation are not supported. Parsing uses Foundation Markdown and does not promise full GitHub rendering compatibility. These same limits apply to PDF export.
-
-Files are read and parsed in the background. After parsing, text appears in cancellable batches and the visible region is laid out on demand. You can switch documents while loading; at most two parsers run at once. An in-progress Foundation parse cannot be interrupted, so new work may wait if both are busy.
 
 Very large paragraphs, tables, finding distant text, and PDF export can still take time. PDF export becomes available when text construction finishes. There is no automatic file watching: use **⌘R** to reload changes.
 
