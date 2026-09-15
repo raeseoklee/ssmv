@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 — 2026-09-15
+
+- Align file icons with the filename and disclosure arrow in two-line sidebar rows.
+
 ## 0.2.1 — 2026-09-15
 
 - Place the add, remove, and outline controls beside the Documents heading, leaving more vertical space for the file list.

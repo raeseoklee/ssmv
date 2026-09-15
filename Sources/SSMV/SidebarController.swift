@@ -343,7 +343,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     }
     NSLayoutConstraint.activate([
       icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-      icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+      icon.centerYAnchor.constraint(equalTo: name.centerYAnchor),
       icon.widthAnchor.constraint(equalToConstant: 18),
       labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
       labels.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
