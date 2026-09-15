@@ -122,3 +122,8 @@ before creating UI or touching preferences. No default handlers are assigned.
 The 0.1.4 full-screen behavior is retained. Other-Mac state and direct hover
 interaction remain unverified; local supported-extension and default-handler
 queries validate the installed registration path.
+
+
+## 0.3.0 update check
+
+The startup checker reads the public `raeseoklee/homebrew-tap` cask over HTTPS using an ephemeral URLSession, with a five-second timeout and a 64 KiB response limit. It compares a literal numeric version without executing Ruby. No document content, paths, credentials, or analytics are transmitted. GitHub receives a normal network request with a fixed generic User-Agent. Checks are limited to once per 24 hours. The notice only copies Homebrew commands on request; it never runs a shell, downloads an app, or changes signing or quarantine policy. No external dependencies were added.

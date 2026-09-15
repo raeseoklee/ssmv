@@ -20,6 +20,13 @@ struct ExportLifecycleTests {
     try check(owner, viewer)
   }
 
+  @Test func updateNoticeGuidesThroughHomebrewOnly() {
+    let alert = AppDelegate.updateAlert(version: "0.3.0")
+    #expect(alert.messageText == "SSMV 0.3.0 is available")
+    #expect(alert.informativeText.contains("brew update\nbrew upgrade --cask raeseoklee/tap/ssmv"))
+    #expect(alert.buttons.map(\.title) == ["Copy Commands", "Dismiss"])
+  }
+
   @Test func fullScreenUsesNativeToolbarRevealWithoutChangingWindowedMode() throws {
     try withHiddenViewer { _, viewer in
       let window = try #require(viewer.window)

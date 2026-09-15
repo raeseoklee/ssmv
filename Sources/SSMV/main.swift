@@ -6,6 +6,43 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
   var windows: [ViewerWindow] = []
+  private lazy var updateChecker = HomebrewUpdateChecker(
+    currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+      as? String ?? "")
+  private var pendingUpdateVersion: String?
+  static let homebrewUpdateCommands = "brew update\nbrew upgrade --cask raeseoklee/tap/ssmv"
+
+  static func updateAlert(version: String) -> NSAlert {
+    let alert = NSAlert()
+    alert.messageText = "SSMV \(version) is available"
+    alert.informativeText =
+      "Update through Homebrew to use the supported installation process. Quit SSMV, then run these commands in Terminal:\n\n"
+      + homebrewUpdateCommands
+    alert.addButton(withTitle: "Copy Commands")
+    alert.addButton(withTitle: "Dismiss")
+    return alert
+  }
+
+  @objc private func presentPendingUpdate(_ notification: Notification? = nil) {
+    guard NSApp.isActive, let version = pendingUpdateVersion,
+      let viewer = windows.first(where: { !$0.isClosing && $0.window?.isKeyWindow == true })
+        ?? windows.first(where: { !$0.isClosing && $0.window?.isVisible == true }),
+      let window = viewer.window, window.attachedSheet == nil
+    else { return }
+    pendingUpdateVersion = nil
+    let alert = Self.updateAlert(version: version)
+    alert.beginSheetModal(for: window) { response in
+      if response == .alertFirstButtonReturn {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(Self.homebrewUpdateCommands, forType: .string)
+      }
+    }
+    updateChecker.markNotified(version)
+  }
+
+  func applicationDidBecomeActive(_ notification: Notification) {
+    presentPendingUpdate()
+  }
 
   override init() {
     super.init()
@@ -71,6 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     buildMenu()
     if windows.isEmpty { showWelcome() }
     NSApp.activate(ignoringOtherApps: true)
+    for name in [NSWindow.didBecomeKeyNotification, NSWindow.didEndSheetNotification] {
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(presentPendingUpdate(_:)), name: name, object: nil)
+    }
+    Task { [weak self] in
+      guard let self else { return }
+      self.pendingUpdateVersion = await self.updateChecker.check()
+      self.presentPendingUpdate()
+    }
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

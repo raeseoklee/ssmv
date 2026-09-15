@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — 2026-09-15
+
+- Check the Homebrew tap at launch, at most daily, and offer copyable upgrade commands when a newer version is available. No automatic download or installation is performed.
+- Refresh only the changed document outline and preserve the visible row position during asynchronous heading updates.
+- Add regression coverage for concurrent outline loading, displayed file order, and viewport stability.
+
 ## 0.2.2 — 2026-09-15
 
 - Align file icons with the filename and disclosure arrow in two-line sidebar rows.

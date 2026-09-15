@@ -15,7 +15,7 @@ open -a SSMV
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.2.2 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.3.0 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
 
 Open SSMV once after Homebrew installation to register it for Finder’s **Open With** menu.
 If an older installation is missing from that menu, refresh the tap and reinstall:
@@ -25,6 +25,17 @@ brew update
 brew reinstall --cask raeseoklee/tap/ssmv
 open -a SSMV
 ```
+
+## Updates
+
+At launch, SSMV checks this Homebrew tap in the background, at most once every 24 hours. When a newer version is available, an in-app notice offers **Copy Commands**. Quit SSMV, then run the commands in Terminal:
+
+```sh
+brew update
+brew upgrade --cask raeseoklee/tap/ssmv
+```
+
+SSMV does not download or install updates itself. Each version is announced once; failed checks remain silent. The check fetches the public cask file from GitHub without sending document contents or file paths.
 
 ## Use
 
