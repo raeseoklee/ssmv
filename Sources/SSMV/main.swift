@@ -362,6 +362,12 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     sidebar.onDrop = { [weak self] urls in self?.addDocuments(urls) }
     sidebar.onRemove = { [weak self] in self?.removeSelectedDocument() }
     sidebar.onRemoveAll = { [weak self] in self?.confirmRemoveAllDocuments() }
+    sidebar.setSortOrder(
+      DocumentSortOrder(rawValue: UserDefaults.standard.string(forKey: "documentSortOrder") ?? "")
+        ?? .added)
+    sidebar.onSort = { order in
+      UserDefaults.standard.set(order.rawValue, forKey: "documentSortOrder")
+    }
     let toolbar = NSToolbar(identifier: "ReaderToolbar")
     toolbar.delegate = self
     toolbar.displayMode = .iconOnly

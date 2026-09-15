@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-09-15
+
+- Sort sidebar documents by added order, natural filename order, or most recently modified from the context menu. Persist the choice without reordering files during selection or outline expansion.
 
 - Align the About description with document reading, heading navigation, and PDF export.
 

@@ -26,7 +26,7 @@ open -a SSMV
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.3.3 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.4.0 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
 
 Open SSMV once after Homebrew installation to register it for Finder’s **Open With** menu.
 If an older installation is missing from that menu, refresh the tap and reinstall:
@@ -54,6 +54,7 @@ Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV*
 
 - Add multiple documents with **⌘O**, the **+** button, or drag and drop onto the sidebar.
 - Select a document to read it; collapse the sidebar when you need more space.
+- Right-click the sidebar and choose **Sort By → Date Added / Name / Date Modified**. Added order is oldest first (the default), names use natural order, and modified order is newest first. The choice persists. Sorting applies when you change the sort order, add or remove files, or reopen the app; selecting a document or expanding its outline does not reorder files. Headings keep their order in the document.
 - Expand a file to browse its heading tree, then click a heading to jump there. Toggle **View → Show Document Outline** or the outline button beside **Documents**; the setting persists across launches. Outlines show up to 2,000 headings per file and load inactive documents only when expanded.
 - Remove a document with **−**, its context menu, or **⌘⌫**. This removes only the sidebar entry; it never deletes the source file.
 - Hold **−** for 0.6 seconds to show the clear-all confirmation. A short click still removes only the selected document. You can also clear the list with **File → Remove All from Sidebar…** or the sidebar context menu. Confirm **Remove All** to remove every entry; original files stay on disk.

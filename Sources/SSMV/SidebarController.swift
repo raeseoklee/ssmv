@@ -12,6 +12,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   var onDrop: (([URL]) -> Void)?
   var onRemove: (() -> Void)?
   var onRemoveAll: (() -> Void)?
+  var onSort: ((DocumentSortOrder) -> Void)?
+  private(set) var sortOrder: DocumentSortOrder = .added
+  private var addedURLs: [URL] = []
 
   final class Item {
     let url: URL
@@ -67,6 +70,18 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
       withTitle: "Remove All from Sidebar…", action: #selector(removeAllDocuments),
       keyEquivalent: "")
     removeAll.target = self
+    menu.addItem(.separator())
+    let sort = menu.addItem(withTitle: "Sort By", action: nil, keyEquivalent: "")
+    let submenu = NSMenu(title: "Sort By")
+    for (title, order) in [
+      ("Date Added", DocumentSortOrder.added), ("Name", .name), ("Date Modified", .modified),
+    ] {
+      let item = submenu.addItem(
+        withTitle: title, action: #selector(changeSort(_:)), keyEquivalent: "")
+      item.target = self
+      item.representedObject = order.rawValue
+    }
+    sort.submenu = submenu
     table.menu = menu
     scroll.documentView = table
     let add = SidebarActionButton(
@@ -128,7 +143,8 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     _ = view
     for url in Array(tasks.keys) where !urls.contains(url) { cancel(url) }
     let old = Dictionary(uniqueKeysWithValues: items.map { ($0.url, $0) })
-    items = urls.map { old[$0] ?? Item(url: $0) }
+    addedURLs = urls
+    items = sortOrder.sorted(urls).map { old[$0] ?? Item(url: $0) }
     if selectedURL != selected { selectedHeadingID = nil }
     selectedURL = selected
     expandedHeadings = expandedHeadings.filter { urls.contains($0.key) }
@@ -432,7 +448,25 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     onSelect?(item.url)
     onRemove?()
   }
+  func setSortOrder(_ order: DocumentSortOrder) {
+    guard sortOrder != order else { return }
+    sortOrder = order
+    update(urls: addedURLs, selected: selectedURL)
+  }
+
+  @objc private func changeSort(_ sender: NSMenuItem) {
+    guard let raw = sender.representedObject as? String,
+      let order = DocumentSortOrder(rawValue: raw)
+    else { return }
+    setSortOrder(order)
+    onSort?(order)
+  }
+
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(changeSort(_:)) {
+      menuItem.state = (menuItem.representedObject as? String) == sortOrder.rawValue ? .on : .off
+      return true
+    }
     if menuItem.action == #selector(removeAllDocuments) { return !items.isEmpty }
     if menuItem.action == #selector(removeClickedDocument) { return table.clickedRow >= 0 }
     return true

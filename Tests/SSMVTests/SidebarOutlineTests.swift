@@ -17,6 +17,41 @@ struct SidebarOutlineTests {
     #expect(condition())
   }
 
+  @Test func sortMenuPreservesSelectionAndOutlineOrder() async throws {
+    let sidebar = SidebarController()
+    defer { sidebar.cancelAll() }
+    let urls = ["B.md", "A.md"].map { URL(fileURLWithPath: "/tmp/\($0)") }
+    sidebar.update(urls: urls, selected: urls[0])
+    let table = try #require(findOutline(in: sidebar.view))
+    let sort = try #require(table.menu?.items.first { $0.title == "Sort By" }?.submenu)
+    #expect(sort.items.count == 3)
+    var chosen: DocumentSortOrder?
+    sidebar.onSort = { chosen = $0 }
+    let nameItem = sort.items[1]
+    _ = sidebar.perform(try #require(nameItem.action), with: nameItem)
+    #expect(chosen == .name)
+    #expect(sidebar.validateMenuItem(nameItem))
+    #expect(nameItem.state == .on)
+    func roots() -> [URL] {
+      (0..<sidebar.outlineView(table, numberOfChildrenOfItem: nil)).compactMap {
+        (sidebar.outlineView(table, child: $0, ofItem: nil) as? SidebarController.Item)?.url
+      }
+    }
+    #expect(roots() == [urls[1], urls[0]])
+    #expect((table.item(atRow: table.selectedRow) as? SidebarController.Item)?.url == urls[0])
+    let document = try MarkdownDocument.parse("# Zulu\n\n# Alpha")
+    sidebar.provideDocument(document, for: urls[0])
+    let file = sidebar.outlineView(table, child: 1, ofItem: nil) as! SidebarController.Item
+    table.expandItem(file)
+    try await waitUntil { file.loaded }
+    #expect(roots() == [urls[1], urls[0]])
+    #expect(file.children.compactMap { $0.heading?.title } == ["Zulu", "Alpha"])
+    table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+    #expect(roots() == [urls[1], urls[0]])
+    sidebar.setSortOrder(.added)
+    #expect(roots() == urls)
+  }
+
   @Test func headerButtonsHaveMatchingFrames() {
     let sidebar = SidebarController()
     sidebar.view.frame = NSRect(x: 0, y: 0, width: 240, height: 300)
