@@ -6,7 +6,7 @@ SSMV는 **macOS용 가벼운 Markdown 뷰어**입니다. Finder에서 문서를 
 
 **macOS 13 이상 · Apple Silicon 및 Intel · 무료 · MIT 라이선스**
 
-![여러 문서와 제목별 목차를 표시하는 SSMV 라이트 모드 화면](images/ssmv.png)
+![여러 문서와 제목별 목차를 표시하는 SSMV 라이트 모드 화면](images/ssmv-sidebar-9450b1ce.png)
 
 ## 주요 기능
 

@@ -6,7 +6,7 @@ SSMV is a **lightweight Markdown viewer for macOS**. Open documents from Finder,
 
 **macOS 13+ · Apple Silicon & Intel · Free · MIT license**
 
-![SSMV in light mode with multiple documents and an expanded heading outline](docs/images/ssmv.png)
+![SSMV in light mode with multiple documents and an expanded heading outline](docs/images/ssmv-sidebar-9450b1ce.png)
 
 ## Features
 

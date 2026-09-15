@@ -25,6 +25,14 @@ UNIVERSAL=1 scripts/build-app.sh
 
 For UI changes, open `dist/SSMV.app` and check the affected behavior in light and dark appearances. Test Finder opening, sidebar selection, or PDF output when relevant. Cross-compiling for Intel does not verify execution on Intel hardware; report hardware-specific gaps.
 
+## Release scope
+
+Documentation, screenshots, and GitHub repository metadata are published without changing the app version, creating a tag or GitHub Release, rebuilding the app, or updating the Homebrew cask. Update tap documentation when relevant, but leave its cask unchanged.
+
+In repository-presentation work, “About” refers to the GitHub repository description unless the request explicitly refers to the app's About window. Minor app copy changes can wait for the next planned release; do not publish a standalone release automatically.
+
+Use a new screenshot filename when replacing an image so previously cached images are not reused. Verify the published image and update both language editions and tap references.
+
 ## Pull requests
 
 Keep changes focused and reuse existing patterns. Add regression coverage for behavior changes. Explain the problem, the resulting behavior, and the checks you ran. Include a screenshot for visual changes and state any untested scenarios. Do not include personal documents, credentials, generated build output, or third-party material without compatible licensing and attribution.
