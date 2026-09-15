@@ -4,7 +4,7 @@ import MarkdownCore
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
   var windows: [ViewerWindow] = []
 
   override init() {
@@ -12,6 +12,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     PreferencesMigration.migrate(
       defaults: .standard,
       legacyDomain: UserDefaults.standard.persistentDomain(forName: "io.github.irae.mdview") ?? [:])
+  }
+
+  var outlineEnabled: Bool {
+    UserDefaults.standard.object(forKey: "showDocumentOutline") as? Bool ?? true
+  }
+
+  @objc func toggleDocumentOutline(_ sender: Any?) {
+    let enabled = !outlineEnabled
+    UserDefaults.standard.set(enabled, forKey: "showDocumentOutline")
+    for viewer in windows { viewer.setOutlineEnabled(enabled) }
+  }
+
+  func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(toggleDocumentOutline(_:)) {
+      menuItem.state = outlineEnabled ? .on : .off
+    }
+    return true
   }
 
   @objc func showShortcutHelp(_ sender: Any?) {
@@ -180,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       withTitle: "Toggle Sidebar", action: #selector(ViewerWindow.toggleSidebar(_:)),
       keyEquivalent: "s")
     toggle.keyEquivalentModifierMask = [.command, .control]
+    add(view, "Show Document Outline", #selector(toggleDocumentOutline(_:)), target: self)
     view.addItem(.separator())
     for (tag, title) in ["System Appearance", "Light", "Dark"].enumerated() {
       let item = view.addItem(withTitle: title, action: #selector(setTheme(_:)), keyEquivalent: "")
@@ -220,6 +238,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private var scrollPositions: [URL: NSPoint] = [:]
   private var parsed: AttributedString?
   private var source: String?
+  private var pendingHeading: (url: URL, id: Int)?
   var exportJob: PDFExportJob?
   private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
@@ -285,7 +304,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     window.contentViewController = split
     split.splitView.setPosition(230, ofDividerAt: 0)
     sidebarItem.isCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed")
-    sidebar.onSelect = { [weak self] url in self?.selectDocument(url) }
+    sidebar.onSelect = { [weak self] url in
+      self?.pendingHeading = nil
+      self?.selectDocument(url)
+    }
+    sidebar.onSelectHeading = { [weak self] url, id in self?.navigateToHeading(url, id: id) }
+    sidebar.onToggleOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
+    sidebar.setOutlineEnabled(owner.outlineEnabled)
     sidebar.onAdd = { [weak owner] in owner?.openDocument(nil) }
     sidebar.onDrop = { [weak self] urls in self?.addDocuments(urls) }
     sidebar.onRemove = { [weak self] in self?.removeSelectedDocument() }
@@ -331,8 +356,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       scrollPositions[fileURL] = scrollRestoration.positionToSave(
         current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
     }
+    if let previous = fileURL, previous != url {
+      sidebar.finishPendingDocument(previous, failed: false)
+    }
     parsed = nil
     source = nil
+    if pendingHeading?.url != url { pendingHeading = nil }
+    sidebar.invalidateOutline(url)
     fileURL = url
     window?.title = url.lastPathComponent
     window?.representedURL = url
@@ -351,10 +381,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
         guard let self, !Task.isCancelled, self.generation == request else { return }
         self.parsed = snapshot.document
         self.source = snapshot.source
+        self.sidebar.provideDocument(snapshot.document, for: url)
         self.render(restoring: self.scrollPositions[url] ?? .zero)
       } catch {
         guard let self, !Task.isCancelled, self.generation == request else { return }
         self.parsed = nil
+        self.pendingHeading = nil
+        self.sidebar.finishPendingDocument(url, failed: true)
         self.showMessage("Couldn’t open document", detail: error.localizedDescription)
       }
     }
@@ -397,6 +430,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       scrollRestoration.clear()
       parsed = nil
       source = nil
+      pendingHeading = nil
       fileURL = nil
       window?.title = "SSMV"
       window?.representedURL = nil
@@ -482,6 +516,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
           self.textView.scroll(target)
         }
         self.scrollRestoration.clear()
+        self.revealPendingHeading()
       } catch is CancellationError {
         // A newer render or document owns the view now.
       } catch {
@@ -490,6 +525,35 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
         self.showMessage("Couldn’t display document", detail: error.localizedDescription)
       }
     }
+  }
+
+  func setOutlineEnabled(_ enabled: Bool) {
+    sidebar.setOutlineEnabled(enabled, document: parsed)
+    if !enabled { pendingHeading = nil }
+  }
+
+  private func navigateToHeading(_ url: URL, id: Int) {
+    pendingHeading = (url, id)
+    if url != fileURL { selectDocument(url) } else { revealPendingHeading() }
+  }
+
+  private func revealPendingHeading() {
+    guard !isRendering, let pendingHeading, pendingHeading.url == displayedURL,
+      let storage = textView.textStorage
+    else { return }
+    var target: NSRange?
+    storage.enumerateAttribute(.documentHeadingID, in: NSRange(location: 0, length: storage.length))
+    { value, range, stop in
+      if value as? Int == pendingHeading.id {
+        target = range
+        stop.pointee = true
+      }
+    }
+    self.pendingHeading = nil
+    guard let target else { return }
+    scrollRestoration.clear()
+    textView.scrollRangeToVisible(target)
+    textView.showFindIndicator(for: target)
   }
 
   @objc private func userStartedScrolling(_ notification: Notification) {
@@ -575,6 +639,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   func cancelPDFExport() { exportJob?.cancelExport() }
 
   func windowWillClose(_ notification: Notification) {
+    sidebar.cancelAll()
     isClosing = true
     exportJob?.cancelExport()
     loadTask?.cancel()

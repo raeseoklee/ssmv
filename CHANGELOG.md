@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-09-15
+
+- Browse nested document headings beneath each file in the sidebar and click a heading to jump to its location.
+- Show or hide document outlines with the View menu or sidebar button; the preference persists across launches.
+- Load inactive outlines on expansion, cap each outline at 2,000 headings, and cancel outstanding outline work when disabled or removed.
+
 ## 0.1.6 — 2026-09-15
 
 - Clarify the About description and add links to the source repository and MIT license.

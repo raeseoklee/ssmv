@@ -68,6 +68,8 @@ public enum MarkdownRenderer {
 
   private final class RenderingState {
     let size: CGFloat
+    var previousHeadingIdentity: Int?
+    var headingOrdinal = -1
     var previousBlock: Int?
     var previousAttributes: [NSAttributedString.Key: Any]?
     var tables: [Int: NSTextTable] = [:]
@@ -209,6 +211,16 @@ public enum MarkdownRenderer {
       var attributes: [NSAttributedString.Key: Any] = [
         .font: font, .foregroundColor: color, .paragraphStyle: paragraphStyle,
       ]
+      if let heading = components.first(where: {
+        if case .header = $0.kind { return true }
+        return false
+      }) {
+        if previousHeadingIdentity != heading.identity {
+          headingOrdinal += 1
+          previousHeadingIdentity = heading.identity
+        }
+        attributes[.documentHeadingID] = headingOrdinal
+      }
       if let background { attributes[.backgroundColor] = background }
       if let link = run.link { attributes[.link] = link }
       if run.inlinePresentationIntent?.contains(.strikethrough) == true {

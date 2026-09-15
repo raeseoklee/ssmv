@@ -1,15 +1,40 @@
 import AppKit
+import MarkdownCore
 
 @MainActor
-final class SidebarController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
   var onSelect: ((URL) -> Void)?
+  var onSelectHeading: ((URL, Int) -> Void)?
+  var onToggleOutline: (() -> Void)?
   var onAdd: (() -> Void)?
   var onDrop: (([URL]) -> Void)?
   var onRemove: (() -> Void)?
-  private let table = NSTableView()
+
+  final class Item {
+    let url: URL
+    let heading: DocumentOutline.Heading?
+    let message: String?
+    var children: [Item] = []
+    var loaded = false
+    init(url: URL, heading: DocumentOutline.Heading? = nil, message: String? = nil) {
+      self.url = url
+      self.heading = heading
+      self.message = message
+    }
+    var isFile: Bool { heading == nil && message == nil }
+  }
+
+  private let table = NSOutlineView()
   private let removeButton = NSButton()
-  private var urls: [URL] = []
+  private let outlineButton = NSButton()
+  private var items: [Item] = []
+  private var tasks: [URL: Task<Void, Never>] = [:]
+  private var generations: [URL: UUID] = [:]
   private var updating = false
+  private var selectedURL: URL?
+  private var selectedHeadingID: Int?
+  private var expandedHeadings: [URL: Set<Int>] = [:]
+  private(set) var outlineEnabled = true
 
   override func loadView() {
     view = NSView()
@@ -19,37 +44,47 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     let scroll = NSScrollView()
     scroll.hasVerticalScroller = true
     scroll.drawsBackground = false
-    table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Document")))
+    let column = NSTableColumn(identifier: .init("Document"))
+    table.addTableColumn(column)
+    table.outlineTableColumn = column
     table.headerView = nil
     table.style = .sourceList
-    table.rowHeight = 46
+    table.indentationPerLevel = 12
     table.backgroundColor = .clear
     table.dataSource = self
     table.delegate = self
     table.setAccessibilityLabel("Documents sidebar")
     table.registerForDraggedTypes([.fileURL])
-    let contextMenu = NSMenu()
-    let removeItem = contextMenu.addItem(
+    let menu = NSMenu()
+    let remove = menu.addItem(
       withTitle: "Remove from Sidebar", action: #selector(removeClickedDocument), keyEquivalent: "")
-    removeItem.target = self
-    table.menu = contextMenu
+    remove.target = self
+    table.menu = menu
     scroll.documentView = table
-    let addButton = NSButton(
+    let add = NSButton(
       image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Add documents")!,
       target: self, action: #selector(addDocuments))
-    addButton.bezelStyle = .inline
-    addButton.toolTip = "Add documents (⌘O)"
+    add.bezelStyle = .inline
+    add.toolTip = "Add documents (⌘O)"
     removeButton.image = NSImage(
       systemSymbolName: "minus", accessibilityDescription: "Remove document from sidebar")
     removeButton.target = self
     removeButton.action = #selector(removeDocument)
     removeButton.bezelStyle = .inline
     removeButton.toolTip = "Remove from sidebar; keep file on disk"
-    let footer = NSStackView(views: [addButton, removeButton])
+    outlineButton.image = NSImage(
+      systemSymbolName: "list.bullet.indent", accessibilityDescription: "Document Outline")
+    outlineButton.setButtonType(.pushOnPushOff)
+    outlineButton.bezelStyle = .inline
+    outlineButton.target = self
+    outlineButton.action = #selector(toggleOutline)
+    outlineButton.toolTip = "Show or hide document outlines"
+    outlineButton.state = outlineEnabled ? .on : .off
+    let footer = NSStackView(views: [add, removeButton, outlineButton])
     footer.spacing = 12
-    for subview in [title, scroll, footer] {
-      subview.translatesAutoresizingMaskIntoConstraints = false
-      view.addSubview(subview)
+    for child in [title, scroll, footer] {
+      child.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview(child)
     }
     NSLayoutConstraint.activate([
       title.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
@@ -65,24 +100,228 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
   func update(urls: [URL], selected: URL?) {
     _ = view
+    for url in Array(tasks.keys) where !urls.contains(url) { cancel(url) }
+    let old = Dictionary(uniqueKeysWithValues: items.map { ($0.url, $0) })
+    items = urls.map { old[$0] ?? Item(url: $0) }
+    if selectedURL != selected { selectedHeadingID = nil }
+    selectedURL = selected
+    expandedHeadings = expandedHeadings.filter { urls.contains($0.key) }
+    refresh()
+  }
+
+  func setOutlineEnabled(_ enabled: Bool, document: AttributedString? = nil) {
+    _ = view
+    outlineEnabled = enabled
+    outlineButton.state = enabled ? .on : .off
+    if !enabled {
+      cancelAll()
+      selectedHeadingID = nil
+      expandedHeadings = [:]
+      for item in items {
+        item.children = []
+        item.loaded = false
+      }
+    }
+    refresh()
+    if enabled, let selectedURL, let item = items.first(where: { $0.url == selectedURL }) {
+      if let document { provideDocument(document, for: selectedURL) }
+      table.expandItem(item)
+    }
+  }
+
+  func invalidateOutline(_ url: URL) {
+    cancel(url)
+    guard let item = items.first(where: { $0.url == url }) else { return }
+    item.loaded = false
+    item.children = []
+    refresh()
+  }
+
+  func finishPendingDocument(_ url: URL, failed: Bool) {
+    guard let item = items.first(where: { $0.url == url }), !item.loaded,
+      tasks[url] == nil
+    else { return }
+    item.children = [
+      Item(url: url, message: failed ? "Couldn’t read headings" : "Expand to load headings")
+    ]
+    refresh()
+  }
+
+  func provideDocument(_ document: AttributedString, for url: URL) {
+    guard outlineEnabled else { return }
+    requestOutline(url, document: document)
+  }
+
+  func cancelAll() { for url in Array(tasks.keys) { cancel(url) } }
+
+  private func cancel(_ url: URL) {
+    tasks.removeValue(forKey: url)?.cancel()
+    generations.removeValue(forKey: url)
+  }
+
+  private func requestOutline(_ url: URL, document: AttributedString? = nil) {
+    guard outlineEnabled, let item = items.first(where: { $0.url == url }) else { return }
+    if document == nil && (item.loaded || tasks[url] != nil) { return }
+    cancel(url)
+    let generation = UUID()
+    generations[url] = generation
+    tasks[url] = Task { [weak self] in
+      do {
+        let parsed: AttributedString
+        if let document {
+          parsed = document
+        } else {
+          parsed = try await DocumentLoader.shared.load(url)
+        }
+        let build = Task.detached { try DocumentOutline.build(parsed) }
+        let outline = try await withTaskCancellationHandler {
+          try await build.value
+        } onCancel: {
+          build.cancel()
+        }
+        guard let self, !Task.isCancelled, self.generations[url] == generation else { return }
+        self.install(outline, into: item)
+      } catch {
+        guard let self, !Task.isCancelled, self.generations[url] == generation else { return }
+        item.children = [Item(url: url, message: "Couldn’t read headings")]
+        item.loaded = true
+        self.refresh()
+      }
+      guard let self, self.generations[url] == generation else { return }
+      self.tasks[url] = nil
+      self.generations[url] = nil
+    }
+  }
+
+  private func install(_ outline: DocumentOutline, into item: Item) {
+    var nodes: [Int: Item] = [:]
+    item.children = []
+    for heading in outline.headings {
+      let node = Item(url: item.url, heading: heading)
+      nodes[heading.id] = node
+      if let parent = heading.parentID.flatMap({ nodes[$0] }) {
+        parent.children.append(node)
+      } else {
+        item.children.append(node)
+      }
+    }
+    if outline.isTruncated {
+      item.children.append(Item(url: item.url, message: "First 2,000 headings shown"))
+    }
+    if item.children.isEmpty { item.children = [Item(url: item.url, message: "No headings")] }
+    item.loaded = true
+    refresh()
+  }
+
+  private func refresh() {
     updating = true
-    self.urls = urls
+    let expanded = items.filter { table.isItemExpanded($0) }
     table.reloadData()
-    if let selected, let index = urls.firstIndex(of: selected) {
-      table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-      table.scrollRowToVisible(index)
+    if outlineEnabled { for item in expanded { table.expandItem(item) } }
+    func restore(_ item: Item) {
+      if let heading = item.heading, expandedHeadings[item.url]?.contains(heading.id) == true {
+        table.expandItem(item)
+      }
+      for child in item.children { restore(child) }
+    }
+    if outlineEnabled { for item in expanded { restore(item) } }
+    func selectedItem(_ item: Item) -> Item? {
+      if item.url == selectedURL && item.heading?.id == selectedHeadingID { return item }
+      for child in item.children { if let found = selectedItem(child) { return found } }
+      return nil
+    }
+    let selection =
+      items.compactMap { selectedItem($0) }.first
+      ?? items.first { $0.url == selectedURL }
+    if let selection, table.row(forItem: selection) >= 0 {
+      table.selectRowIndexes(
+        IndexSet(integer: table.row(forItem: selection)), byExtendingSelection: false)
     } else {
       table.deselectAll(nil)
     }
-    removeButton.isEnabled = selected != nil
+    removeButton.isEnabled = selectedURL != nil
     updating = false
   }
 
-  func numberOfRows(in tableView: NSTableView) -> Int { urls.count }
+  func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+    guard let item = item as? Item else { return items.count }
+    if item.isFile { return outlineEnabled ? max(1, item.children.count) : 0 }
+    return item.children.count
+  }
 
-  func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
+  func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+    guard let item = item as? Item else { return items[index] }
+    if item.isFile && item.children.isEmpty {
+      item.children = [Item(url: item.url, message: "Loading headings…")]
+    }
+    return item.children[index]
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+    guard let item = item as? Item else { return false }
+    return item.isFile ? outlineEnabled : !item.children.isEmpty
+  }
+
+  func outlineViewItemDidExpand(_ notification: Notification) {
+    guard !updating, let item = notification.userInfo?["NSObject"] as? Item else { return }
+    if item.isFile {
+      requestOutline(item.url)
+    } else if let heading = item.heading {
+      expandedHeadings[item.url, default: []].insert(heading.id)
+    }
+  }
+
+  func outlineViewItemDidCollapse(_ notification: Notification) {
+    guard !updating, let item = notification.userInfo?["NSObject"] as? Item,
+      let heading = item.heading
+    else { return }
+    expandedHeadings[item.url]?.remove(heading.id)
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+    (item as? Item)?.message == nil
+  }
+
+  func outlineViewSelectionDidChange(_ notification: Notification) {
+    guard !updating, let item = table.item(atRow: table.selectedRow) as? Item, item.message == nil
+    else { return }
+    selectedURL = item.url
+    selectedHeadingID = item.heading?.id
+    removeButton.isEnabled = true
+    if let heading = item.heading {
+      onSelectHeading?(item.url, heading.id)
+    } else {
+      onSelect?(item.url)
+    }
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+    (item as? Item)?.isFile == true ? 46 : 26
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
+    -> NSView?
   {
-    let url = urls[row]
+    guard let item = item as? Item else { return nil }
+    if item.isFile { return documentCell(item.url) }
+    let cell = NSTableCellView()
+    let text = NSTextField(labelWithString: item.heading?.title ?? item.message ?? "")
+    text.font = .systemFont(ofSize: 12)
+    text.textColor = item.message == nil ? .labelColor : .secondaryLabelColor
+    text.lineBreakMode = .byTruncatingTail
+    text.translatesAutoresizingMaskIntoConstraints = false
+    cell.addSubview(text)
+    NSLayoutConstraint.activate([
+      text.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+      text.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+      text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+    ])
+    cell.textField = text
+    cell.toolTip = text.stringValue
+    return cell
+  }
+
+  private func documentCell(_ url: URL) -> NSView {
     let cell = NSTableCellView()
     let icon = NSImageView(
       image: NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)!)
@@ -117,41 +356,33 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     return cell
   }
 
-  func tableViewSelectionDidChange(_ notification: Notification) {
-    guard !updating, urls.indices.contains(table.selectedRow) else { return }
-    onSelect?(urls[table.selectedRow])
-  }
-
   private func droppedURLs(_ info: NSDraggingInfo) -> [URL] {
     (info.draggingPasteboard.readObjects(
       forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [])
       .filter { ["md", "markdown", "mdown"].contains($0.pathExtension.lowercased()) }
   }
-
-  func tableView(
-    _ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int,
-    proposedDropOperation operation: NSTableView.DropOperation
+  func outlineView(
+    _ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?,
+    proposedChildIndex index: Int
   ) -> NSDragOperation {
-    tableView.setDropRow(-1, dropOperation: .on)
+    outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
     return droppedURLs(info).isEmpty ? [] : .copy
   }
-
-  func tableView(
-    _ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int,
-    dropOperation: NSTableView.DropOperation
+  func outlineView(
+    _ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int
   ) -> Bool {
     let urls = droppedURLs(info)
     guard !urls.isEmpty else { return false }
     onDrop?(urls)
     return true
   }
-
   @objc private func removeClickedDocument() {
-    guard urls.indices.contains(table.clickedRow) else { return }
-    table.selectRowIndexes(IndexSet(integer: table.clickedRow), byExtendingSelection: false)
+    guard let item = table.item(atRow: table.clickedRow) as? Item else { return }
+    selectedURL = item.url
+    onSelect?(item.url)
     onRemove?()
   }
-
+  @objc private func toggleOutline() { onToggleOutline?() }
   @objc private func addDocuments() { onAdd?() }
   @objc private func removeDocument() { onRemove?() }
 }
