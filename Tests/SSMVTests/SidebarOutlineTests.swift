@@ -17,6 +17,22 @@ struct SidebarOutlineTests {
     #expect(condition())
   }
 
+  @Test func headerButtonsHaveMatchingFrames() {
+    let sidebar = SidebarController()
+    sidebar.view.frame = NSRect(x: 0, y: 0, width: 240, height: 300)
+    sidebar.view.layoutSubtreeIfNeeded()
+    func buttons(in view: NSView) -> [NSButton] {
+      if let button = view as? NSButton { return [button] }
+      return view.subviews.flatMap { buttons(in: $0) }
+    }
+    let actions = buttons(in: sidebar.view)
+    #expect(actions.count == 3)
+    for button in actions {
+      #expect(button.frame.width == 22)
+      #expect(button.frame.height == 18)
+    }
+  }
+
   @Test func minusClickAndHoldHaveSeparateActions() throws {
     _ = NSApplication.shared
     let sidebar = SidebarController()

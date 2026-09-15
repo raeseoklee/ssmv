@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3 — 2026-09-15
+
+- Use matching size, background, and symbol weight for all three sidebar actions. Restore the original outline glyph and indicate its enabled state with a border that remains visible in inactive windows.
+
 ## 0.3.2 — 2026-09-15
 
 - Distinguish outline on/off states with filled and outlined symbols, retaining contrast when the window loses focus.

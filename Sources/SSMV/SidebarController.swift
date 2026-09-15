@@ -28,8 +28,8 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   }
 
   private let table = NSOutlineView()
-  private let removeButton = NSButton()
-  private let outlineButton = NSButton()
+  private let removeButton = SidebarActionButton()
+  private let outlineButton = SidebarActionButton()
   private var items: [Item] = []
   private var tasks: [URL: Task<Void, Never>] = [:]
   private var generations: [URL: UUID] = [:]
@@ -69,16 +69,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     removeAll.target = self
     table.menu = menu
     scroll.documentView = table
-    let add = NSButton(
+    let add = SidebarActionButton(
       image: NSImage(systemSymbolName: "plus", accessibilityDescription: "Add documents")!,
       target: self, action: #selector(addDocuments))
-    add.bezelStyle = .inline
+    add.bezelStyle = .regularSquare
     add.toolTip = "Add documents (⌘O)"
     removeButton.image = NSImage(
       systemSymbolName: "minus", accessibilityDescription: "Remove document from sidebar")
     removeButton.target = self
     removeButton.action = #selector(removeDocument)
-    removeButton.bezelStyle = .inline
+    removeButton.bezelStyle = .regularSquare
     removeButton.toolTip = "Click to remove the selected document; hold to remove all…"
     let removeAllPress = NSPressGestureRecognizer(
       target: self, action: #selector(removeButtonHeld(_:)))
@@ -86,21 +86,27 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     removeAllPress.allowableMovement = 6
     removeButton.addGestureRecognizer(removeAllPress)
     outlineButton.image = NSImage(
-      systemSymbolName: "list.bullet.rectangle.fill", accessibilityDescription: "Document Outline")
+      systemSymbolName: "list.bullet.indent", accessibilityDescription: "Document Outline")
     outlineButton.setButtonType(.pushOnPushOff)
     outlineButton.setAccessibilityRole(.checkBox)
     outlineButton.setAccessibilityValue(NSNumber(value: outlineEnabled))
-    outlineButton.bezelStyle = .inline
-    outlineButton.isBordered = false
-    outlineButton.contentTintColor = .labelColor
-    // Keep the symbol legible when the window is inactive instead of filling a gray pill.
-    (outlineButton.cell as? NSButtonCell)?.showsStateBy = []
+    outlineButton.bezelStyle = .regularSquare
     outlineButton.target = self
     outlineButton.action = #selector(toggleOutline)
     outlineButton.toolTip = "Show or hide document outlines"
     outlineButton.state = outlineEnabled ? .on : .off
+    for button in [add, removeButton, outlineButton] {
+      button.isBordered = false
+      button.contentTintColor = .labelColor
+      button.image = button.image?.withSymbolConfiguration(
+        NSImage.SymbolConfiguration(pointSize: 11, weight: .medium))
+      (button.cell as? NSButtonCell)?.showsStateBy = []
+      (button.cell as? NSButtonCell)?.highlightsBy = []
+      button.widthAnchor.constraint(equalToConstant: 22).isActive = true
+      button.heightAnchor.constraint(equalToConstant: 18).isActive = true
+    }
     let actions = NSStackView(views: [add, removeButton, outlineButton])
-    actions.spacing = 8
+    actions.spacing = 5
     for child in [title, scroll, actions] {
       child.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(child)
@@ -134,9 +140,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     outlineEnabled = enabled
     outlineButton.state = enabled ? .on : .off
     outlineButton.setAccessibilityValue(NSNumber(value: enabled))
-    outlineButton.image = NSImage(
-      systemSymbolName: enabled ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
-      accessibilityDescription: "Document Outline")
+    outlineButton.needsDisplay = true
     outlineButton.toolTip =
       enabled ? "Document outline on — click to hide" : "Document outline off — click to show"
     if !enabled {
@@ -441,4 +445,22 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   @objc private func toggleOutline() { onToggleOutline?() }
   @objc private func addDocuments() { onAdd?() }
   @objc private func removeDocument() { onRemove?() }
+}
+
+/// Shared compact treatment; selection stays visible even when the window is not key.
+@MainActor
+private final class SidebarActionButton: NSButton {
+  override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5)
+    (isHighlighted ? NSColor.tertiaryLabelColor : NSColor.quaternaryLabelColor).setFill()
+    shape.fill()
+    if state == .on {
+      NSColor.secondaryLabelColor.setStroke()
+      shape.lineWidth = 1
+      shape.stroke()
+    }
+    super.draw(dirtyRect)
+  }
 }
