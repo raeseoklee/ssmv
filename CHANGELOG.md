@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-09-15
+
+- Place the add, remove, and outline controls beside the Documents heading, leaving more vertical space for the file list.
+
 ## 0.2.0 — 2026-09-15
 
 - Browse nested document headings beneath each file in the sidebar and click a heading to jump to its location.

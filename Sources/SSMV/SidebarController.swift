@@ -80,9 +80,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     outlineButton.action = #selector(toggleOutline)
     outlineButton.toolTip = "Show or hide document outlines"
     outlineButton.state = outlineEnabled ? .on : .off
-    let footer = NSStackView(views: [add, removeButton, outlineButton])
-    footer.spacing = 12
-    for child in [title, scroll, footer] {
+    let actions = NSStackView(views: [add, removeButton, outlineButton])
+    actions.spacing = 8
+    for child in [title, scroll, actions] {
       child.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(child)
     }
@@ -92,9 +92,10 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
       scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
       scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -8),
-      footer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      footer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
+      scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+      actions.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+      actions.leadingAnchor.constraint(greaterThanOrEqualTo: title.trailingAnchor, constant: 8),
+      actions.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
     ])
   }
 

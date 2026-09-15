@@ -15,7 +15,7 @@ open -a SSMV
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.2.0 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.2.1 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
 
 Open SSMV once after Homebrew installation to register it for Finder’s **Open With** menu.
 If an older installation is missing from that menu, refresh the tap and reinstall:
@@ -32,7 +32,7 @@ Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV*
 
 - Add multiple documents with **⌘O**, the **+** button, or drag and drop onto the sidebar.
 - Select a document to read it; collapse the sidebar when you need more space.
-- Expand a file to browse its heading tree, then click a heading to jump there. Toggle **View → Show Document Outline** or the outline button below the file list; the setting persists across launches. Outlines show up to 2,000 headings per file and load inactive documents only when expanded.
+- Expand a file to browse its heading tree, then click a heading to jump there. Toggle **View → Show Document Outline** or the outline button beside **Documents**; the setting persists across launches. Outlines show up to 2,000 headings per file and load inactive documents only when expanded.
 - Remove a document with **−**, its context menu, or **⌘⌫**. This removes only the sidebar entry; it never deletes the source file.
 - The document list, selection, sidebar visibility, and appearance persist between launches. File paths are saved; moved or deleted files must be reopened.
 - Choose **View → System Appearance**, **Light**, or **Dark**.
