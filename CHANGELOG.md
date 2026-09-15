@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 — 2026-09-15
+
+- Align the About description with document reading, heading navigation, and PDF export.
+- Refresh the README screenshot without the pointer overlay.
+
 ## 0.3.3 — 2026-09-15
 
 - Use matching size, background, and symbol weight for all three sidebar actions. Restore the original outline glyph and indicate its enabled state with a border that remains visible in inactive windows.

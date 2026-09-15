@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     paragraph.alignment = .center
     let credits = NSMutableAttributedString(
       string:
-        "So Simple Markdown Viewer\n\nA lightweight Markdown viewer for macOS.\nRead documents and export to PDF.\n\nGitHub · MIT License",
+        "So Simple Markdown Viewer\n\nA lightweight Markdown viewer for macOS.\nOpen documents. Navigate headings.\nExport to PDF.\n\nGitHub · MIT License",
       attributes: [
         .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
         .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
