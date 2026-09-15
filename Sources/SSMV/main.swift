@@ -24,9 +24,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func showAbout(_ sender: Any?) {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    let credits = NSMutableAttributedString(
+      string:
+        "So Simple Markdown Viewer\n\nA lightweight Markdown viewer for macOS.\nRead documents and export to PDF.\n\nGitHub · MIT License",
+      attributes: [
+        .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+        .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+      ])
+    for (label, address) in [
+      ("GitHub", "https://github.com/raeseoklee/ssmv"),
+      ("MIT License", "https://github.com/raeseoklee/ssmv/blob/main/LICENSE"),
+    ] {
+      credits.addAttribute(
+        .link, value: URL(string: address)!,
+        range: (credits.string as NSString).range(of: label))
+    }
     NSApp.orderFrontStandardAboutPanel(options: [
       .applicationName: "SSMV",
-      .credits: NSAttributedString(string: "So Simple Markdown Viewer"),
+      .credits: credits,
     ])
   }
 

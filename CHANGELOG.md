@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 — 2026-09-15
+
+- Clarify the About description and add links to the source repository and MIT license.
+
 ## 0.1.5 — 2026-09-14
 
 - Fix Homebrew installation failures caused by sandboxed document registration. Register the app’s own document claims on normal launch and explain the first-launch step.
