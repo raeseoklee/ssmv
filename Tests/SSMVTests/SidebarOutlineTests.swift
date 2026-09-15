@@ -17,6 +17,40 @@ struct SidebarOutlineTests {
     #expect(condition())
   }
 
+  @Test func minusClickAndHoldHaveSeparateActions() throws {
+    _ = NSApplication.shared
+    let sidebar = SidebarController()
+    defer { sidebar.cancelAll() }
+    sidebar.update(
+      urls: [URL(fileURLWithPath: "/tmp/hold-fixture.md")],
+      selected: URL(fileURLWithPath: "/tmp/hold-fixture.md"))
+    func button(in view: NSView) -> NSButton? {
+      if let button = view as? NSButton, button.toolTip?.contains("hold to remove all") == true {
+        return button
+      }
+      return view.subviews.compactMap { button(in: $0) }.first
+    }
+    let remove = try #require(button(in: sidebar.view))
+    let press = try #require(remove.gestureRecognizers.first as? NSPressGestureRecognizer)
+    #expect(press.minimumPressDuration == 0.6)
+    #expect(press.delaysPrimaryMouseButtonEvents)
+    var single = 0
+    var all = 0
+    sidebar.onRemove = { single += 1 }
+    sidebar.onRemoveAll = { all += 1 }
+    remove.performClick(nil)
+    #expect(single == 1)
+    #expect(all == 0)
+    let simulated = SimulatedPress()
+    simulated.state = .began
+    _ = NSApp.sendAction(try #require(press.action), to: press.target, from: simulated)
+    #expect(single == 1)
+    #expect(all == 1)
+    simulated.state = .ended
+    _ = NSApp.sendAction(try #require(press.action), to: press.target, from: simulated)
+    #expect(all == 1)
+  }
+
   @Test func headingsNestUnderFilesAndSelectByIdentity() async throws {
     _ = NSApplication.shared
     let sidebar = SidebarController()
@@ -168,5 +202,14 @@ struct SidebarOutlineTests {
     #expect(root.children.first?.heading?.title == "Lazy heading")
     sidebar.update(urls: [], selected: nil)
     #expect(table.numberOfRows == 0)
+  }
+}
+
+@MainActor
+private final class SimulatedPress: NSPressGestureRecognizer {
+  private var simulatedState: NSGestureRecognizer.State = .possible
+  override var state: NSGestureRecognizer.State {
+    get { simulatedState }
+    set { simulatedState = newValue }
   }
 }

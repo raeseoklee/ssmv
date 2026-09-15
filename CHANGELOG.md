@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-09-15
+
+- Distinguish outline on/off states with filled and outlined symbols, retaining contrast when the window loses focus.
+
+- Hold the existing minus button for 0.6 seconds to request removal of all sidebar entries. Confirmation is still required; a short click removes only the selected entry.
+
 ## 0.3.1 — 2026-09-15
 
 - Clear all sidebar documents from the File menu or sidebar context menu after explicit confirmation. Original files remain on disk; Cancel is the default action.

@@ -79,11 +79,22 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     removeButton.target = self
     removeButton.action = #selector(removeDocument)
     removeButton.bezelStyle = .inline
-    removeButton.toolTip = "Remove from sidebar; keep file on disk"
+    removeButton.toolTip = "Click to remove the selected document; hold to remove all…"
+    let removeAllPress = NSPressGestureRecognizer(
+      target: self, action: #selector(removeButtonHeld(_:)))
+    removeAllPress.minimumPressDuration = 0.6
+    removeAllPress.allowableMovement = 6
+    removeButton.addGestureRecognizer(removeAllPress)
     outlineButton.image = NSImage(
-      systemSymbolName: "list.bullet.indent", accessibilityDescription: "Document Outline")
+      systemSymbolName: "list.bullet.rectangle.fill", accessibilityDescription: "Document Outline")
     outlineButton.setButtonType(.pushOnPushOff)
+    outlineButton.setAccessibilityRole(.checkBox)
+    outlineButton.setAccessibilityValue(NSNumber(value: outlineEnabled))
     outlineButton.bezelStyle = .inline
+    outlineButton.isBordered = false
+    outlineButton.contentTintColor = .labelColor
+    // Keep the symbol legible when the window is inactive instead of filling a gray pill.
+    (outlineButton.cell as? NSButtonCell)?.showsStateBy = []
     outlineButton.target = self
     outlineButton.action = #selector(toggleOutline)
     outlineButton.toolTip = "Show or hide document outlines"
@@ -122,6 +133,12 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     _ = view
     outlineEnabled = enabled
     outlineButton.state = enabled ? .on : .off
+    outlineButton.setAccessibilityValue(NSNumber(value: enabled))
+    outlineButton.image = NSImage(
+      systemSymbolName: enabled ? "list.bullet.rectangle.fill" : "list.bullet.rectangle",
+      accessibilityDescription: "Document Outline")
+    outlineButton.toolTip =
+      enabled ? "Document outline on — click to hide" : "Document outline off — click to show"
     if !enabled {
       cancelAll()
       selectedHeadingID = nil
@@ -415,6 +432,10 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     if menuItem.action == #selector(removeAllDocuments) { return !items.isEmpty }
     if menuItem.action == #selector(removeClickedDocument) { return table.clickedRow >= 0 }
     return true
+  }
+  @objc private func removeButtonHeld(_ recognizer: NSPressGestureRecognizer) {
+    guard recognizer.state == .began, !items.isEmpty else { return }
+    onRemoveAll?()
   }
   @objc private func removeAllDocuments() { onRemoveAll?() }
   @objc private func toggleOutline() { onToggleOutline?() }
