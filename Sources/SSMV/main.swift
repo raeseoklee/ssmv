@@ -6,6 +6,17 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
   var windows: [ViewerWindow] = []
+  var documentStore: DocumentStore?
+  var inputLoader: DocumentInputLoader?
+  var processedRequests = Set<URL>()
+  var isRecoveringRequests = false
+  private var documentStoreError: Error?
+
+  init(store: DocumentStore) {
+    super.init()
+    documentStore = store
+    inputLoader = DocumentInputLoader(store: store)
+  }
   private lazy var updateChecker = HomebrewUpdateChecker(
     currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
       as? String ?? "")
@@ -49,6 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     PreferencesMigration.migrate(
       defaults: .standard,
       legacyDomain: UserDefaults.standard.persistentDomain(forName: "io.github.irae.mdview") ?? [:])
+    do {
+      let store = try DocumentStore()
+      documentStore = store
+      inputLoader = DocumentInputLoader(store: store)
+    } catch { documentStoreError = error }
+
   }
 
   var outlineEnabled: Bool {
@@ -72,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let alert = NSAlert()
     alert.messageText = "SSMV Keyboard Shortcuts"
     alert.informativeText =
-      "⌘ Command · ⇧ Shift · ⌃ Control · ⌥ Option\n🌐 Fn (Function / 기능 키)\n\nOpen: ⌘O\nFind: ⌘F\nExport PDF: ⇧⌘E\nToggle sidebar: ⌃⌘S\nFull screen: ⌃⌘F\n\nThe globe symbol in a macOS shortcut means the Fn key. For example, ⌃🌐C means Control + Fn + C."
+      "⌘ Command · ⇧ Shift · ⌃ Control · ⌥ Option\n🌐 Fn (Function / 기능 키)\n\nOpen: ⌘O\nOpen URL: ⇧⌘O\nReload: ⌘R\nFind: ⌘F\nExport PDF: ⇧⌘E\nToggle sidebar: ⌃⌘S\nFull screen: ⌃⌘F\n\nThe globe symbol in a macOS shortcut means the Fn key. For example, ⌃🌐C means Control + Fn + C."
     alert.addButton(withTitle: "OK")
     if let window = NSApp.keyWindow { alert.beginSheetModal(for: window) } else { alert.runModal() }
   }
@@ -107,6 +124,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     NSApp.setActivationPolicy(.regular)
     buildMenu()
     if windows.isEmpty { showWelcome() }
+    if let documentStoreError {
+      presentInputError(documentStoreError)
+    } else {
+      retryPendingImports(nil)
+    }
     NSApp.activate(ignoringOtherApps: true)
     for name in [NSWindow.didBecomeKeyNotification, NSWindow.didEndSheetNotification] {
       NotificationCenter.default.addObserver(
@@ -132,9 +154,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     return .terminateLater
   }
 
-  func application(_ sender: NSApplication, openFiles filenames: [String]) {
-    open(filenames.map { URL(fileURLWithPath: $0) })
-    sender.reply(toOpenOrPrint: .success)
+  func application(_ application: NSApplication, open urls: [URL]) {
+    let local = urls.filter { $0.isFileURL && $0.pathExtension.lowercased() != "ssmvrequest" }
+    if !local.isEmpty { open(local) }
+    for url in urls where url.pathExtension.lowercased() == "ssmvrequest" { consumeRequest(url) }
+    for url in urls where !url.isFileURL && url.pathExtension.lowercased() != "ssmvrequest" {
+      openRemote(url)
+    }
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
@@ -216,6 +242,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     add(app, "Quit SSMV", #selector(NSApplication.terminate(_:)), "q")
     let file = menu("File")
     add(file, "Open…", #selector(openDocument(_:)), "o", target: self)
+    let openURL = file.addItem(
+      withTitle: "Open URL…", action: #selector(openURLDocument(_:)), keyEquivalent: "o")
+    openURL.target = self
+    openURL.keyEquivalentModifierMask = [.command, .shift]
+    add(file, "Open Clipboard as Markdown", #selector(openClipboardDocument(_:)), target: self)
+    add(file, "Save a Copy…", #selector(ViewerWindow.saveMarkdownCopy(_:)))
+    add(file, "Manage Imported Documents…", #selector(manageImports(_:)), target: self)
+    add(file, "Retry Pending Imports", #selector(retryPendingImports(_:)), target: self)
+    add(file, "Cancel Loading", #selector(ViewerWindow.cancelLoading(_:)))
     add(file, "Reload", #selector(ViewerWindow.reload(_:)), "r")
     add(file, "Remove from Sidebar", #selector(ViewerWindow.removeSelectedDocument), "\u{8}")
     add(file, "Remove All from Sidebar…", #selector(ViewerWindow.confirmRemoveAllDocuments))
@@ -277,22 +312,26 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   NSToolbarDelegate, NSMenuItemValidation
 {
   weak var appDelegate: AppDelegate?
-  var fileURL: URL?
+  private var documentID: UUID?
+  private var store: DocumentStore? { appDelegate?.documentStore }
+  private var currentRecord: DocumentRecord? { documentID.flatMap { store?.record($0) } }
+  private var snapshotBaseURL: URL?
+  private var isLoading = false
+  private let statusLabel = NSTextField(labelWithString: "")
   private let textView = NSTextView()
   private let split = NSSplitViewController()
   private let sidebar = SidebarController()
-  private var shelf = DocumentShelf()
-  private var scrollPositions: [URL: NSPoint] = [:]
+  private var scrollPositions: [UUID: NSPoint] = [:]
   private var parsed: AttributedString?
   private var source: String?
-  private var pendingHeading: (url: URL, id: Int)?
+  private var pendingHeading: (documentID: UUID, id: Int)?
   var exportJob: PDFExportJob?
   private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
   private var renderTask: Task<Void, Never>?
   private var renderGeneration = 0
   private var isRendering = false
-  private var displayedURL: URL?
+  private var displayedID: UUID?
   private var scrollRestoration = ScrollRestoration()
   private var generation = 0
   private var fontSize: CGFloat = 16
@@ -339,7 +378,25 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       self, selector: #selector(userStartedScrolling(_:)),
       name: NSScrollView.willStartLiveScrollNotification, object: scroll)
     let reader = NSViewController()
-    reader.view = scroll
+    let readerView = NSView()
+    statusLabel.font = .systemFont(ofSize: 11)
+    statusLabel.textColor = .secondaryLabelColor
+    statusLabel.lineBreakMode = .byTruncatingMiddle
+    for child in [scroll, statusLabel] {
+      child.translatesAutoresizingMaskIntoConstraints = false
+      readerView.addSubview(child)
+    }
+    NSLayoutConstraint.activate([
+      scroll.topAnchor.constraint(equalTo: readerView.topAnchor),
+      scroll.leadingAnchor.constraint(equalTo: readerView.leadingAnchor),
+      scroll.trailingAnchor.constraint(equalTo: readerView.trailingAnchor),
+      scroll.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -4),
+      statusLabel.leadingAnchor.constraint(equalTo: readerView.leadingAnchor, constant: 12),
+      statusLabel.trailingAnchor.constraint(equalTo: readerView.trailingAnchor, constant: -12),
+      statusLabel.bottomAnchor.constraint(equalTo: readerView.bottomAnchor, constant: -6),
+      statusLabel.heightAnchor.constraint(equalToConstant: 16),
+    ])
+    reader.view = readerView
     let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
     sidebarItem.minimumThickness = 180
     sidebarItem.maximumThickness = 320
@@ -351,11 +408,47 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     window.contentViewController = split
     split.splitView.setPosition(230, ofDividerAt: 0)
     sidebarItem.isCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed")
-    sidebar.onSelect = { [weak self] url in
+    sidebar.onSelect = { [weak self] key in
+      guard let id = key.host.flatMap(UUID.init(uuidString:)) else { return }
       self?.pendingHeading = nil
-      self?.selectDocument(url)
+      self?.selectDocument(id)
     }
-    sidebar.onSelectHeading = { [weak self] url, id in self?.navigateToHeading(url, id: id) }
+    sidebar.onSelectHeading = { [weak self] key, headingID in
+      guard let id = key.host.flatMap(UUID.init(uuidString:)) else { return }
+      self?.navigateToHeading(id, id: headingID)
+    }
+    sidebar.documentLoader = { [weak owner] key in
+      guard let id = key.host.flatMap(UUID.init(uuidString:)),
+        let record = owner?.documentStore?.record(id),
+        let loader = owner?.inputLoader
+      else { return nil }
+      return try await loader.load(record, cachedOnly: true)?.document
+    }
+    sidebar.canSaveSource = { [weak self] key in
+      guard let self else { return false }
+      return self.currentRecord?.sidebarKey == key && self.source != nil && !self.isLoading
+    }
+    sidebar.onSourceAction = { [weak self] key, action in
+      guard let self, let id = key.host.flatMap(UUID.init(uuidString:)),
+        let record = self.store?.record(id)
+      else { return }
+      switch action {
+      case "reload":
+        do {
+          try self.store?.select(id)
+          self.openRecord(id, reload: true)
+        } catch { self.appDelegate?.presentInputError(error) }
+      case "copy":
+        if case .remote(let url) = record.source {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        }
+      case "browser":
+        if case .remote(let url) = record.source { NSWorkspace.shared.open(url) }
+      case "save": self.saveMarkdownCopy(nil)
+      default: break
+      }
+    }
     sidebar.onToggleOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
     sidebar.setOutlineEnabled(owner.outlineEnabled)
     sidebar.onAdd = { [weak owner] in owner?.openDocument(nil) }
@@ -373,19 +466,14 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     toolbar.displayMode = .iconOnly
     window.toolbar = toolbar
     window.toolbarStyle = .unified
-    if let saved = UserDefaults.standard.data(forKey: "documentShelf"),
-      let restored = try? JSONDecoder().decode(DocumentShelf.self, from: saved)
-    {
-      shelf = restored
-    }
-    sidebar.update(urls: shelf.urls, selected: shelf.selectedURL)
+    refreshDocuments()
     window.makeFirstResponder(textView)
     showMessage(
       "SSMV",
       detail:
         "So Simple Markdown Viewer.\n\nChoose File → Open… or press ⌘O.\nYou can also open documents from Finder with SSMV."
     )
-    if let selected = shelf.selectedURL { load(selected) }
+    if let selected = store?.selectedID { openRecord(selected, cachedOnly: true) }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -405,66 +493,103 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     textView.textStorage?.setAttributedString(output)
   }
 
-  func load(_ url: URL) {
-    if let fileURL, displayedURL == fileURL, shelf.urls.contains(fileURL) {
-      scrollPositions[fileURL] = scrollRestoration.positionToSave(
+  func refreshDocuments() {
+    sidebar.update(records: store?.records ?? [], selectedID: store?.selectedID)
+  }
+
+  func openRecord(_ id: UUID, reload: Bool = false, cachedOnly: Bool = false) {
+    guard let record = store?.record(id), let loader = appDelegate?.inputLoader else { return }
+    if let documentID, displayedID == documentID {
+      scrollPositions[documentID] = scrollRestoration.positionToSave(
         current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
     }
-    if let previous = fileURL, previous != url {
-      sidebar.finishPendingDocument(previous, failed: false)
+    let retaining = documentID == id && source != nil && !isRendering
+    if let previous = currentRecord, previous.id != id {
+      sidebar.finishPendingDocument(previous.sidebarKey, failed: false)
     }
-    parsed = nil
-    source = nil
-    if pendingHeading?.url != url { pendingHeading = nil }
-    sidebar.invalidateOutline(url)
-    fileURL = url
-    window?.title = url.lastPathComponent
-    window?.representedURL = url
+    if pendingHeading?.documentID != id { pendingHeading = nil }
+    documentID = id
+    sidebar.selectDocument(record.sidebarKey)
+    window?.title = record.displayName
+    window?.representedURL = record.originalURL?.isFileURL == true ? record.originalURL : nil
     generation += 1
     let request = generation
     loadTask?.cancel()
     renderTask?.cancel()
     renderGeneration += 1
     isRendering = false
-    displayedURL = nil
-    scrollRestoration.clear()
-    showMessage("Opening document…", detail: url.lastPathComponent)
+    isLoading = true
+    statusLabel.stringValue = "Loading…"
+    if !retaining {
+      parsed = nil
+      source = nil
+      snapshotBaseURL = nil
+      displayedID = nil
+      scrollRestoration.clear()
+      showMessage("Opening document…", detail: record.displayName)
+    }
     loadTask = Task { [weak self] in
       do {
-        let snapshot = try await DocumentLoader.shared.loadSnapshot(url)
+        let snapshot = try await loader.load(record, reload: reload, cachedOnly: cachedOnly)
         guard let self, !Task.isCancelled, self.generation == request else { return }
+        self.isLoading = false
+        guard let snapshot else {
+          self.statusLabel.stringValue = "Not cached — choose Reload to fetch this document."
+          self.showMessage(
+            "Document not cached", detail: "Choose File → Reload to fetch “\(record.displayName)”.")
+          return
+        }
         self.parsed = snapshot.document
         self.source = snapshot.source
-        self.sidebar.provideDocument(snapshot.document, for: url)
-        self.render(restoring: self.scrollPositions[url] ?? .zero)
+        self.snapshotBaseURL = snapshot.baseURL
+        self.sidebar.provideDocument(snapshot.document, for: record.sidebarKey)
+        self.sidebar.updateMetadata(self.store?.records ?? [])
+        self.updateSourceStatus()
+        self.render(restoring: self.scrollPositions[id] ?? .zero)
       } catch {
         guard let self, !Task.isCancelled, self.generation == request else { return }
-        self.parsed = nil
+        self.isLoading = false
         self.pendingHeading = nil
-        self.sidebar.finishPendingDocument(url, failed: true)
-        self.showMessage("Couldn’t open document", detail: error.localizedDescription)
+        if retaining {
+          self.statusLabel.stringValue =
+            "Reload failed — showing previous content. " + error.localizedDescription
+        } else {
+          self.sidebar.finishPendingDocument(record.sidebarKey, failed: true)
+          self.statusLabel.stringValue = "Couldn’t load document. Choose Reload to retry."
+          self.showMessage("Couldn’t open document", detail: error.localizedDescription)
+        }
       }
     }
   }
 
-  func addDocuments(_ urls: [URL]) {
-    shelf.add(urls)
-    saveShelf()
-    sidebar.update(urls: shelf.urls, selected: shelf.selectedURL)
-    if let selected = shelf.selectedURL, selected != fileURL { load(selected) }
-  }
-
-  private func selectDocument(_ url: URL) {
-    guard url != fileURL else { return }
-    shelf.select(url)
-    saveShelf()
-    load(url)
-  }
-
-  private func saveShelf() {
-    if let data = try? JSONEncoder().encode(shelf) {
-      UserDefaults.standard.set(data, forKey: "documentShelf")
+  private func updateSourceStatus() {
+    guard let record = currentRecord else {
+      statusLabel.stringValue = ""
+      return
     }
+    if case .remote = record.source, let date = record.lastFetchedAt {
+      statusLabel.stringValue =
+        "\(record.sourceLabel) · Cached \(date.formatted(date: .abbreviated, time: .shortened)) · ⌘R to refresh"
+    } else {
+      statusLabel.stringValue = record.sourceLabel
+    }
+  }
+
+  func addDocuments(_ urls: [URL]) {
+    do {
+      guard let store else { return }
+      try store.addLocal(urls)
+      refreshDocuments()
+      if let selected = store.selectedID, selected != documentID { openRecord(selected) }
+    } catch { appDelegate?.presentInputError(error) }
+  }
+
+  private func selectDocument(_ id: UUID) {
+    guard id != documentID else { return }
+    do {
+      try store?.select(id)
+      openRecord(id)
+    } catch { appDelegate?.presentInputError(error) }
   }
 
   static func removeAllConfirmation(count: Int) -> NSAlert {
@@ -480,35 +605,47 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   @objc func confirmRemoveAllDocuments() {
-    guard !shelf.urls.isEmpty, let window, window.attachedSheet == nil else { return }
-    Self.removeAllConfirmation(count: shelf.urls.count).beginSheetModal(for: window) {
+    guard !(store?.records.isEmpty ?? true), let window, window.attachedSheet == nil else { return }
+    Self.removeAllConfirmation(count: store?.records.count ?? 0).beginSheetModal(for: window) {
       [weak self] response in
       guard response == .alertSecondButtonReturn, let self, !self.isClosing else { return }
-      self.shelf = DocumentShelf()
+      do { try self.store?.removeAllReferences() } catch {
+        self.appDelegate?.presentInputError(error)
+        return
+      }
       self.scrollPositions.removeAll()
       self.removeSelectedDocument()
     }
   }
 
   @objc func removeSelectedDocument() {
-    if let selected = shelf.selectedURL { scrollPositions.removeValue(forKey: selected) }
-    shelf.removeSelected()
-    saveShelf()
-    sidebar.update(urls: shelf.urls, selected: shelf.selectedURL)
-    if let selected = shelf.selectedURL {
-      load(selected)
+    do {
+      if let selected = store?.selectedID {
+        scrollPositions.removeValue(forKey: selected)
+        try store?.remove(selected)
+      }
+    } catch {
+      appDelegate?.presentInputError(error)
+      return
+    }
+    refreshDocuments()
+    if let selected = store?.selectedID {
+      openRecord(selected)
     } else {
       generation += 1
       loadTask?.cancel()
       renderTask?.cancel()
       renderGeneration += 1
       isRendering = false
-      displayedURL = nil
+      displayedID = nil
       scrollRestoration.clear()
       parsed = nil
       source = nil
       pendingHeading = nil
-      fileURL = nil
+      documentID = nil
+      snapshotBaseURL = nil
+      isLoading = false
+      statusLabel.stringValue = ""
       window?.title = "SSMV"
       window?.representedURL = nil
       showMessage(
@@ -554,7 +691,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   private func render(restoring position: NSPoint? = nil) {
-    guard let parsed, let fileURL else { return }
+    guard let parsed, let documentID else { return }
     scrollRestoration.begin(
       at: position, current: textView.enclosingScrollView?.contentView.bounds.origin ?? .zero)
     renderTask?.cancel()
@@ -571,7 +708,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
             if !started {
               self.textView.textStorage?.setAttributedString(chunk)
               self.textView.scroll(.zero)
-              self.displayedURL = fileURL
+              self.displayedID = documentID
               started = true
             } else {
               self.textView.textStorage?.beginEditing()
@@ -583,7 +720,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
         guard let self, !Task.isCancelled, self.renderGeneration == request else { return }
         if !started {
           self.textView.textStorage?.setAttributedString(NSAttributedString(string: ""))
-          self.displayedURL = fileURL
+          self.displayedID = documentID
         }
         self.isRendering = false
         // Do not override scrolling performed while chunks were appearing.
@@ -609,13 +746,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     if !enabled { pendingHeading = nil }
   }
 
-  private func navigateToHeading(_ url: URL, id: Int) {
-    pendingHeading = (url, id)
-    if url != fileURL { selectDocument(url) } else { revealPendingHeading() }
+  private func navigateToHeading(_ documentID: UUID, id: Int) {
+    pendingHeading = (documentID, id)
+    if documentID != self.documentID { selectDocument(documentID) } else { revealPendingHeading() }
   }
 
   private func revealPendingHeading() {
-    guard !isRendering, let pendingHeading, pendingHeading.url == displayedURL,
+    guard !isRendering, let pendingHeading, pendingHeading.documentID == displayedID,
       let storage = textView.textStorage
     else { return }
     var target: NSRange?
@@ -638,18 +775,24 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   }
 
   @objc func exportPDF(_ sender: Any?) {
-    guard exportJob == nil, !isRendering, let source, let fileURL, let window else { return }
+    guard exportJob == nil, !isRendering, let source, let record = currentRecord, let window else {
+      return
+    }
     let panel = NSSavePanel()
     panel.title = "Export as PDF"
     panel.allowedContentTypes = [.pdf]
     panel.canCreateDirectories = true
-    panel.nameFieldStringValue = fileURL.deletingPathExtension().lastPathComponent + ".pdf"
+    panel.nameFieldStringValue = (record.displayName as NSString).deletingPathExtension + ".pdf"
+    let baseURL = snapshotBaseURL
     panel.beginSheetModal(for: window) { response in
       guard response == .OK, let destination = panel.url else { return }
       guard self.exportJob == nil else { return }
       let job = PDFExportJob()
       self.exportJob = job
-      job.start(source: source, fileURL: fileURL, destination: destination, owner: window) {
+      job.start(
+        source: source, fileURL: record.originalURL ?? record.sidebarKey, destination: destination,
+        owner: window, documentBaseURL: baseURL, displayName: record.displayName
+      ) {
         [weak self] error in
         self?.finishPDFExport(error)
       }
@@ -658,18 +801,51 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
     if menuItem.action == #selector(confirmRemoveAllDocuments) {
-      return !shelf.urls.isEmpty && window?.attachedSheet == nil
+      return !(store?.records.isEmpty ?? true) && window?.attachedSheet == nil
+    }
+    if menuItem.action == #selector(cancelLoading(_:)) { return isLoading }
+    if menuItem.action == #selector(saveMarkdownCopy(_:)) { return source != nil && !isLoading }
+    if menuItem.action == #selector(reload(_:)) { return documentID != nil }
+    if menuItem.action == #selector(reveal(_:)) {
+      if case .localFile = currentRecord?.source { return true }
+      return false
     }
     if menuItem.action == #selector(exportPDF(_:)) {
-      return source != nil && fileURL != nil && !isRendering && exportJob == nil
+      return source != nil && documentID != nil && !isRendering && exportJob == nil
     }
     return true
   }
 
-  @objc func reload(_ sender: Any?) { if let fileURL { load(fileURL) } }
-  @objc func reveal(_ sender: Any?) {
-    if let fileURL { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+  @objc func reload(_ sender: Any?) { if let documentID { openRecord(documentID, reload: true) } }
+  @objc func cancelLoading(_ sender: Any?) {
+    loadTask?.cancel()
+    generation += 1
+    isLoading = false
+    statusLabel.stringValue =
+      source == nil
+      ? "Loading cancelled — choose Reload to retry."
+      : "Loading cancelled — showing previous content."
   }
+  @objc func reveal(_ sender: Any?) {
+    if case .localFile(let url) = currentRecord?.source {
+      NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+  }
+  @objc func saveMarkdownCopy(_ sender: Any?) {
+    guard let source, let record = currentRecord, let window else { return }
+    let panel = NSSavePanel()
+    panel.title = "Save a Markdown Copy"
+    panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+    panel.nameFieldStringValue =
+      record.displayName.hasSuffix(".md") ? record.displayName : record.displayName + ".md"
+    panel.beginSheetModal(for: window) { response in
+      guard response == .OK, let destination = panel.url else { return }
+      do { try source.write(to: destination, atomically: true, encoding: .utf8) } catch {
+        self.appDelegate?.presentInputError(error)
+      }
+    }
+  }
+
   @objc func increaseSize(_ sender: Any?) {
     fontSize = min(32, fontSize + 2)
     render()
@@ -688,7 +864,12 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       return true
     }
     if url.isFileURL && ["md", "markdown", "mdown"].contains(url.pathExtension.lowercased()) {
+      guard case .localFile = currentRecord?.source else { return true }
       appDelegate?.open(url)
+    } else if url.scheme == "https",
+      ["md", "markdown", "mdown"].contains(url.pathExtension.lowercased())
+    {
+      appDelegate?.openRemote(url)
     } else if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") {
       NSWorkspace.shared.open(url)
     }

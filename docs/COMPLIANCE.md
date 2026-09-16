@@ -127,3 +127,33 @@ queries validate the installed registration path.
 ## 0.3.0 update check
 
 The startup checker reads the public `raeseoklee/homebrew-tap` cask over HTTPS using an ephemeral URLSession, with a five-second timeout and a 64 KiB response limit. It compares a literal numeric version without executing Ruby. No document content, paths, credentials, or analytics are transmitted. GitHub receives a normal network request with a fixed generic User-Agent. Checks are limited to once per 24 hours. The notice only copies Homebrew commands on request; it never runs a shell, downloads an app, or changes signing or quarantine policy. No external dependencies were added.
+
+
+## URL and generated-document input — 2026-09-16
+
+The source adds public HTTPS acquisition, explicit clipboard import, durable
+managed documents, and a small local CLI. These changes use Apple frameworks;
+no external packages, authentication SDK, MCP service, or third-party content
+library are bundled. Downloaded documents remain user content and are not
+included in source or release archives.
+
+The CLI is bundled as `Contents/MacOS/SSMVCLI` and linked by Homebrew as `ssmv`.
+A separate basename avoids colliding with the GUI executable `SSMV` on ordinary
+case-insensitive macOS filesystems. Requests use bounded, private local files
+and NSWorkspace delivery rather than a shell or network listener. Source
+records preserve identity independently of the source path or URL. Migration
+keeps the old shelf preferences; removal from the sidebar does not delete
+original files or durable imported text.
+
+The runtime boundary now includes user-requested HTTPS downloads. Requests do
+not use browser cookies or stored credentials, but the origin receives its URL
+and ordinary connection information. Full remote URLs and cached text are stored
+locally. Remote cache and durable import quotas are separate; imported content
+is not evicted. PDF continues to export the loaded snapshot without refetching.
+See [Security](../SECURITY.md) for limits and storage behavior.
+
+This entry records the feature's source and distribution boundaries. It does
+not extend the initial licensing review into a guarantee about arbitrary remote
+documents, signed URLs, or other users' Markdown. Release checks must still
+verify archive contents, signatures, checksums, both executable architectures,
+and CLI delivery from the installed application.

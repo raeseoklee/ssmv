@@ -1,4 +1,5 @@
 import AppKit
+import MarkdownCore
 import Testing
 
 @testable import SSMV
@@ -7,14 +8,14 @@ import Testing
 struct ExportLifecycleTests {
   private func withHiddenViewer(_ check: (AppDelegate, ViewerWindow) throws -> Void) rethrows {
     _ = NSApplication.shared
-    let defaults = UserDefaults.standard
-    let original = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-    var isolated = original
-    isolated["legacyPreferencesMigrated"] = true
-    isolated["documentShelf"] = Data()
-    defaults.setVolatileDomain(isolated, forName: UserDefaults.argumentDomain)
-    defer { defaults.setVolatileDomain(original, forName: UserDefaults.argumentDomain) }
-    let owner = AppDelegate()
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let suite = "SSMVTests." + UUID().uuidString
+    let defaults = UserDefaults(suiteName: suite)!
+    defer {
+      defaults.removePersistentDomain(forName: suite)
+      try? FileManager.default.removeItem(at: directory)
+    }
+    let owner = AppDelegate(store: try! DocumentStore(defaults: defaults, directory: directory))
     let viewer = ViewerWindow(owner: owner)
     owner.windows.append(viewer)
     try check(owner, viewer)

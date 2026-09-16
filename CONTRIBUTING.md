@@ -7,8 +7,9 @@ SSMV is a small, native Markdown viewer. Contributions should preserve its read-
 Use macOS 13 or later with Swift 6 or later. The project uses Swift Package Manager and has no external package dependencies.
 
 - `Sources/SSMV/`: app lifecycle, menus, window, and sidebar.
-- `Sources/MarkdownCore/`: file loading, Markdown rendering, document state, and PDF export.
-- `Tests/MarkdownCoreTests/`: automated regression tests.
+- `Sources/MarkdownCore/`: source loading, URL cache, durable document state, request transport, Markdown rendering, and PDF export.
+- `Sources/SSMVCLI/`: the one-shot CLI delivered inside the app as `SSMVCLI`.
+- `Tests/MarkdownCoreTests/` and `Tests/SSMVTests/`: core and app regression tests.
 - `Resources/`: app metadata and icon assets.
 - `scripts/`: app and release tooling.
 
@@ -24,6 +25,22 @@ UNIVERSAL=1 scripts/build-app.sh
 ```
 
 For UI changes, open `dist/SSMV.app` and check the affected behavior in light and dark appearances. Test Finder opening, sidebar selection, or PDF output when relevant. Cross-compiling for Intel does not verify execution on Intel hardware; report hardware-specific gaps.
+
+## Document input changes
+
+Preserve source identity, insertion order, and selected document when migrating
+preferences. Inject an isolated UserDefaults suite and storage/cache directories
+in tests; never mutate a developer's real library. Sidebar removal must remain
+reference-only. Keep durable imports separate from the evictable remote cache.
+
+For input changes, cover URL validation and redirects, size/encoding limits,
+cancellation, cached-only startup, source-aware links, PDF snapshot consistency,
+import restart/idempotency, quota failure, and request traversal/symlink rejection.
+Use generated fixtures and mock network responses; never commit private text or
+signed URLs. Test both cold and warm CLI dispatch with the installed app. Exit 0
+means delivery only. Check the bundled `SSMVCLI` executable as well as the GUI,
+and the Homebrew `ssmv` link. Do not name the bundled executable `ssmv`: that
+collides with `SSMV` on case-insensitive filesystems.
 
 ## Release scope
 

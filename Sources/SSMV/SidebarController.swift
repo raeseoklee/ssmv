@@ -13,6 +13,10 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   var onRemove: (() -> Void)?
   var onRemoveAll: (() -> Void)?
   var onSort: ((DocumentSortOrder) -> Void)?
+  var documentLoader: ((URL) async throws -> AttributedString?)?
+  var onSourceAction: ((URL, String) -> Void)?
+  var canSaveSource: ((URL) -> Bool)?
+  private var records: [URL: DocumentRecord] = [:]
   private(set) var sortOrder: DocumentSortOrder = .added
   private var addedURLs: [URL] = []
 
@@ -70,6 +74,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
       withTitle: "Remove All from Sidebar…", action: #selector(removeAllDocuments),
       keyEquivalent: "")
     removeAll.target = self
+    menu.addItem(.separator())
+    for (title, command) in [
+      ("Reload", "reload"), ("Copy Source URL", "copy"), ("Open in Browser", "browser"),
+      ("Save a Copy…", "save"),
+    ] {
+      let item = menu.addItem(
+        withTitle: title, action: #selector(sourceAction(_:)), keyEquivalent: "")
+      item.target = self
+      item.representedObject = command
+    }
     menu.addItem(.separator())
     let sort = menu.addItem(withTitle: "Sort By", action: nil, keyEquivalent: "")
     let submenu = NSMenu(title: "Sort By")
@@ -139,12 +153,56 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     ])
   }
 
+  func update(records: [DocumentRecord], selectedID: UUID?) {
+    self.records = Dictionary(uniqueKeysWithValues: records.map { ($0.sidebarKey, $0) })
+    update(
+      urls: records.map(\.sidebarKey), selected: records.first { $0.id == selectedID }?.sidebarKey)
+  }
+
+  func updateMetadata(_ documents: [DocumentRecord]) {
+    records = Dictionary(uniqueKeysWithValues: documents.map { ($0.sidebarKey, $0) })
+  }
+
+  func selectDocument(_ key: URL) {
+    guard selectedURL != key else { return }
+    selectedURL = key
+    selectedHeadingID = nil
+    refresh()
+  }
+
+  private func sortedKeys(_ urls: [URL]) -> [URL] {
+    guard !records.isEmpty else { return sortOrder.sorted(urls) }
+    guard sortOrder != .added else { return urls }
+    let dates =
+      sortOrder == .modified
+      ? urls.map { key -> Date? in
+        guard let record = records[key] else { return nil }
+        if case .localFile(let url) = record.source {
+          return try? url.resourceValues(forKeys: [.contentModificationDateKey])
+            .contentModificationDate
+        }
+        return record.sourceModifiedAt
+      } : []
+    return urls.enumerated().sorted { left, right in
+      if sortOrder == .name {
+        let result = (records[left.element]?.displayName ?? "").localizedStandardCompare(
+          records[right.element]?.displayName ?? "")
+        if result != .orderedSame { return result == .orderedAscending }
+      } else {
+        let a = dates[left.offset] ?? .distantPast
+        let b = dates[right.offset] ?? .distantPast
+        if a != b { return a > b }
+      }
+      return left.offset < right.offset
+    }.map(\.element)
+  }
+
   func update(urls: [URL], selected: URL?) {
     _ = view
     for url in Array(tasks.keys) where !urls.contains(url) { cancel(url) }
     let old = Dictionary(uniqueKeysWithValues: items.map { ($0.url, $0) })
     addedURLs = urls
-    items = sortOrder.sorted(urls).map { old[$0] ?? Item(url: $0) }
+    items = sortedKeys(urls).map { old[$0] ?? Item(url: $0) }
     if selectedURL != selected { selectedHeadingID = nil }
     selectedURL = selected
     expandedHeadings = expandedHeadings.filter { urls.contains($0.key) }
@@ -215,6 +273,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
       do {
         let parsed: AttributedString
         if let document {
+          parsed = document
+        } else if let documentLoader = self?.documentLoader {
+          guard let document = try await documentLoader(url) else {
+            guard let self, !Task.isCancelled, self.generations[url] == generation else { return }
+            item.children = [Item(url: url, message: "Open to load headings")]
+            self.refresh(item: item)
+            self.tasks[url] = nil
+            self.generations[url] = nil
+            return
+          }
           parsed = document
         } else {
           parsed = try await DocumentLoader.shared.load(url)
@@ -392,9 +460,10 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     let icon = NSImageView(
       image: NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)!)
     icon.contentTintColor = .secondaryLabelColor
-    let name = NSTextField(labelWithString: url.lastPathComponent)
+    let name = NSTextField(labelWithString: records[url]?.displayName ?? url.lastPathComponent)
     name.lineBreakMode = .byTruncatingMiddle
-    let path = NSTextField(labelWithString: url.deletingLastPathComponent().path)
+    let path = NSTextField(
+      labelWithString: records[url]?.sourceLabel ?? url.deletingLastPathComponent().path)
     path.font = .systemFont(ofSize: 10)
     path.textColor = .secondaryLabelColor
     path.lineBreakMode = .byTruncatingMiddle
@@ -418,7 +487,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     ])
     cell.textField = name
     cell.imageView = icon
-    cell.toolTip = url.path
+    cell.toolTip = records[url]?.sourceLabel ?? url.path
     return cell
   }
 
@@ -462,7 +531,25 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     onSort?(order)
   }
 
+  @objc private func sourceAction(_ sender: NSMenuItem) {
+    guard let item = table.item(atRow: table.clickedRow) as? Item,
+      let command = sender.representedObject as? String
+    else { return }
+    onSourceAction?(item.url, command)
+  }
+
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(sourceAction(_:)) {
+      guard let item = table.item(atRow: table.clickedRow) as? Item, let record = records[item.url],
+        let command = menuItem.representedObject as? String
+      else { return false }
+      if command == "copy" || command == "browser" {
+        if case .remote = record.source { return true }
+        return false
+      }
+      if command == "save" { return canSaveSource?(item.url) == true }
+      return true
+    }
     if menuItem.action == #selector(changeSort(_:)) {
       menuItem.state = (menuItem.representedObject as? String) == sortOrder.rawValue ? .on : .off
       return true

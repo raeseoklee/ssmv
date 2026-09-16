@@ -40,6 +40,7 @@ cask "ssmv" do
   depends_on macos: :ventura
 
   app "SSMV.app"
+  binary "#{appdir}/SSMV.app/Contents/MacOS/SSMVCLI", target: "ssmv"
 
 CASK
 if [[ "${ALLOW_UNNOTARIZED:-0}" == 1 ]]; then

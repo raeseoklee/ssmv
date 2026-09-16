@@ -4,10 +4,12 @@ import Foundation
 public struct DocumentSnapshot: Sendable {
   public let source: String
   public let document: AttributedString
+  public let baseURL: URL?
 
-  public init(source: String, document: AttributedString) {
+  public init(source: String, document: AttributedString, baseURL: URL? = nil) {
     self.source = source
     self.document = document
+    self.baseURL = baseURL
   }
 }
 
@@ -16,14 +18,19 @@ public actor DocumentLoader {
   public static let shared = DocumentLoader()
 
   private let parser: @Sendable (URL) throws -> DocumentSnapshot
-  private var pending: [(URL, Request)] = []
+  private enum Work: Sendable {
+    case file(URL)
+    case text(String, URL?)
+  }
+  private var pending: [(Work, Request)] = []
   private var active = 0
 
   public init() {
     parser = { url in
-      let source = try MarkdownDocument.read(url)
+      let source = try MarkdownDocument.read(url, preservingBOM: true)
       let document = try MarkdownDocument.parse(source, baseURL: url.deletingLastPathComponent())
-      return DocumentSnapshot(source: source, document: document)
+      return DocumentSnapshot(
+        source: source, document: document, baseURL: url.deletingLastPathComponent())
     }
   }
 
@@ -39,12 +46,23 @@ public actor DocumentLoader {
   }
 
   public func loadSnapshot(_ url: URL) async throws -> DocumentSnapshot {
+    try await enqueue(.file(url))
+  }
+
+  public func parseSnapshot(source: String, baseURL: URL?) async throws -> DocumentSnapshot {
+    guard source.utf8.count <= MarkdownDocument.maximumBytes else {
+      throw MarkdownDocument.ReadError.tooLarge
+    }
+    return try await enqueue(.text(source, baseURL))
+  }
+
+  private func enqueue(_ work: Work) async throws -> DocumentSnapshot {
     try Task.checkCancellation()
     let request = Request()
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         guard request.install(continuation) else { return }
-        pending.append((url, request))
+        pending.append((work, request))
         startPending()
       }
     } onCancel: {
@@ -61,14 +79,22 @@ public actor DocumentLoader {
   private func startPending() {
     removeCancelled()
     while active < 2 && !pending.isEmpty {
-      let (url, request) = pending.removeFirst()
+      let (work, request) = pending.removeFirst()
       guard !request.isFinished else { continue }
       active += 1
       let parser = self.parser
       Task.detached(priority: .userInitiated) {
         let result: Result<DocumentSnapshot, Error> = autoreleasepool {
           guard !request.isFinished else { return .failure(CancellationError()) }
-          return Result { try parser(url) }
+          return Result {
+            switch work {
+            case .file(let url): return try parser(url)
+            case .text(let source, let base):
+              return DocumentSnapshot(
+                source: source, document: try MarkdownDocument.parse(source, baseURL: base),
+                baseURL: base)
+            }
+          }
         }
         await self.completed(request, result: result)
       }

@@ -114,3 +114,20 @@ existing-file preservation, and window-close cleanup have automated tests.
 The Mac remained locked, so the new progress window and direct user interaction
 have not been visually exercised. The export still consumes time and memory
 proportional to document complexity; it is not a faster pagination engine.
+
+## URL and CLI input regression check — 2026-09-16
+
+Compared 0.4.0 (`e96a1b5`) with 0.5.0 on the same M4 Pro, using three
+alternating release-mode runs per build of the existing mixed 15 MiB fixture.
+Values below are medians from the core read/parse/render harness. They exclude
+network time and the app sidebar, and do not represent every document or Mac.
+
+| Build | First viewport | All text constructed | Peak RSS |
+| --- | ---: | ---: | ---: |
+| 0.4.0 | 12.34 s | 27.71 s | 939 MiB |
+| 0.5.0 | 12.35 s | 27.23 s | 1021 MiB |
+
+All six runs preserved the final text marker. The added input paths remained
+within the planned 10% regression budget for these measurements. A 15 MiB
+Markdown document is still expensive to parse and construct; this feature
+does not make that work instantaneous.

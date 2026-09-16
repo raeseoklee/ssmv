@@ -11,6 +11,7 @@ final class PDFExportJob {
 
   func start(
     source: String, fileURL: URL, destination: URL, owner: NSWindow,
+    documentBaseURL: URL? = nil, displayName: String? = nil,
     completion: @escaping @MainActor (Error?) -> Void
   ) {
     let panel = NSPanel(
@@ -23,7 +24,7 @@ final class PDFExportJob {
     spinner.startAnimation(nil)
     let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelExport))
     cancel.keyEquivalent = "\u{1b}"
-    let name = NSTextField(labelWithString: fileURL.lastPathComponent)
+    let name = NSTextField(labelWithString: displayName ?? fileURL.lastPathComponent)
     name.lineBreakMode = .byTruncatingMiddle
     let row = NSStackView(views: [spinner, status])
     row.orientation = .horizontal
@@ -45,7 +46,9 @@ final class PDFExportJob {
     task = Task {
       var failure: Error?
       do {
-        try await run(source: source, fileURL: fileURL, destination: destination)
+        try await run(
+          source: source, fileURL: fileURL, destination: destination,
+          documentBaseURL: documentBaseURL, displayName: displayName)
       } catch is CancellationError {} catch { failure = error }
       owner.removeChildWindow(panel)
       panel.close()
@@ -65,6 +68,7 @@ final class PDFExportJob {
 
   func run(
     source: String, fileURL: URL, destination: URL,
+    documentBaseURL: URL? = nil, displayName: String? = nil,
     executable: URL = Bundle.main.executableURL!,
     temporaryDirectory: URL = FileManager.default.temporaryDirectory
   ) async throws {
@@ -87,8 +91,10 @@ final class PDFExportJob {
     let process = Process()
     process.executableURL = executable
     process.arguments = [
-      "--export-pdf", input.path, fileURL.deletingLastPathComponent().absoluteString,
-      output.path, fileURL.lastPathComponent, progress.path,
+      "--export-pdf", input.path,
+      (documentBaseURL ?? (fileURL.isFileURL ? fileURL.deletingLastPathComponent() : nil))?
+        .absoluteString ?? "",
+      output.path, displayName ?? fileURL.lastPathComponent, progress.path,
     ]
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
@@ -140,8 +146,13 @@ final class PDFExportJob {
 /// This private mode has no windows, menus, or Launch Services registration.
 @MainActor
 func runPDFExportHelper(_ arguments: [String]) -> Int32 {
-  guard arguments.count == 7, let baseURL = URL(string: arguments[3]), baseURL.isFileURL else {
-    return 2
+  guard arguments.count == 7 else { return 2 }
+  let baseURL = arguments[3].isEmpty ? nil : URL(string: arguments[3])
+  if !arguments[3].isEmpty {
+    guard let baseURL,
+      baseURL.isFileURL
+        || (baseURL.scheme == "https" && baseURL.user == nil && baseURL.password == nil)
+    else { return 2 }
   }
   let progress = URL(fileURLWithPath: arguments[6])
   func report(_ stage: String) { try? stage.write(to: progress, atomically: true, encoding: .utf8) }

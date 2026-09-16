@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — 2026-09-16
+
+- Open public HTTPS Markdown and GitHub file links, with bounded disk caching, explicit reload, and offline restoration.
+- Read copied Markdown and completed LLM output through the bundled `ssmv` command. Imports survive restarts; interrupted deliveries are retried.
+- Save exact Markdown copies and manage retained imports without deleting original files.
+- Preserve existing sidebar order and selection while migrating document identities; reuse the native reader, heading outline, and PDF export for every source.
+- Install the CLI with the Homebrew cask. No MCP server, new dependency, or background service is required.
+
 ## 0.4.0 — 2026-09-15
 
 - Sort sidebar documents by added order, natural filename order, or most recently modified from the context menu. Persist the choice without reordering files during selection or outline expansion.

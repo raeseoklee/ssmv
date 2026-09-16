@@ -30,8 +30,9 @@ trap cleanup EXIT
 app_path="$staging_dir/SSMV.app"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$binary_dir/SSMV" "$app_path/Contents/MacOS/SSMV"
+cp "$binary_dir/SSMVCLI" "$app_path/Contents/MacOS/SSMVCLI"
 if [[ "$configuration" == release ]]; then
-  strip -S "$app_path/Contents/MacOS/SSMV"
+  strip -S "$app_path/Contents/MacOS/SSMV" "$app_path/Contents/MacOS/SSMVCLI"
 fi
 icon_hash="$(shasum -a 256 Resources/AppIcon.icns | cut -c 1-12)"
 icon_name="AppIcon-$icon_hash"
@@ -44,8 +45,10 @@ if [[ -n "${VERSION:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$app_path/Contents/Info.plist"
 fi
 if [[ -n "${SIGNING_IDENTITY:-}" ]]; then
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$app_path/Contents/MacOS/SSMVCLI"
   codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$app_path"
 else
+  codesign --force --sign - "$app_path/Contents/MacOS/SSMVCLI"
   codesign --force --sign - "$app_path"
 fi
 codesign --verify --strict "$app_path"
