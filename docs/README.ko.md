@@ -82,6 +82,8 @@ Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으
 
 ## CLI와 LLM 도구 연결
 
+[Codex·Claude·ChatGPT·Gemini 사용 가이드](LLM-WORKFLOWS.ko.md)에서 요청 예시, CLI 명령, 브라우저 채팅의 결과를 가져오는 방법을 확인하세요.
+
 Homebrew로 설치하면 `ssmv` 명령을 사용할 수 있습니다.
 
 ```sh

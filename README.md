@@ -78,6 +78,8 @@ Removing an imported document from the sidebar retains its stored content. **Fil
 
 ## CLI and LLM tools
 
+See [Use SSMV with Codex, Claude, ChatGPT, and Gemini](docs/LLM-WORKFLOWS.md) for copyable prompts, CLI commands, and browser-chat workflows.
+
 Homebrew installs the `ssmv` command:
 
 ```sh
