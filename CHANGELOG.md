@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-09-17
+
+- Handle Markdown file drops at the window level, covering the reader, sidebar, and empty areas. Prevent read-only child views from intercepting drops.
+- Keep multi-file opening and duplicate selection consistent; reject folders and unsupported file types without moving or editing originals.
+
 ## 0.5.0 — 2026-09-16
 
 - Open public HTTPS Markdown and GitHub file links, with bounded disk caching, explicit reload, and offline restoration.

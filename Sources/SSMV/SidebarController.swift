@@ -9,7 +9,6 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   var onSelectHeading: ((URL, Int) -> Void)?
   var onToggleOutline: (() -> Void)?
   var onAdd: (() -> Void)?
-  var onDrop: (([URL]) -> Void)?
   var onRemove: (() -> Void)?
   var onRemoveAll: (() -> Void)?
   var onSort: ((DocumentSortOrder) -> Void)?
@@ -64,7 +63,8 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     table.dataSource = self
     table.delegate = self
     table.setAccessibilityLabel("Documents sidebar")
-    table.registerForDraggedTypes([.fileURL])
+    // File opening is handled by the window across the entire sidebar.
+    table.unregisterDraggedTypes()
     let menu = NSMenu()
     let remove = menu.addItem(
       withTitle: "Remove from Sidebar", action: #selector(removeClickedDocument), keyEquivalent: "")
@@ -491,26 +491,6 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     return cell
   }
 
-  private func droppedURLs(_ info: NSDraggingInfo) -> [URL] {
-    (info.draggingPasteboard.readObjects(
-      forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [])
-      .filter { ["md", "markdown", "mdown"].contains($0.pathExtension.lowercased()) }
-  }
-  func outlineView(
-    _ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?,
-    proposedChildIndex index: Int
-  ) -> NSDragOperation {
-    outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
-    return droppedURLs(info).isEmpty ? [] : .copy
-  }
-  func outlineView(
-    _ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int
-  ) -> Bool {
-    let urls = droppedURLs(info)
-    guard !urls.isEmpty else { return false }
-    onDrop?(urls)
-    return true
-  }
   @objc private func removeClickedDocument() {
     guard let item = table.item(atRow: table.clickedRow) as? Item else { return }
     selectedURL = item.url

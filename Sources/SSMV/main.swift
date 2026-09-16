@@ -338,11 +338,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   init(owner: AppDelegate) {
     self.appDelegate = owner
-    let window = NSWindow(
+    let window = DocumentDropWindow(
       contentRect: NSRect(x: 0, y: 0, width: 840, height: 720),
       styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
     )
     super.init(window: window)
+    window.onDrop = { [weak self] urls in self?.addDocuments(urls) }
+    window.registerForDraggedTypes([.fileURL])
     window.title = "SSMV"
     window.minSize = NSSize(width: 620, height: 320)
     window.tabbingMode = .disallowed
@@ -359,6 +361,8 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     textView.isEditable = false
     textView.isSelectable = true
     textView.isRichText = true
+    // Read-only text must let file drags reach the window instead of attempting insertion.
+    textView.unregisterDraggedTypes()
     textView.usesFindBar = true
     textView.isIncrementalSearchingEnabled = true
     textView.isVerticallyResizable = true
@@ -452,7 +456,6 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     sidebar.onToggleOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
     sidebar.setOutlineEnabled(owner.outlineEnabled)
     sidebar.onAdd = { [weak owner] in owner?.openDocument(nil) }
-    sidebar.onDrop = { [weak self] urls in self?.addDocuments(urls) }
     sidebar.onRemove = { [weak self] in self?.removeSelectedDocument() }
     sidebar.onRemoveAll = { [weak self] in self?.confirmRemoveAllDocuments() }
     sidebar.setSortOrder(
@@ -650,7 +653,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       window?.representedURL = nil
       showMessage(
         "No documents",
-        detail: "Add documents with + or ⌘O, or drag Markdown files into the sidebar.")
+        detail: "Add documents with + or ⌘O, or drop Markdown files anywhere in this window.")
     }
   }
 
