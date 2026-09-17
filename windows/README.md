@@ -15,8 +15,9 @@ Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows
 
 Use `SSMV-windows-x64-setup.exe` on an x64 PC or
 `SSMV-windows-ARM64-setup.exe` on an ARM64 PC. These are unsigned development
-installers for Windows 10 build 19041 or newer, not a published Windows release.
-Windows may display an unknown
+installers for Windows 10 build 19041 or newer, including Windows 11. Check
+**Settings → System → About → System type** to choose the architecture. These are
+not a published Windows release. Windows may display an unknown
 publisher warning.
 
 Close SSMV before installing or upgrading, then run the installer under your normal
@@ -32,7 +33,7 @@ as the default app yourself through Windows **Open with** or **Settings → Apps
 Default apps**. Setup does not replace your current default or modify `UserChoice`.
 
 Run a newer installer to update the installed copy. To remove it, use Windows
-**Settings → Apps → Installed apps → SSMV → Uninstall**. Uninstall removes the
+**Settings → Apps → Installed apps → So Simple Markdown Viewer → Uninstall**. Uninstall removes the
 installed app, shortcuts and SSMV's file registrations. It preserves original
 Markdown files and `%LOCALAPPDATA%\SSMV`, including the document list, preferences,
 imports and remote cache. Other applications' registrations remain intact.
@@ -165,14 +166,29 @@ cmake --build windows/.build/core --config Release
 ctest --test-dir windows/.build/core -C Release --output-on-failure
 ```
 
-Three portable suites (documents, Markdown and session persistence), x64/ARM64
-builds and the [native x64 smoke test](https://github.com/raeseoklee/ssmv/actions/runs/35187903182)
-pass at `6c0d9c3`. The smoke test verifies opening View immediately after launch,
-expanded-tree order, repeated heading navigation, Ctrl+F search with and without
-matches, text-size increase/decrease, sidebar and outline toggles, Dark appearance,
-and two-document cold/warm opening with selection and preferences restored after
-restart. Light, Dark and menu captures were visually reviewed. ARM64 runtime
-behavior remains untested.
+At `bc7892d`, the [Windows validation run](https://github.com/raeseoklee/ssmv/actions/runs/35197022620)
+passed five core suites, x64/ARM64 app and installer builds, and the full x64 reader
+smoke test on Windows Server 2022 build 20348. Installer lifecycle tests passed on
+that x64 host and native ARM64 Windows 11 Enterprise build 26200: install/reinstall,
+Start menu shortcut, app-local CRT loading, opening a Korean filename with spaces
+through the registered shell command, running-app guards, and uninstall preserving
+user data and other applications' associations.
+
+Full Windows 11 reader interaction checks remain pending: the hosted desktop
+exposes UI Automation controls but does not reliably give the app foreground focus
+for keyboard and popup tests. Windows 11 x64 has not been directly tested.
+
+Installer tests modify the current account's app installation and registrations.
+Run them only in a clean, disposable Windows environment:
+
+```powershell
+./windows/scripts/test-installer.ps1 -Installer dist/SSMV-windows-x64-setup.exe
+# Add -FullReaderSmoke on an interactive desktop to exercise reader interactions.
+```
+
+Use the matching ARM64 installer on ARM64. The Windows workflow's manual
+`installer_run` input can reuse an existing ARM64 installer for a Windows 11
+retest; `full_reader_smoke` opts into the foreground-dependent reader checks.
 
 Before release, validate picker cancellation, Explorer/desktop drops, Korean paths,
 keyboard navigation, tables, theme changes, display scaling, Narrator and large-file

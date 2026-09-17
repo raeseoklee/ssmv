@@ -15,7 +15,8 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 
 x64 PC에서는 `SSMV-windows-x64-setup.exe`, ARM64 PC에서는
 `SSMV-windows-ARM64-setup.exe`를 실행하세요. 아직 서명하지 않은 개발용 설치
-프로그램이며 Windows 10 빌드 19041 이상이 필요합니다. 정식 Windows 배포판은
+프로그램이며 Windows 10 빌드 19041 이상과 Windows 11을 지원합니다. 아키텍처는
+**설정 → 시스템 → 정보 → 시스템 종류**에서 확인하세요. 정식 Windows 배포판은
 아닙니다. Windows에서 게시자를 확인할 수
 없다는 경고가 나올 수 있습니다.
 
@@ -31,7 +32,7 @@ Windows 11에서는 **더 많은 옵션 표시** 안에 있을 수 있습니다.
 `UserChoice` 설정을 바꾸지 않습니다.
 
 업데이트할 때는 새 설치 프로그램을 실행하세요. 삭제는 Windows **설정 → 앱 → 설치된
-앱 → SSMV → 제거**에서 진행합니다. 설치된 앱, 바로 가기, SSMV의 파일 연결 등록만
+앱 → So Simple Markdown Viewer → 제거**에서 진행합니다. 설치된 앱, 바로 가기, SSMV의 파일 연결 등록만
 제거하며 원본 Markdown 파일은 남깁니다. 문서 목록, 환경 설정, 가져온 문서, 원격 캐시가
 있는 `%LOCALAPPDATA%\SSMV`도 보존합니다. 다른 앱의 파일 연결은 바꾸지 않습니다.
 
@@ -161,13 +162,30 @@ cmake --build windows/.build/core --config Release
 ctest --test-dir windows/.build/core -C Release --output-on-failure
 ```
 
-`6c0d9c3`에서 문서·Markdown·세션 테스트 3개 모음과 x64·ARM64 빌드,
-[x64 자동 실행 검증](https://github.com/raeseoklee/ssmv/actions/runs/35187903182)을 통과했습니다.
-앱 실행 직후 View 메뉴 열기, 펼친 트리의 순서, 같은 제목으로 반복 이동,
-Ctrl+F 검색 결과 있음·없음, 글자 크기 확대·축소, 사이드바·목차 전환,
-다크 모드 선택을 확인했습니다. 두 문서를 처음 열고 실행 중인 앱으로 전달한 뒤,
-재시작 시 선택 문서와 설정을 복원하는 동작도 확인했습니다. 라이트·다크 모드와
-메뉴 캡처도 눈으로 검토했습니다. ARM64에서의 실제 실행은 아직 검증하지 않았습니다.
+`bc7892d`의 [Windows 검증](https://github.com/raeseoklee/ssmv/actions/runs/35197022620)에서
+코어 테스트 5개 모음과 x64·ARM64 앱·설치 프로그램 빌드를 통과했습니다.
+Windows Server 2022 빌드 20348에서 x64 읽기 기능 자동 검사도 통과했습니다.
+설치 검사는 이 x64 환경과 Windows 11 Enterprise 빌드 26200의 ARM64에서 통과했습니다.
+설치·재설치, 시작 메뉴 바로 가기, 앱 폴더의 CRT 로드, 등록한 셸 명령으로 한글·공백
+파일명 열기, 실행 중 설치·제거 차단, 제거 후 사용자 데이터와 다른 앱의 파일 연결
+보존을 확인했습니다.
+
+Windows 11의 전체 읽기 기능 조작 검사는 남아 있습니다. 호스팅된 데스크톱에서
+UI 자동화 컨트롤에는 접근할 수 있지만 앱 창을 전면으로 가져오지 못해 키보드·팝업 검사를
+완료하지 못했습니다. Windows 11 x64에서 직접 검사한 결과는 아닙니다.
+
+설치 테스트는 현재 계정의 앱 설치와 파일 연결 등록을 변경합니다. 초기 상태의
+일회용 Windows 테스트 환경에서만 실행하세요.
+
+```powershell
+./windows/scripts/test-installer.ps1 -Installer dist/SSMV-windows-x64-setup.exe
+# 직접 조작할 수 있는 데스크톱에서 읽기 기능도 검사하려면 -FullReaderSmoke를 추가합니다.
+```
+
+ARM64에서는 해당 설치 프로그램을 지정하세요. Windows 워크플로를 수동 실행할 때
+`installer_run`에 기존 실행 번호를 지정하면 ARM64 설치 파일로 Windows 11 검사를
+다시 진행할 수 있습니다. `full_reader_smoke`는 앱 창을 전면에 두어야 하는 읽기 기능
+검사를 추가하는 옵션입니다.
 
 배포 전에는 Windows에서 파일 선택 취소, 탐색기·바탕화면 드롭, 한글 경로,
 키보드 조작, 표, 테마, 화면 배율, 내레이터와 대용량 문서 응답성을 확인해야 합니다.

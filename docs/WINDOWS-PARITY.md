@@ -42,7 +42,7 @@ virtualization; matching appearance alone does not establish performance parity.
 | HTTPS Markdown | Implemented; main native flows verified | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
 | LLM/CLI handoff | Partial; native checks pending | File arguments and single-instance forwarding are implemented. Forwarded arguments must be absolute; relative arguments are rejected on warm launch. HTTPS, UTF-8 stdin and optional titles remain pending. Bound and validate the private inbox, recover pending requests and prevent duplicate imports. Document exit codes and PowerShell usage. No MCP server is required. |
 | PDF export | Implemented with formatting gaps | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
-| File associations | NSIS installer implemented; native installation checks pending | Per-user setup registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and **Open with SSMV**. Windows 11 may place the command under **Show more options**. Double-click follows the user's default-app choice; setup does not change it. Uninstall removes only SSMV registrations and preserves document/session/cache data. |
+| File associations | NSIS installer and native lifecycle checks verified | Per-user setup registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and **Open with SSMV**. Windows 11 may place the command under **Show more options**. Double-click follows the user's default-app choice; setup does not change it. Uninstall removes only SSMV registrations and preserves document/session/cache data. |
 | Update guidance | Pending | Choose a Windows distribution channel before implementing checks. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
 | Help and About | Pending | Provide product identity, version and Windows shortcuts; keep English default documentation with a separate Korean link. |
 
@@ -65,8 +65,8 @@ The native checks cover opening View immediately after launch, expanded-tree ord
 repeated heading navigation, Ctrl+F search (match/no match), text-size increase and
 decrease, sidebar/outline toggles, Dark appearance, two-document cold/warm opening,
 and selection/preference restoration after restart. Light, Dark and menu captures
-were visually reviewed. These checks do not establish complete macOS parity,
-cover every native interaction or verify ARM64 runtime behavior.
+were visually reviewed. These checks do not establish complete macOS parity
+or cover every native interaction; that earlier run did not exercise ARM64 at runtime.
 
 PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations are not retained.
 Next priorities are durable import management and CLI delivery. Installer signing and public distribution remain pending. Publish feature
@@ -78,4 +78,18 @@ checks five suites, real HTTPS downloads, GitHub/raw alias identity, URL-dialog 
 cached restart followed by a live Ctrl+R refresh, and navigation-highlight reapplication/expiry.
 PDF checks cover cancellation before/during export and preservation of existing output.
 A 22-page Unicode/table PDF was visually inspected for text, columns and page numbers.
-Native runtime verification is x64; ARM64 is build-only.
+That feature run exercised x64 at runtime and built ARM64.
+
+At `bc7892d`, the [Windows validation run](https://github.com/raeseoklee/ssmv/actions/runs/35197022620)
+passed five core suites, x64/ARM64 app and installer builds, and the full x64 reader
+smoke test on Windows Server 2022 build 20348. Installer lifecycle tests passed on
+that x64 host and native ARM64 Windows 11 Enterprise build 26200: install/reinstall,
+Start menu shortcut, app-local CRT loading, opening a Korean filename with spaces
+through the registered shell command, running-app guards, and uninstall preserving
+user data and other applications' associations.
+
+Full Windows 11 reader interaction checks remain pending: the hosted desktop
+exposes UI Automation controls but does not reliably give the app foreground focus
+for keyboard and popup tests. Windows 11 x64 has not been directly tested.
+See [installer test usage](../windows/README.md#tests) for the disposable-environment
+requirement and optional interactive reader checks.
