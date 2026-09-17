@@ -14,6 +14,15 @@ $env:SSMV_DATA_DIR = Join-Path $testDirectory 'state'
 $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
 $startedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
+$dumpRegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\SSMV.exe'
+$dumpRegistryNativePath = 'HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\SSMV.exe'
+$dumpRegistryBackup = Join-Path $testDirectory 'wer-before.reg'
+$dumpRegistryExisted = Test-Path $dumpRegistryPath
+$dumpRegistryChanged = $false
+$preserveTestDirectory = $false
+$analyzedCrashes = [Collections.Generic.HashSet[int]]::new()
+$evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
+New-Item -ItemType Directory -Force $evidence > $null
 
 function Write-CrashEvidence([Diagnostics.Process]$Target) {
     $errorFile = Join-Path $env:SSMV_DATA_DIR 'last-error.txt'
@@ -28,6 +37,27 @@ function Write-CrashEvidence([Diagnostics.Process]$Target) {
         foreach ($event in $events) { Write-Host ("Crash event {0} / {1}: {2}" -f $event.ProviderName, $event.Id, $event.Message) }
         if (!$events) { Write-Host 'No matching SSMV Application error events are available yet.' }
     } catch { Write-Host "Application crash events unavailable: $_" }
+    if ($Target.HasExited -and $analyzedCrashes.Add($Target.Id)) {
+        $deadline = (Get-Date).AddSeconds(10)
+        $dump = $null
+        do {
+            $dump = Get-ChildItem -LiteralPath $evidence -Filter ('SSMV.' + $Target.Id + '.dmp') -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($null -ne $dump -and $dump.Length -gt 0) { break }
+            Start-Sleep -Milliseconds 250
+        } while ((Get-Date) -lt $deadline)
+        if ($null -eq $dump) { Write-Host 'No WER dump became available within 10 seconds.'; return }
+        Write-Host "Crash dump: $($dump.Name), $($dump.Length) bytes."
+        $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Debuggers/x64/cdb.exe'
+        if (!(Test-Path $debugger -PathType Leaf)) { Write-Host 'Windows SDK cdb.exe is not installed; retaining dump as evidence.'; return }
+        $debugOutput = Join-Path $evidence 'crash-analysis.txt'
+        $debugError = Join-Path $evidence 'crash-analysis-stderr.txt'
+        $debugProcess = Start-Process -FilePath $debugger -ArgumentList ('-z "' + $dump.FullName + '" -c "!analyze -v; .exr -1; q"') -RedirectStandardOutput $debugOutput -RedirectStandardError $debugError -PassThru
+        try {
+            if (!$debugProcess.WaitForExit(30000)) { Stop-Process -Id $debugProcess.Id -Force; Write-Host 'Stopped crash analysis after 30 seconds.' }
+            if (Test-Path $debugOutput) { Get-Content -LiteralPath $debugOutput -TotalCount 160 | ForEach-Object { Write-Host $_ } }
+            if (Test-Path $debugError) { Get-Content -LiteralPath $debugError -TotalCount 10 | ForEach-Object { Write-Host $_ } }
+        } finally { $debugProcess.Dispose() }
+    }
 }
 
 function Wait-DocumentWindow([Diagnostics.Process]$Target, [string]$Title) {
@@ -333,6 +363,16 @@ function Assert-SavedSession {
 }
 
 try {
+    # WER configuration is scoped to this executable and restored even on failure.
+    if ($dumpRegistryExisted) {
+        & reg.exe export $dumpRegistryNativePath $dumpRegistryBackup /y > $null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not preserve the existing SSMV WER configuration.' }
+    }
+    $dumpRegistryChanged = $true
+    New-Item -Path $dumpRegistryPath -Force > $null
+    New-ItemProperty -Path $dumpRegistryPath -Name DumpFolder -Value $evidence -PropertyType ExpandString -Force > $null
+    New-ItemProperty -Path $dumpRegistryPath -Name DumpType -Value 2 -PropertyType DWord -Force > $null
+    New-ItemProperty -Path $dumpRegistryPath -Name DumpCount -Value 1 -PropertyType DWord -Force > $null
     $process = Start-Process -FilePath $executablePath -ArgumentList ('"' + $document + '"') -PassThru
     $startedProcesses.Add($process)
     Wait-DocumentWindow $process 'Windows.md — SSMV'
@@ -343,6 +383,27 @@ using System;
 using System.Runtime.InteropServices;
 public static class WindowCapture {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SystemParametersInfo(uint action, uint parameter, out RECT value, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+    public static void PositionForCapture(IntPtr hwnd) {
+        IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        if (previous == IntPtr.Zero) throw new InvalidOperationException("Could not establish physical window placement.");
+        try {
+            RECT work;
+            if (!SystemParametersInfo(0x0030, 0, out work, 0))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Could not read primary monitor work area.");
+            int width = Math.Min(1000, work.Right - work.Left - 24);
+            int height = Math.Min(720, work.Bottom - work.Top - 24);
+            if (width < 640 || height < 480) throw new InvalidOperationException("CI desktop is too small for the native smoke window.");
+            int x = work.Left + (work.Right - work.Left - width) / 2;
+            int y = work.Top + (work.Bottom - work.Top - height) / 2;
+            if (!SetWindowPos(hwnd, IntPtr.Zero, x, y, width, height, 0x0014))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Could not position the test window.");
+            RECT actual;
+            if (!GetWindowRect(hwnd, out actual) || actual.Left < work.Left || actual.Top < work.Top || actual.Right > work.Right || actual.Bottom > work.Bottom)
+                throw new InvalidOperationException("The test window is not fully inside the desktop work area.");
+        } finally { SetThreadDpiAwarenessContext(previous); }
+    }
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out RECT value, uint size);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
@@ -390,6 +451,7 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationTypes.dll')
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
+    [WindowCapture]::PositionForCapture($process.MainWindowHandle)
     Save-WindowEvidence $process 'window-startup.png'
     $freshView = Open-AutomationMenu $process.Id 'menu.view'
     $null = Wait-AutomationElement $process.Id 'menu.appearance' -AutomationId
@@ -470,6 +532,16 @@ public static class WindowCapture {
         if (!$started.HasExited) { Stop-Process -Id $started.Id -Force; $null = $started.WaitForExit(10000) }
         $started.Dispose()
     }
+    if ($dumpRegistryChanged) {
+        Remove-Item -LiteralPath $dumpRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+        if ($dumpRegistryExisted) {
+            & reg.exe import $dumpRegistryBackup > $null
+            if ($LASTEXITCODE -ne 0) {
+                $preserveTestDirectory = $true
+                Write-Warning "Could not restore WER configuration; backup retained: $dumpRegistryBackup"
+            }
+        }
+    }
     $env:SSMV_DATA_DIR = $previousDataDirectory
-    Remove-Item -LiteralPath $testDirectory -Recurse -Force
+    if (!$preserveTestDirectory) { Remove-Item -LiteralPath $testDirectory -Recurse -Force }
 }
