@@ -133,8 +133,16 @@ function Assert-RepeatedHeadingNavigation([int]$ProcessId) {
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Markdown, at home on Windows.'))
-    $heading = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($null -eq $heading) { throw 'The public sample heading was not available in the document tree.' }
+    $deadline = (Get-Date).AddSeconds(15)
+    do {
+        $heading = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+        if ($null -ne $heading) { break }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    if ($null -eq $heading) {
+        $tree.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { Write-Output ("Tree evidence: " + $_.Current.ControlType.ProgrammaticName + " / " + $_.Current.Name) }
+        throw 'The public sample heading was not available in the document tree.'
+    }
     Invoke-AutomationElement $heading
     Start-Sleep -Milliseconds 300 # Let the first bring-into-view/layout complete.
     $reader = Wait-AutomationElement $ProcessId 'ReaderScroll' -AutomationId
@@ -306,6 +314,7 @@ public static class WindowCapture {
     }
     Save-WindowEvidence $process 'window-startup.png'
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
+    Save-WindowEvidence $process 'window-expanded.png'
     Assert-RepeatedHeadingNavigation $process.Id
     Save-WindowEvidence $process 'window.png'
     # Verify registration before the Edit menu has ever been opened.
