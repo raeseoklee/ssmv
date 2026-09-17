@@ -304,7 +304,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 expander.Header(choose);
                 auto path = document.path;
                 expander.IsExpanded(expandedPaths.contains(path));
-                expander.Expanded([this, path](auto const&, auto const&) { expandedPaths.insert(path); });
+                expander.Expanding([this, path](auto const&, auto const&) { expandedPaths.insert(path); });
                 expander.Collapsed([this, path](auto const&, auto const&) { expandedPaths.erase(path); });
                 expander.HorizontalAlignment(HorizontalAlignment::Stretch);
                 StackPanel headings;
