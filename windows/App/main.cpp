@@ -157,9 +157,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         check_hresult(window.as<IWindowNative>()->get_WindowHandle(&nativeWindow));
         auto module = GetModuleHandleW(nullptr);
         auto bigIcon = LoadImageW(module, MAKEINTRESOURCEW(1), IMAGE_ICON, 32, 32, LR_SHARED);
-        auto smallIcon = LoadImageW(module, MAKEINTRESOURCEW(1), IMAGE_ICON, 16, 16, LR_SHARED);
+        auto nativeSmallIcon = LoadImageW(module, MAKEINTRESOURCEW(1), IMAGE_ICON, 16, 16, LR_SHARED);
         SendMessageW(nativeWindow, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(bigIcon));
-        SendMessageW(nativeWindow, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+        SendMessageW(nativeWindow, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(nativeSmallIcon));
         window.Closed([this](auto const&, auto const&) {
             rememberPosition(); saveState(); activation->stop(); closed = true; ++generation;
         });
