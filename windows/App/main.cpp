@@ -172,10 +172,6 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             dataDirectory = std::filesystem::path(local) / L"SSMV";
             CoTaskMemFree(local);
         }
-        UnhandledException([this](auto const&, UnhandledExceptionEventArgs const& args) {
-            try { ssmv::writeFileAtomically(dataDirectory / L"last-error.txt", to_string(args.Message())); }
-            catch (...) {} // Keep the original unhandled exception and termination behavior.
-        });
         std::string sessionError;
         try { if (auto saved = ssmv::readSession(dataDirectory / L"session.bin")) session = *saved; }
         catch (std::exception const& e) { sessionWritable = false; sessionError = e.what(); }
@@ -360,16 +356,16 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         status.TextWrapping(TextWrapping::NoWrap); status.TextTrimming(TextTrimming::CharacterEllipsis);
         Grid::SetRow(status, 3);
         root.Children().Append(status);
-        // Menus own their command accelerators. Keep only keypad aliases and
-        // the transient find bar's Escape handling on the root.
+        // Native menu tooltips cannot name OEM keys: WinUI fails fast while
+        // formatting them. Keep those aliases on the non-control root instead.
         auto alias = [this](Windows::System::VirtualKey key, Windows::System::VirtualKeyModifiers modifiers, auto action) {
             KeyboardAccelerator binding; binding.Key(key); binding.Modifiers(modifiers);
             binding.Invoked([action](auto const&, auto const& args) { args.Handled(true); action(); });
             root.KeyboardAccelerators().Append(binding);
         };
-        alias(Windows::System::VirtualKey::Add, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(1); }));
+        alias(static_cast<Windows::System::VirtualKey>(187), Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(1); }));
         alias(static_cast<Windows::System::VirtualKey>(187), Windows::System::VirtualKeyModifiers::Control | Windows::System::VirtualKeyModifiers::Shift, guarded([this] { changeSize(1); }));
-        alias(Windows::System::VirtualKey::Subtract, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(-1); }));
+        alias(static_cast<Windows::System::VirtualKey>(189), Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(-1); }));
         alias(Windows::System::VirtualKey::Escape, Windows::System::VirtualKeyModifiers::None, guarded([this] { findPanel.Visibility(Visibility::Collapsed); }));
         syncChrome();
         window.Content(root);

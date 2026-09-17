@@ -41,7 +41,7 @@ function Write-CrashEvidence([Diagnostics.Process]$Target) {
         $deadline = (Get-Date).AddSeconds(10)
         $dump = $null
         do {
-            $dump = Get-ChildItem -LiteralPath $evidence -Filter ('SSMV.' + $Target.Id + '.dmp') -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $dump = Get-ChildItem -LiteralPath $evidence -Filter ('SSMV*.' + $Target.Id + '.dmp') -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($null -ne $dump -and $dump.Length -gt 0) { break }
             Start-Sleep -Milliseconds 250
         } while ((Get-Date) -lt $deadline)

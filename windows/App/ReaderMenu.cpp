@@ -129,9 +129,9 @@ ReaderMenu makeReaderMenu(MenuActions actions) {
     view.Items().Append(sort);
     view.Items().Append(MenuFlyoutSeparator());
     item = add(view, command(L"Increase Text Size", L"action.increaseSize", actions.increaseSize, L"\uE8A3"), true);
-    shortcut(item, static_cast<VirtualKey>(187), control, L"Ctrl++");
+    shortcut(item, VirtualKey::Add, control, L"Ctrl++");
     item = add(view, command(L"Decrease Text Size", L"action.decreaseSize", actions.decreaseSize, L"\uE71F"), true);
-    shortcut(item, static_cast<VirtualKey>(189), control, L"Ctrl+−");
+    shortcut(item, VirtualKey::Subtract, control, L"Ctrl+−");
     item = add(view, command(L"Actual Text Size", L"action.resetSize", actions.resetSize), true);
     shortcut(item, VirtualKey::Number0, control, L"Ctrl+0");
     MenuFlyoutSubItem appearance;
