@@ -62,6 +62,11 @@ TextBlock label(hstring const& text, double size = 14) {
     return result;
 }
 
+Viewbox smallIcon(Symbol symbol) {
+    Viewbox box; box.Width(16); box.Height(16);
+    box.Child(SymbolIcon{symbol}); return box;
+}
+
 struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     XamlTypeInfo::XamlControlsXamlMetaDataProvider metadata;
     Markup::IXamlType GetXamlType(Windows::UI::Xaml::Interop::TypeName const& type) { return metadata.GetXamlType(type); }
@@ -125,8 +130,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     }
     Button iconButton(Symbol symbol, hstring const& name, hstring const& tip, auto action) {
         auto result = button(name, action);
-        SymbolIcon icon{symbol}; icon.Width(14); icon.Height(14);
-        result.Content(icon); styleIcon(result, name, tip); return result;
+        result.Content(smallIcon(symbol)); styleIcon(result, name, tip); return result;
     }
     void syncChrome() {
         bool hasDocument = selected && *selected < library.documents().size();
@@ -284,8 +288,15 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         removeButton.ContextFlyout(removeActions);
         shelfActions.Children().Append(removeButton);
         outline = ToggleButton();
-        SymbolIcon outlineIcon{Symbol::Bullets}; outlineIcon.Width(14); outlineIcon.Height(14);
-        outline.Content(outlineIcon); styleIcon(outline, L"Document outline", L"Show or hide document outlines (Ctrl+Shift+O)");
+        outline.Content(smallIcon(Symbol::Bullets)); styleIcon(outline, L"Document outline", L"Show or hide document outlines (Ctrl+Shift+O)");
+        for (bool dark : {false, true}) {
+            ResourceDictionary colors;
+            auto foreground = Media::SolidColorBrush(dark ? Windows::UI::Color{255, 240, 240, 240} : Windows::UI::Color{255, 35, 35, 35});
+            for (auto key : {L"ToggleButtonForegroundChecked", L"ToggleButtonForegroundCheckedPointerOver", L"ToggleButtonForegroundCheckedPressed"}) colors.Insert(box_value(key), foreground);
+            for (auto key : {L"ToggleButtonBackgroundChecked", L"ToggleButtonBackgroundCheckedPointerOver", L"ToggleButtonBackgroundCheckedPressed"})
+                colors.Insert(box_value(key), Media::SolidColorBrush(dark ? Windows::UI::Color{255, 70, 70, 70} : Windows::UI::Color{255, 218, 218, 218}));
+            outline.Resources().ThemeDictionaries().Insert(box_value(dark ? L"Dark" : L"Light"), colors);
+        }
         outline.IsChecked(session.outlineEnabled);
         outline.Click([this](auto const&, auto const&) { rebuildShelf(); saveState(); syncChrome(); });
         shelfActions.Children().Append(outline);

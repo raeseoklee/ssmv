@@ -4,6 +4,7 @@
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
@@ -109,6 +110,7 @@ struct DocumentTree::State {
 };
 
 DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*this)) {
+    view.ItemTemplate(Markup::XamlReader::Load(LR"(<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><ContentPresenter Content="{Binding Content}" HorizontalContentAlignment="Stretch"/></DataTemplate>)").as<DataTemplate>());
     view.SelectionMode(TreeViewSelectionMode::Single);
     view.CanDragItems(false);
     view.CanReorderItems(false);
@@ -186,9 +188,9 @@ void DocumentTree::update(DocumentLibrary const& library, std::optional<std::siz
         titleColumn.Width(GridLength{1, GridUnitType::Star});
         row.ColumnDefinitions().Append(titleColumn);
         row.Margin(Thickness{0, 5, 4, 5});
-        SymbolIcon icon{Symbol::Document};
-        icon.Width(16);
-        icon.Height(16);
+        Viewbox icon;
+        icon.Width(16); icon.Height(16);
+        icon.Child(SymbolIcon{Symbol::Document});
         icon.VerticalAlignment(VerticalAlignment::Top);
         icon.Margin(Thickness{0, 3, 0, 0});
         row.Children().Append(icon);
