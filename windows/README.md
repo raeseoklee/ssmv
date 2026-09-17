@@ -38,6 +38,8 @@ PDF export, remote URLs, LLM/CLI handoff, session persistence, installer file
 associations and automatic update checks remain porting work. The macOS version
 continues to provide its existing features. Do not use the 16 MiB input limit as a
 performance guarantee; Windows large-document measurements are still required.
+The view initially renders up to 2,000 blocks and offers **Load more** for the rest.
+Loaded blocks remain in memory; viewport virtualization is not implemented yet.
 
 ## Tests
 

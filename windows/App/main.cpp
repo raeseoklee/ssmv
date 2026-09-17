@@ -1,4 +1,5 @@
 #include <windows.h>
+#undef GetCurrentTime
 #include <shellapi.h>
 #include <shobjidl.h>
 #include <microsoft.ui.xaml.window.h>
@@ -21,6 +22,8 @@
 #include "Documents.hpp"
 #include <algorithm>
 #include <optional>
+#include <deque>
+#include <set>
 #include <vector>
 
 using namespace winrt;
@@ -63,6 +66,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     bool dialogOpen = false;
     std::vector<FrameworkElement> rendered;
     size_t renderLimit = maxRenderedBlocks;
+    std::deque<std::vector<std::filesystem::path>> pendingLoads;
+    bool loading = false;
+    std::set<std::filesystem::path> expandedPaths;
 
     Button button(hstring const& title, auto action) {
         Button result;
@@ -86,7 +92,12 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         window.Closed([this](auto const&, auto const&) { closed = true; ++generation; });
         root = Grid();
         root.AllowDrop(true);
-        root.Background(Resources().Lookup(box_value(L"ApplicationPageBackgroundThemeBrush")).as<Media::Brush>());
+        auto updateBackground = [this] {
+            auto dark = root.ActualTheme() == ElementTheme::Dark;
+            root.Background(Media::SolidColorBrush(dark ? Windows::UI::Color{255, 32, 32, 32} : Windows::UI::Color{255, 250, 250, 250}));
+        };
+        root.ActualThemeChanged([updateBackground](auto const&, auto const&) { updateBackground(); });
+        updateBackground();
         root.DragOver([](auto const&, DragEventArgs const& args) {
             if (args.DataView().Contains(StandardDataFormats::StorageItems())) {
                 args.AcceptedOperation(DataPackageOperation::Copy);
@@ -238,41 +249,52 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         if (deferral) deferral.Complete();
     }
 
-    fire_and_forget load(std::vector<std::filesystem::path> paths) {
+    void load(std::vector<std::filesystem::path> paths) {
+        pendingLoads.push_back(std::move(paths));
+        if (!loading) processLoads();
+    }
+
+    fire_and_forget processLoads() {
         auto lifetime = get_strong();
         apartment_context ui;
-        // Only remove-all / window close invalidates queued opens. Concurrent opens must not lose files.
-        auto request = generation;
-        status.Text(L"Loading Markdown…");
-        std::vector<ssmv::Document> loaded;
-        std::string failures;
-        try {
-            co_await resume_background();
-            for (auto const& path : paths) {
-                try { loaded.push_back(ssmv::readDocument(path)); }
-                catch (std::exception const& e) {
-                    if (!failures.empty()) failures += "\n";
-                    failures += e.what();
+        loading = true;
+        while (!closed && !pendingLoads.empty()) {
+            auto paths = std::move(pendingLoads.front());
+            pendingLoads.pop_front();
+            auto request = generation;
+            std::vector<ssmv::Document> loaded;
+            std::string failures;
+            try {
+                status.Text(L"Loading Markdown…");
+                co_await resume_background();
+                for (auto const& path : paths) {
+                    try { loaded.push_back(ssmv::readDocument(path)); }
+                    catch (std::exception const& e) {
+                        if (!failures.empty()) failures += "\n";
+                        failures += e.what();
+                    }
                 }
-            }
-        } catch (std::exception const& e) { failures = e.what(); }
-        catch (...) { failures = "Could not read the selected files."; }
-        try {
-            co_await ui;
-            if (closed || request != generation) co_return;
-            for (auto& document : loaded) selected = library.insert(std::move(document));
-            rebuildShelf();
-            render();
-            if (!failures.empty()) error(to_hstring(failures));
-        } catch (hresult_error const& e) { error(e.message()); }
-        catch (std::exception const& e) { error(to_hstring(e.what())); }
+            } catch (std::exception const& e) { failures = e.what(); }
+            catch (...) { failures = "Could not read the selected files."; }
+            try {
+                co_await ui;
+                if (closed || request != generation) continue;
+                for (auto& document : loaded) selected = library.insert(std::move(document));
+                renderLimit = maxRenderedBlocks;
+                rebuildShelf();
+                render();
+                if (!failures.empty()) error(to_hstring(failures));
+            } catch (hresult_error const& e) { error(e.message()); }
+            catch (std::exception const& e) { error(to_hstring(e.what())); }
+        }
+        loading = false;
     }
 
     void rebuildShelf() {
         shelf.Children().Clear();
         for (size_t index = 0; index < library.documents().size(); ++index) {
             auto const& document = library.documents()[index];
-            auto title = (selected && *selected == index ? hstring(L"● ") : hstring()) + to_hstring(document.path.filename().wstring());
+            auto title = (selected && *selected == index ? hstring(L"● ") : hstring()) + hstring(document.path.filename().wstring());
             auto choose = button(title, [this, index] { selected = index; renderLimit = maxRenderedBlocks; rebuildShelf(); render(); });
             choose.HorizontalAlignment(HorizontalAlignment::Stretch);
             choose.HorizontalContentAlignment(HorizontalAlignment::Left);
@@ -280,6 +302,10 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (outline.IsChecked().Value() && !document.markdown.headings.empty()) {
                 Expander expander;
                 expander.Header(choose);
+                auto path = document.path;
+                expander.IsExpanded(expandedPaths.contains(path));
+                expander.Expanded([this, path](auto const&, auto const&) { expandedPaths.insert(path); });
+                expander.Collapsed([this, path](auto const&, auto const&) { expandedPaths.erase(path); });
                 expander.HorizontalAlignment(HorizontalAlignment::Stretch);
                 StackPanel headings;
                 for (auto const& heading : document.markdown.headings) {
@@ -311,7 +337,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             return;
         }
         auto const& document = library.documents()[*selected];
-        window.Title(to_hstring(document.path.filename().wstring()) + L" — SSMV");
+        window.Title(hstring(document.path.filename().wstring()) + L" — SSMV");
         for (auto const& block : document.markdown.blocks) {
             if (rendered.size() == renderLimit) break;
             auto text = label(to_hstring(block.text), 16);
@@ -345,11 +371,12 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 scroll.ChangeView(nullptr, offset, nullptr);
             }));
             status.Text(L"Showing the first " + to_hstring(rendered.size()) + L" blocks. Choose Load more to continue.");
-        } else status.Text(to_hstring(document.path.wstring()));
+        } else status.Text(hstring(document.path.wstring()));
     }
 
     void removeSelected() {
         if (!selected) return;
+        expandedPaths.erase(library.documents()[*selected].path);
         library.remove(*selected);
         if (library.documents().empty()) selected.reset();
         else selected = std::min(*selected, library.documents().size() - 1);
@@ -373,6 +400,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             auto result = co_await dialog.ShowAsync();
             if (!closed && result == ContentDialogResult::Primary) {
                 ++generation;
+                pendingLoads.clear();
+                expandedPaths.clear();
                 library.clear();
                 selected.reset();
                 rebuildShelf();
