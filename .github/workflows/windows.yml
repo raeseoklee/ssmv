@@ -2,10 +2,17 @@ name: Windows
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      installer_run:
+        description: "Existing run containing the ARM64 installer to retest on Windows 11 (blank builds all targets)"
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
   core:
+    if: ${{ inputs.installer_run == '' }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -34,6 +41,7 @@ jobs:
           path: dist/windows/pdf-evidence/
           if-no-files-found: ignore
   app:
+    if: ${{ inputs.installer_run == '' }}
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -106,7 +114,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download $env:GITHUB_RUN_ID --name SSMV-windows-ARM64-installer --dir dist/windows11
+          SSMV_INSTALLER_RUN: ${{ inputs.installer_run || github.run_id }}
+        run: gh run download $env:SSMV_INSTALLER_RUN --name SSMV-windows-ARM64-installer --dir dist/windows11
       - name: Verify Windows 11 native installation and reading
         shell: pwsh
         run: ./windows/scripts/test-installer.ps1 -Installer dist/windows11/SSMV-windows-ARM64-setup.exe -FullReaderSmoke

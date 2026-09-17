@@ -341,6 +341,9 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switc
 # UI Automation can expand a menu without activating its window. Establish focus
 # before menu/popup interactions as well as real keystrokes, including on Windows 11.
 function Set-TestForeground([Diagnostics.Process]$Target) {
+    $focusAttempted = $false
+    $focusFailure = $null
+    $lastForegroundResult = $false
     $deadline = (Get-Date).AddSeconds(5)
     do {
         $Target.Refresh()
@@ -348,9 +351,25 @@ function Set-TestForeground([Diagnostics.Process]$Target) {
         $foregroundProcess = [uint32]0
         $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
         if ($foregroundProcess -eq $Target.Id) { return }
-        $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
+        $lastForegroundResult = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
+        if (!$focusAttempted) {
+            $focusAttempted = $true
+            try {
+                $window = [Windows.Automation.AutomationElement]::FromHandle($Target.MainWindowHandle)
+                if ($window.Current.ProcessId -ne $Target.Id) { throw 'UI Automation returned a window owned by a different process.' }
+                $window.SetFocus()
+            } catch { $focusFailure = $_.Exception.Message }
+        }
         Start-Sleep -Milliseconds 100
     } while ((Get-Date) -lt $deadline)
+    $foregroundWindow = [WindowCapture]::GetForegroundWindow()
+    $foregroundProcess = [uint32]0
+    $null = [WindowCapture]::GetWindowThreadProcessId($foregroundWindow, [ref]$foregroundProcess)
+    $foreground = if ($foregroundProcess) { Get-Process -Id $foregroundProcess -ErrorAction SilentlyContinue }
+    Write-Host ("Foreground diagnostics: userInteractive={0}; callerSession={1}; targetPID={2}; targetSession={3}; targetHWND=0x{4:X}; foregroundHWND=0x{5:X}; foregroundPID={6}; foregroundName={7}; foregroundSession={8}; SetForegroundWindow={9}; UIASetFocusError={10}" -f
+        [Environment]::UserInteractive, ([Diagnostics.Process]::GetCurrentProcess().SessionId), $Target.Id, $Target.SessionId,
+        $Target.MainWindowHandle.ToInt64(), $foregroundWindow.ToInt64(), $foregroundProcess, $foreground.ProcessName,
+        $foreground.SessionId, $lastForegroundResult, $focusFailure)
     throw 'Refusing interaction: the isolated SSMV window is not foreground.'
 }
 
