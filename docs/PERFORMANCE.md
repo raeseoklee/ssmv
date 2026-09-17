@@ -67,7 +67,7 @@ scroll restoration, PDF pagination, and PDF link filtering.
 ## Reproducing measurements
 
 See [benchmark commands](../CONTRIBUTING.md#large-document-measurements).
-`scripts/benchmark.swift` compiles against the app's actual MarkdownCore sources.
+`macos/scripts/benchmark.swift` compiles against the app's actual MarkdownCore sources.
 Use one document per optimized process and `/usr/bin/time -l` for peak RSS.
 Append `--full-layout` to measure the deferred whole-document layout separately.
 

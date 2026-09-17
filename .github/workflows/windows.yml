@@ -1,0 +1,49 @@
+name: Windows
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: cmake -S windows -B windows/.build/core -A x64
+      - run: cmake --build windows/.build/core --config Release
+      - run: ctest --test-dir windows/.build/core -C Release --output-on-failure
+  app:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build native WinUI app
+        shell: pwsh
+        run: ./windows/scripts/build.ps1 -Platform ${{ matrix.platform }}
+      - name: Smoke-test native launch and file argument
+        if: matrix.platform == 'x64'
+        shell: pwsh
+        run: ./windows/scripts/smoke-test.ps1 -Executable dist/windows/x64/Release/SSMV.exe
+      - name: Include license and test document
+        shell: pwsh
+        run: |
+          $output = 'dist/windows/${{ matrix.platform }}/Release'
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, windows/README.md $output
+          Copy-Item Examples/Windows.md $output
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SSMV-windows-${{ matrix.platform }}-development
+          path: dist/windows/${{ matrix.platform }}/Release/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && matrix.platform == 'x64'
+        with:
+          name: SSMV-windows-smoke-evidence
+          path: dist/windows/smoke/
+          if-no-files-found: ignore

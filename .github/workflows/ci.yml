@@ -10,7 +10,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Unit tests
-        run: swift test
+        run: swift test --package-path macos
       - name: Universal app bundle
         run: UNIVERSAL=1 scripts/build-app.sh
       - name: Validate document registration

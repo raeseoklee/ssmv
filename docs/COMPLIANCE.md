@@ -157,3 +157,18 @@ not extend the initial licensing review into a guarantee about arbitrary remote
 documents, signed URLs, or other users' Markdown. Release checks must still
 verify archive contents, signatures, checksums, both executable architectures,
 and CLI delivery from the installed application.
+
+## Windows development port — 2026-09-17
+
+The repository now separates macOS and Windows source. Relocated macOS source,
+tests, package manifest and resources are unchanged. The Windows implementation
+is new project-owned C++ code and uses the standard library for Markdown parsing.
+Its only direct package references are the requested Microsoft Windows App SDK WinUI component
+and C++/WinRT build support, pinned in `windows/SSMV.vcxproj`.
+
+The package manifests and bundled license files were inspected. Microsoft
+platform binaries retain their own terms; they are not relicensed under MIT.
+This source change does not establish clearance for a Windows binary release.
+Before release, review the transitive package notices, runtime redistribution,
+installer, signing and actual Windows behavior. No Windows release or Homebrew
+version change is part of this platform separation.

@@ -2,25 +2,27 @@
 
 SSMV is a small, native Markdown viewer. Contributions should preserve its read-only purpose, macOS conventions, and minimal resource use. Discuss new dependencies or substantial features in an [issue](https://github.com/raeseoklee/ssmv/issues) before implementing them.
 
-## Development
+## macOS development
 
-Use macOS 13 or later with Swift 6 or later. The project uses Swift Package Manager and has no external package dependencies.
+Use macOS 13 or later with Swift 6 or later. The macOS project uses Swift Package Manager and has no external package dependencies.
 
-- `Sources/SSMV/`: app lifecycle, menus, window, and sidebar.
-- `Sources/MarkdownCore/`: source loading, URL cache, durable document state, request transport, Markdown rendering, and PDF export.
-- `Sources/SSMVCLI/`: the one-shot CLI delivered inside the app as `SSMVCLI`.
-- `Tests/MarkdownCoreTests/` and `Tests/SSMVTests/`: core and app regression tests.
-- `Resources/`: app metadata and icon assets.
-- `scripts/`: app and release tooling.
+- `macos/Sources/SSMV/`: app lifecycle, menus, window, and sidebar.
+- `macos/Sources/MarkdownCore/`: source loading, URL cache, durable document state, request transport, Markdown rendering, and PDF export.
+- `macos/Sources/SSMVCLI/`: the one-shot CLI delivered inside the app as `SSMVCLI`.
+- `macos/Tests/MarkdownCoreTests/` and `macos/Tests/SSMVTests/`: core and app regression tests.
+- `macos/Resources/`: app metadata and icon assets.
+- `macos/scripts/`: app and release tooling; `scripts/` retains compatible entrypoints.
+- `windows/`: the C++/WinUI 3 Windows project, currently in development.
+- `Examples/` and `docs/`: shared sample documents and documentation.
 
 Run these checks from the repository root:
 
 ```sh
-swift test
-swift build -Xswiftc -warnings-as-errors
-swift format lint --strict --recursive Sources Tests Package.swift scripts/benchmark.swift
-bash -n scripts/build-app.sh scripts/release.sh
-plutil -lint Resources/Info.plist
+swift test --package-path macos
+swift build --package-path macos -Xswiftc -warnings-as-errors
+swift format lint --strict --recursive macos/Sources macos/Tests macos/Package.swift macos/scripts/benchmark.swift
+bash -n scripts/*.sh macos/scripts/*.sh
+plutil -lint macos/Resources/Info.plist
 UNIVERSAL=1 scripts/build-app.sh
 ```
 
@@ -82,7 +84,7 @@ file per process to measure peak resident memory separately:
 
 ```sh
 mkdir -p .build/benchmarks
-swiftc -O -swift-version 6 -parse-as-library Sources/MarkdownCore/*.swift scripts/benchmark.swift -o .build/benchmarks/benchmark
+swiftc -O -swift-version 6 -parse-as-library macos/Sources/MarkdownCore/*.swift macos/scripts/benchmark.swift -o .build/benchmarks/benchmark
 /usr/bin/time -l .build/benchmarks/benchmark /path/to/document.md
 ```
 
@@ -92,3 +94,12 @@ whole-document layout required for comparison with older versions; the viewer
 does not force this on opening. `tail_preserved` expects a fixture ending in
 `END_OF_DOCUMENT`. This is a rendering harness, not an interactive UI test or an
 end-to-end Finder launch measurement. Use generated files without personal data.
+
+## Windows development
+
+The native C++/WinRT and WinUI 3 project lives in `windows/`. See the
+[Windows build and test guide](windows/README.md) for prerequisites, supported
+features and remaining porting work. Keep platform-specific code in its platform
+folder; example documents and repository documentation remain shared. A Windows
+CI artifact is a development build and must not trigger a macOS release or tap
+update. Windows release readiness requires actual Windows interaction testing.

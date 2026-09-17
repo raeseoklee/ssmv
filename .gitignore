@@ -3,3 +3,9 @@ dist/
 .DS_Store
 .omx/
 .codexus/
+
+# Windows IDE and NuGet build state
+.vs/
+**/obj/
+**/packages/
+*.vcxproj.user
