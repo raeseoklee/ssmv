@@ -6,6 +6,8 @@ image fetching, or Markdown script execution. HTTPS Markdown links open in the
 viewer; other HTTP/HTTPS/mailto links open in the system's default application.
 Remote and imported documents cannot dispatch local-file or custom-scheme links.
 
+The implementation details below describe macOS. The Windows preview uses a separate C++ implementation and stores its state under `%LOCALAPPDATA%\SSMV`; see the [Windows guide](windows/README.md) and [verification boundaries](docs/WINDOWS-PARITY.md).
+
 Files must be regular UTF-8 files no larger than 16 MiB. At most two background
 parsers run concurrently. Cancelling a request releases its caller immediately;
 an already-running Foundation parse retains its slot until it finishes, while

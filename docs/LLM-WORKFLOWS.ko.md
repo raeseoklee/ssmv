@@ -2,7 +2,9 @@
 
 [English](LLM-WORKFLOWS.md) · [한국어 README](README.ko.md)
 
-SSMV 0.5.0 이상에서는 로컬 파일, 복사한 텍스트, `ssmv` 명령으로 각 도구의 Markdown 결과를 열 수 있습니다. SSMV용 MCP 서버나 도구별 플러그인은 필요하지 않습니다.
+macOS용 SSMV 0.5.0 이상에서는 로컬 파일, 복사한 텍스트, `ssmv` 명령으로 각 도구의 Markdown 결과를 열 수 있습니다. SSMV용 MCP 서버나 도구별 플러그인은 필요하지 않습니다.
+
+Windows 미리 보기 버전에서는 결과를 Markdown 파일로 저장하거나 내려받아 SSMV로 열고, 복사한 텍스트는 클립보드 가져오기로 읽을 수 있습니다. 아래 `ssmv` CLI 예시는 macOS 전용입니다. 지원하는 전달 방법은 [Windows 안내](../windows/README.ko.md)를 확인하세요.
 
 | 작업 환경 | 결과를 여는 방법 |
 | --- | --- |

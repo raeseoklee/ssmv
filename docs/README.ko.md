@@ -2,25 +2,38 @@
 
 [English](../README.md)
 
-SSMV는 **macOS용 가벼운 Markdown 뷰어**입니다. 로컬 파일, 공개 Markdown URL, LLM이 만든 글을 읽고 목차에서 원하는 부분을 찾거나 PDF로 저장할 수 있습니다.
+SSMV는 **macOS와 Windows용 Markdown 뷰어**입니다. 로컬 파일과 공개 Markdown URL을 읽고, 여러 문서를 사이드바에 모아 목차로 탐색하거나 PDF로 저장할 수 있습니다. 무료이며 소스는 MIT 라이선스로 공개합니다.
 
-**macOS 13 이상 · Apple Silicon 및 Intel · 무료 · MIT 라이선스**
+각 운영체제의 기본 UI를 사용합니다. macOS는 Swift와 AppKit, Windows는 C++과 WinUI 3로 구현했으며 웹뷰나 백그라운드 서버 없이 문서를 표시합니다. Windows는 미리 보기 버전으로, 아직 macOS의 모든 기능을 제공하지는 않습니다.
 
-![여러 문서와 제목별 목차를 표시하는 SSMV 라이트 모드 화면](images/ssmv-sidebar-9450b1ce.png)
+| 플랫폼 | 지원 환경 | 설치 |
+| --- | --- | --- |
+| macOS | macOS 13 이상 · Apple Silicon 및 Intel | [Homebrew 또는 앱 다운로드](#설치) |
+| Windows 미리 보기 | Windows 10 빌드 19041 이상 및 Windows 11 · x64 및 ARM64 | [x64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe) · [ARM64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe) |
 
-C++과 WinUI 3를 사용하는 Windows 버전은 [`windows/`](../windows/)에서 개발 중입니다. 아래 설치 방법과 기능 설명은 배포된 macOS 앱을 기준으로 합니다.
+![여러 문서와 제목별 목차를 표시하는 macOS용 SSMV 라이트 모드 화면](images/ssmv-sidebar-9450b1ce.png)
+
+[Windows 화면과 사용 안내](../windows/README.ko.md) · [Windows 기능 차이와 검증 범위](WINDOWS-PARITY.ko.md)
 
 ## 주요 기능
 
-- **Finder에서 바로 열기.** 다음으로 열기를 사용하거나 기본 앱으로 설정해 더블클릭으로 엽니다.
-- **URL과 LLM 결과 열기.** 공개 HTTPS Markdown을 열거나 복사한 글을 가져옵니다. `ssmv` 명령으로 결과를 전달할 수도 있습니다.
-- **여러 문서를 한곳에서 읽기.** 접을 수 있는 사이드바에서 파일을 선택하고, 제목별 목차로 본문을 탐색합니다.
-- **읽기 편한 화면.** 라이트·다크 모드, 글자 크기 조절, 상단 조작부가 숨겨지는 전체 화면을 지원합니다.
-- **PDF로 저장하기.** 문서를 여러 페이지로 나눠 저장하며, 내보내는 동안에도 계속 읽을 수 있습니다.
+- **파일에서 바로 열기.** Finder의 다음으로 열기나 Windows 탐색기의 연결 프로그램을 사용합니다. 사용자가 기본 앱으로 선택하면 더블클릭으로 엽니다.
+- **URL과 복사한 글 읽기.** 공개 HTTPS Markdown과 GitHub 파일 주소를 열거나 클립보드의 Markdown 텍스트를 가져옵니다.
+- **여러 문서를 한곳에서 읽기.** 접을 수 있는 사이드바에서 문서를 선택하고 제목별 목차로 본문을 탐색합니다.
+- **화면 설정 바꾸기.** 라이트·다크 모드와 글자 크기 조절을 지원합니다.
+- **PDF로 저장하기.** 문서를 여러 페이지로 나눠 저장합니다. Windows에서는 Microsoft Print to PDF가 필요하며 일부 PDF 서식은 macOS와 다릅니다.
 
-Swift와 AppKit으로 만든 읽기 전용 앱입니다. 웹뷰, 백그라운드 서버, 외부 패키지를 사용하지 않습니다. [대용량 문서 측정 결과](PERFORMANCE.md)도 공개합니다.
+두 앱 모두 읽기 전용입니다. 세부 기능과 제한은 플랫폼별 안내를 확인하세요. [대용량 문서 측정 결과](PERFORMANCE.md)는 macOS 앱을 기준으로 합니다.
 
 ## 설치
+
+### Windows
+
+위 표에서 PC에 맞는 v0.5.1 미리 보기 설치 파일을 받으세요. 아키텍처는 **설정 → 시스템 → 정보 → 시스템 종류**에서 확인할 수 있습니다. 설치 프로그램은 서명되지 않았으므로 Windows에서 게시자를 확인할 수 없다는 경고가 나올 수 있습니다.
+
+설치하면 시작 메뉴와 탐색기의 **연결 프로그램**, **Open with SSMV**에 등록됩니다. Windows 11에서는 우클릭 명령이 **더 많은 옵션 표시** 안에 있을 수 있습니다. 기존 기본 앱은 바꾸지 않습니다. 설치 위치, 업데이트, 제거 방법은 [Windows 설치 안내](../windows/README.ko.md#설치와-탐색기에서-열기)를 참고하세요.
+
+### macOS
 
 Homebrew로 설치하려면 다음 명령을 실행하세요.
 
@@ -44,6 +57,8 @@ open -a SSMV
 
 ## 업데이트
 
+Windows는 새 설치 파일을 받아 실행합니다. [Windows 안내](../windows/README.ko.md)를 참고하세요. 아래 Homebrew 업데이트 확인과 명령은 **macOS 전용**입니다.
+
 앱 실행 시 Homebrew tap의 새 버전을 백그라운드에서 확인합니다. 확인은 최대 24시간에 한 번이며, 새 버전이 있으면 앱 안에 안내가 표시됩니다. **Copy Commands**를 누르고 SSMV를 종료한 다음, 터미널에 명령을 붙여 넣어 실행하세요.
 
 ```sh
@@ -54,6 +69,8 @@ brew upgrade --cask raeseoklee/tap/ssmv
 앱이 업데이트 파일을 직접 내려받거나 설치하지는 않습니다. 같은 버전은 한 번만 알리며, 확인에 실패해도 문서 읽기에는 영향을 주지 않습니다. GitHub의 공개 cask 파일을 읽을 뿐 문서 내용이나 파일 경로는 전송하지 않습니다.
 
 ## 사용법
+
+아래 메뉴, 단축키, 정렬·목차·전체 화면 동작은 **macOS 기준**입니다. Windows의 메뉴와 조작은 [Windows 사용 안내](../windows/README.ko.md#문서-읽기-기능)를 참고하세요.
 
 Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으로 열기 → SSMV**를 선택하세요. 앱 안에서는 **⌘O**로 파일을 엽니다.
 
@@ -72,6 +89,8 @@ Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으
 
 ## URL과 생성된 문서 읽기
 
+아래 단축키, 캐시 한도와 가져온 문서 관리 메뉴는 **macOS 기준**입니다. Windows도 URL과 클립보드 열기를 지원하며, 한도와 메뉴는 [Windows 안내](../windows/README.ko.md#url-문서와-pdf-저장)를 확인하세요.
+
 **File → Open URL…**(**⇧⌘O**)에서 공개 HTTPS Markdown 주소나 GitHub 파일 링크를 입력하세요. 저장소 첫 화면, 디렉터리, 비공개 저장소, 로그인 페이지, 일반 웹페이지 변환은 지원하지 않습니다. 파일 페이지를 열 수 없다면 해당 파일의 **Raw** 주소를 사용하세요.
 
 원격 문서에는 호스트와 사본을 가져온 시간이 표시됩니다. **⌘R**로 새 내용을 내려받으며, 갱신에 실패해도 이전 내용은 계속 읽을 수 있습니다. 내려받기를 중단하려면 **File → Cancel Loading**을 선택하세요. 원격 문서를 우클릭하면 **Reload**, **Copy Source URL**, **Open in Browser**를 사용할 수 있습니다.
@@ -83,6 +102,8 @@ Finder에서 `.md`, `.markdown`, `.mdown` 파일을 우클릭한 뒤 **다음으
 가져온 문서를 사이드바에서 제거해도 내용은 보관합니다. **File → Manage Imported Documents…**에서 목록에 없는 문서와 저장 공간 사용량을 확인하세요. 문서를 선택해 **Save a Copy…**로 저장하거나 **Delete…**를 누르고 확인해 삭제할 수 있습니다. 사이드바에 있는 문서는 여기서 삭제할 수 없습니다. 가져온 텍스트의 보관 한도는 원격 캐시와 별도로 256 MiB이며, 새 문서를 넣기 위해 기존 내용을 자동으로 지우지 않습니다. 각 문서는 비어 있지 않은 UTF-8 텍스트여야 하며 최대 16 MiB입니다.
 
 ## CLI와 LLM 도구 연결
+
+아래 `ssmv` CLI와 표준입력 전달은 **macOS 전용**입니다. Windows의 파일 인수 전달과 남은 CLI 기능은 [Windows 기능 점검표](WINDOWS-PARITY.ko.md)를 참고하세요.
 
 [Codex·Claude·ChatGPT·Gemini 사용 가이드](LLM-WORKFLOWS.ko.md)에서 요청 예시, CLI 명령, 브라우저 채팅의 결과를 가져오는 방법을 확인하세요.
 
@@ -104,6 +125,8 @@ LLM 도구가 파일을 만든다면 `open -a SSMV "/path/to/result.md"`로도 �
 
 ## 지원 범위와 제한
 
+아래 파서, 링크 처리와 렌더링 제한은 **macOS 기준**입니다. Windows는 별도 파서를 사용하며 [지원 범위와 차이](WINDOWS-PARITY.ko.md)가 있습니다.
+
 제목, 문단, 강조, 취소선, 목록, 인용, 코드 블록, 표, 링크를 표시합니다. HTTPS Markdown 링크는 SSMV에서 열고, 그 밖의 HTTP/HTTPS 링크는 기본 브라우저로 엽니다. 상대 링크는 로컬 문서라면 원본 파일의 폴더를, 원격 문서라면 내려받은 주소를 기준으로 처리합니다. 원격 문서와 가져온 텍스트에서는 로컬 파일 링크나 사용자 정의 URL 스킴을 열지 않습니다. 가져온 텍스트에는 로컬 기준 폴더가 없습니다. 한글과 이모지가 포함된 UTF-8 파일을 지원하며 파일 크기는 최대 16 MiB입니다.
 
 이미지, HTML 렌더링, Mermaid, 수식, 구문 강조, 체크박스 조작, 문서 내부 앵커 이동은 지원하지 않습니다. Foundation Markdown 파서를 사용하므로 GitHub와 표시 방식이 완전히 같지는 않을 수 있습니다. PDF 내보내기에도 같은 제한이 적용됩니다.
@@ -111,6 +134,8 @@ LLM 도구가 파일을 만든다면 `open -a SSMV "/path/to/result.md"`로도 �
 아주 긴 문단이나 표, 멀리 떨어진 본문 검색, PDF 내보내기에는 시간이 걸릴 수 있습니다. PDF 내보내기는 본문 생성이 끝나면 사용할 수 있습니다. 파일 변경은 자동으로 반영하지 않으므로 수정한 내용을 보려면 **⌘R**로 다시 읽으세요.
 
 ## 단축키
+
+아래는 **macOS 단축키**입니다. Windows의 Ctrl 기반 단축키는 [Windows 사용 안내](../windows/README.ko.md#문서-읽기-기능)에 정리했습니다.
 
 | 기능 | 단축키 |
 | --- | --- |
@@ -130,6 +155,8 @@ LLM 도구가 파일을 만든다면 `open -a SSMV "/path/to/result.md"`로도 �
 
 ## 소스에서 빌드
 
+아래 명령은 **macOS용 빌드**입니다. Windows는 [별도 빌드 안내](../windows/README.ko.md#빌드)를 참고하세요.
+
 macOS 13 이상과 Swift 6 이상이 필요합니다. Xcode 또는 Command Line Tools를 설치한 뒤 다음 명령을 실행하세요.
 
 ```sh
@@ -147,7 +174,7 @@ Apple Silicon과 Intel을 모두 지원하는 Universal 앱을 빌드하려면 `
 
 **문서가 외부로 업로드되나요?** 문서 업로드 서비스나 사용 분석 기능은 없습니다. 원격 문서를 열면 URL의 쿼리 매개변수를 포함해 해당 서버에 요청을 보냅니다. 브라우저 쿠키나 저장된 인증 정보는 사용하지 않습니다. 원격 주소와 캐시 본문은 로컬에 저장되므로 인증용 정보가 든 URL이나 비공개 문서를 이슈에 올리지 마세요. 그 밖의 웹 링크는 기본 브라우저로 엽니다.
 
-**목록에서 제거하면 파일도 삭제되나요?** 아니요. 로컬 원본과 가져온 텍스트는 남습니다. 목록에서 제거한 가져온 텍스트를 삭제하려면 **Manage Imported Documents…**에서 직접 삭제하세요.
+**목록에서 제거하면 파일도 삭제되나요?** 아니요. 로컬 원본과 가져온 텍스트는 남습니다. macOS에서는 **Manage Imported Documents…**에서 목록에 없는 가져온 텍스트를 직접 삭제할 수 있습니다. Windows에는 아직 이 관리 화면이 없습니다.
 
 ## 프로젝트 정보
 

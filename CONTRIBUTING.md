@@ -1,6 +1,6 @@
 # Contributing to SSMV
 
-SSMV is a small, native Markdown viewer. Contributions should preserve its read-only purpose, macOS conventions, and minimal resource use. Discuss new dependencies or substantial features in an [issue](https://github.com/raeseoklee/ssmv/issues) before implementing them.
+SSMV is a small, native Markdown viewer. Contributions should preserve its read-only purpose, each platform’s native UI conventions, and minimal resource use. Discuss new dependencies or substantial features in an [issue](https://github.com/raeseoklee/ssmv/issues) before implementing them.
 
 ## macOS development
 
@@ -12,7 +12,7 @@ Use macOS 13 or later with Swift 6 or later. The macOS project uses Swift Packag
 - `macos/Tests/MarkdownCoreTests/` and `macos/Tests/SSMVTests/`: core and app regression tests.
 - `macos/Resources/`: app metadata and icon assets.
 - `macos/scripts/`: app and release tooling; `scripts/` retains compatible entrypoints.
-- `windows/`: the C++/WinUI 3 Windows project, currently in development.
+- `windows/`: the C++/WinUI 3 Windows preview project.
 - `Examples/` and `docs/`: shared sample documents and documentation.
 
 Run these checks from the repository root:
@@ -27,6 +27,12 @@ UNIVERSAL=1 scripts/build-app.sh
 ```
 
 For UI changes, open `dist/SSMV.app` and check the affected behavior in light and dark appearances. Test Finder opening, sidebar selection, or PDF output when relevant. Cross-compiling for Intel does not verify execution on Intel hardware; report hardware-specific gaps.
+
+## Windows development
+
+Use Visual Studio 2022 with C++ tools and the Windows SDK. Follow the [Windows build and test guide](windows/README.md#build) for x64/ARM64 builds, core tests, and installer validation. Installer tests require a clean, disposable Windows environment. Report Windows 11 and architecture-specific verification limits separately.
+
+Keep platform changes scoped: macOS uses Swift/AppKit, while Windows uses C++/WinUI 3. Update the [parity checklist](docs/WINDOWS-PARITY.md) when implementing a Windows counterpart; do not assume matching shortcuts or identical behavior.
 
 ## Document input changes
 

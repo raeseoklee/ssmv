@@ -2,25 +2,43 @@
 
 [한국어](docs/README.ko.md)
 
-SSMV is a **lightweight Markdown viewer for macOS**. Read local files, public Markdown URLs, and text from LLM tools. Navigate by heading and export to PDF.
+SSMV is a **lightweight, native Markdown viewer for macOS and Windows**. Read local files and public Markdown URLs, keep documents in a sidebar, navigate by heading, and export to PDF.
 
-**macOS 13+ · Apple Silicon & Intel · Free · MIT license**
+**Free · MIT license · Native desktop UI**
 
-![SSMV in light mode with multiple documents and an expanded heading outline](docs/images/ssmv-sidebar-9450b1ce.png)
+| Platform | Requirements | Native UI | Distribution |
+| --- | --- | --- | --- |
+| macOS | macOS 13+; Apple Silicon or Intel | Swift and AppKit | Homebrew or Universal app |
+| Windows preview | Windows 10 build 19041+ or Windows 11; x64 or ARM64 | C++ and WinUI 3 | NSIS installer |
 
-A Windows edition using C++ and WinUI 3 is in development in [`windows/`](windows/). The installation and features below describe the released macOS app.
+Both editions are read-only and use native text controls, without an embedded browser or background server. The Windows preview does not yet match every macOS feature; see the [Windows guide](windows/README.md) and [feature parity checklist](docs/WINDOWS-PARITY.md).
+
+![SSMV on macOS with multiple documents and an expanded heading outline](docs/images/ssmv-sidebar-9450b1ce.png)
+
+![SSMV on Windows with a native document tree and Markdown reader](docs/images/ssmv-windows-native-ui.png)
 
 ## Features
 
-- **Open straight from Finder.** Use Open With, or set SSMV as your default for double-click access.
-- **Read from a URL or LLM tool.** Open public HTTPS Markdown, paste copied text, or pipe output into `ssmv`.
+- **Open from your desktop.** Use Finder or Explorer's **Open with** menu, or choose SSMV as the default app for Markdown files.
+- **Read public Markdown URLs.** Open HTTPS Markdown files or supported GitHub file links.
 - **Keep documents together.** Switch files in a collapsible sidebar and navigate by heading.
-- **Read comfortably.** Choose light or dark mode, adjust text size, and hide the controls in full screen.
-- **Save a PDF.** Export a paginated document while continuing to read.
+- **Read comfortably.** Choose light or dark mode and adjust text size.
+- **Save a PDF.** Export the document; Windows uses Microsoft Print to PDF.
 
-Built with Swift and AppKit, SSMV is read-only and uses no web view, background server, or third-party packages. See the [large-document measurements](docs/PERFORMANCE.md).
+LLM integrations, shortcuts, rendering limits, and full-screen behavior differ by platform. The macOS edition also provides the Homebrew `ssmv` CLI; see [LLM workflows](docs/LLM-WORKFLOWS.md) and [Windows capabilities](windows/README.md#reading-features). The [large-document measurements](docs/PERFORMANCE.md) cover macOS.
 
 ## Install
+
+### Windows preview
+
+Download an installer from [v0.5.1](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1):
+
+- [Windows x64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
+- [Windows ARM64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
+
+Setup installs for the current user and registers Markdown files for **Open with SSMV**. On Windows 11, use **Show more options** if needed. The installers are unsigned. See the [Windows installation and signing notes](windows/README.md#install-and-open-from-explorer).
+
+### macOS
 
 ```sh
 brew install --cask raeseoklee/tap/ssmv
@@ -42,6 +60,10 @@ open -a SSMV
 
 ## Updates
 
+**Windows:** Close SSMV and run a newer installer from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). The Windows preview has no in-app update check.
+
+**macOS:**
+
 At launch, SSMV checks this Homebrew tap in the background, at most once every 24 hours. When a newer version is available, an in-app notice offers **Copy Commands**. Quit SSMV, then run the commands in Terminal:
 
 ```sh
@@ -51,7 +73,11 @@ brew upgrade --cask raeseoklee/tap/ssmv
 
 SSMV does not download or install updates itself. Each version is announced once; failed checks remain silent. The check fetches the public cask file from GitHub without sending document contents or file paths.
 
-## Use
+## macOS guide
+
+The following instructions apply to macOS. For Windows, see the [Windows guide](windows/README.md).
+
+### Use
 
 Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV**, or press **⌘O** in the app. To use SSMV on double-click, select a Markdown file in Finder, choose **Get Info → Open with → SSMV → Change All…**. SSMV does not change your default app automatically.
 
@@ -66,7 +92,7 @@ Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV*
 - In full screen (**⌃⌘F**), the title and toolbar hide automatically. Move the pointer to the top edge to reveal them.
 - Choose **File → Export as PDF…** to save the selected document as a paginated A4 PDF with a white background, independent of the screen theme or text size. A separate progress window shows the current stage and offers **Cancel**; you can keep reading or switch documents during export.
 
-## URLs and generated text
+### URLs and generated text
 
 Choose **File → Open URL…** (**⇧⌘O**) and enter a public HTTPS Markdown address or a GitHub file link. GitHub repository and directory pages, private repositories, sign-in pages, and general webpage conversion are not supported. Use the file’s **Raw** URL if a provider’s page cannot be opened.
 
@@ -78,7 +104,7 @@ To read an LLM response from a browser, copy its Markdown text, then choose **Fi
 
 Removing an imported document from the sidebar retains its stored content. **File → Manage Imported Documents…** shows unlisted imports and storage use: select a document to **Save a Copy…** or **Delete…**, then confirm deletion. Listed documents cannot be deleted here. Imported text has a separate 256 MiB storage limit and is never evicted to make room for another import. Each document must be nonempty UTF-8 text of at most 16 MiB.
 
-## CLI and LLM tools
+### CLI and LLM tools
 
 See [Use SSMV with Codex, Claude, ChatGPT, and Gemini](docs/LLM-WORKFLOWS.md) for copyable prompts, CLI commands, and browser-chat workflows.
 
@@ -98,7 +124,7 @@ Exit status **0 means the request was handed to the app**, not that download or 
 
 For a manual installation, invoke the bundled command at `SSMV.app/Contents/MacOS/SSMVCLI` using the app’s actual location. No MCP server, API key, shell service, or listening port is required. Browser-only LLM clients can use clipboard or downloaded files; they cannot necessarily run a local command.
 
-## Markdown support
+### Markdown support
 
 SSMV renders headings, paragraphs, emphasis, strikethrough, lists, block quotes, code blocks, tables, and links. HTTPS Markdown links open in SSMV; other HTTP/HTTPS links open in your default browser. Relative links in local documents resolve beside the source file, while remote links resolve against the downloaded document’s address. Remote and imported text cannot open local-file links or custom URL schemes. Imported text has no local base directory. UTF-8 text, including Korean and emoji, is supported. Files are limited to 16 MiB.
 
@@ -106,7 +132,7 @@ Images, HTML rendering, Mermaid diagrams, mathematical notation, syntax highligh
 
 Very large paragraphs, tables, finding distant text, and PDF export can still take time. PDF export becomes available when text construction finishes. There is no automatic file watching: use **⌘R** to reload changes.
 
-## Keyboard shortcuts
+### Keyboard shortcuts
 
 | Action | Shortcut |
 | --- | --- |
@@ -126,6 +152,8 @@ Very large paragraphs, tables, finding distant text, and PDF export can still ta
 
 ## Build from source
 
+For Windows, follow the [Windows build instructions](windows/README.md#build). The commands below build the macOS edition.
+
 Requires macOS 13 or later and Xcode or Command Line Tools with **Swift 6 or later**.
 
 ```sh
@@ -143,7 +171,7 @@ Use `UNIVERSAL=1 scripts/build-app.sh` to build for both Apple Silicon and Intel
 
 **Are documents uploaded?** SSMV has no document-upload service or analytics. Opening a remote document sends a request to its server, including the URL’s query parameters. SSMV uses no browser cookies or stored credentials. Remote addresses and cached content are stored locally; do not share signed URLs or private documents in issue reports. Other web links open in your default browser.
 
-**Does removing a sidebar entry delete my file?** No. Local originals and imported text stay on disk. Delete unlisted imported text explicitly through **Manage Imported Documents…**.
+**Does removing a sidebar entry delete my file?** No. Local originals and imported text stay on disk. On macOS, delete unlisted imported text explicitly through **Manage Imported Documents…**; this management UI is not yet available on Windows.
 
 ## Project
 

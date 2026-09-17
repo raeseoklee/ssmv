@@ -2,7 +2,7 @@
 
 [한국어](LLM-WORKFLOWS.ko.md) · [Back to README](../README.md)
 
-SSMV 0.5.0 or later can display Markdown from these tools through local files, copied text, or its `ssmv` command. No SSMV MCP server or provider-specific plugin is required.
+The macOS edition of SSMV 0.5.0 or later can display Markdown from these tools through local files, copied text, or its `ssmv` command. No SSMV MCP server or provider-specific plugin is required.
 
 | Where you work | How to open the result |
 | --- | --- |
@@ -10,6 +10,8 @@ SSMV 0.5.0 or later can display Markdown from these tools through local files, c
 | Claude Code or Gemini CLI on your Mac | Ask the agent to open its file, or use the commands below |
 | ChatGPT, Claude chat, or Gemini chat | Copy Markdown into SSMV, or download a Markdown file |
 | A cloud task, remote host, or container | Download the result to your Mac, then open it locally |
+
+For the Windows preview, save or download the result as a Markdown file and open it in SSMV, or use clipboard import. The `ssmv` CLI examples below are macOS-only; see the [Windows guide](../windows/README.md) for supported handoffs.
 
 ## Before you start
 
