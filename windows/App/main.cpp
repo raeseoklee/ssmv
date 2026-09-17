@@ -65,7 +65,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     bool closed = false;
     bool dialogOpen = false;
     std::vector<FrameworkElement> rendered;
-    size_t renderLimit = maxRenderedBlocks;
+    size_t renderStart = 0;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
     std::set<std::filesystem::path> expandedPaths;
@@ -280,7 +280,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 co_await ui;
                 if (closed || request != generation) continue;
                 for (auto& document : loaded) selected = library.insert(std::move(document));
-                renderLimit = maxRenderedBlocks;
+                renderStart = 0;
                 rebuildShelf();
                 render();
                 if (!failures.empty()) error(to_hstring(failures));
@@ -290,12 +290,43 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         loading = false;
     }
 
+    void buildOutline(Expander const& expander, size_t index, size_t start) {
+        constexpr size_t pageSize = 200;
+        auto const& headings = library.documents()[index].markdown.headings;
+        StackPanel panel;
+        auto weakExpander = make_weak(expander);
+        if (start > 0) panel.Children().Append(button(L"Previous headings", [this, weakExpander, index, start] {
+            if (auto owner = weakExpander.get()) buildOutline(owner, index, start >= pageSize ? start - pageSize : 0);
+        }));
+        auto end = std::min(headings.size(), start + pageSize);
+        for (size_t position = start; position < end; ++position) {
+            auto const& heading = headings[position];
+            auto jump = button(to_hstring(heading.text), [this, index, target = heading.blockIndex] {
+                auto changed = !selected || *selected != index;
+                selected = index;
+                renderStart = (target / maxRenderedBlocks) * maxRenderedBlocks;
+                if (changed) rebuildShelf();
+                render();
+                if (target >= renderStart && target - renderStart < rendered.size())
+                    rendered[target - renderStart].StartBringIntoView();
+            });
+            jump.Margin({double(std::max(0, heading.level - 1) * 12), 0, 0, 0});
+            jump.HorizontalAlignment(HorizontalAlignment::Stretch);
+            jump.HorizontalContentAlignment(HorizontalAlignment::Left);
+            panel.Children().Append(jump);
+        }
+        if (end < headings.size()) panel.Children().Append(button(L"More headings", [this, weakExpander, index, end] {
+            if (auto owner = weakExpander.get()) buildOutline(owner, index, end);
+        }));
+        expander.Content(panel);
+    }
+
     void rebuildShelf() {
         shelf.Children().Clear();
         for (size_t index = 0; index < library.documents().size(); ++index) {
             auto const& document = library.documents()[index];
             auto title = (selected && *selected == index ? hstring(L"● ") : hstring()) + hstring(document.path.filename().wstring());
-            auto choose = button(title, [this, index] { selected = index; renderLimit = maxRenderedBlocks; rebuildShelf(); render(); });
+            auto choose = button(title, [this, index] { selected = index; renderStart = 0; rebuildShelf(); render(); });
             choose.HorizontalAlignment(HorizontalAlignment::Stretch);
             choose.HorizontalContentAlignment(HorizontalAlignment::Left);
             ToolTipService::SetToolTip(choose, box_value(document.path.wstring()));
@@ -303,24 +334,19 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 Expander expander;
                 expander.Header(choose);
                 auto path = document.path;
-                expander.IsExpanded(expandedPaths.contains(path));
-                expander.Expanding([this, path](auto const&, auto const&) { expandedPaths.insert(path); });
-                expander.Collapsed([this, path](auto const&, auto const&) { expandedPaths.erase(path); });
+                expander.Expanding([this, path, index](auto const& sender, auto const&) {
+                    expandedPaths.insert(path);
+                    buildOutline(sender.template as<Expander>(), index, 0);
+                });
+                expander.Collapsed([this, path](auto const& sender, auto const&) {
+                    expandedPaths.erase(path);
+                    sender.template as<Expander>().Content(nullptr);
+                });
                 expander.HorizontalAlignment(HorizontalAlignment::Stretch);
-                StackPanel headings;
-                for (auto const& heading : document.markdown.headings) {
-                    auto jump = button(to_hstring(heading.text), [this, index, target = heading.blockIndex] {
-                        if (!selected || *selected != index) { selected = index; renderLimit = maxRenderedBlocks; rebuildShelf(); render(); }
-                        if (target >= rendered.size()) { renderLimit = target + 1; render(); }
-                        if (target < rendered.size()) rendered[target].StartBringIntoView();
-                        else error(L"Could not locate this heading.");
-                    });
-                    jump.Margin({double(std::max(0, int(heading.level) - 1) * 12), 0, 0, 0});
-                    jump.HorizontalAlignment(HorizontalAlignment::Stretch);
-                    jump.HorizontalContentAlignment(HorizontalAlignment::Left);
-                    headings.Children().Append(jump);
+                if (expandedPaths.contains(path)) {
+                    buildOutline(expander, index, 0);
+                    expander.IsExpanded(true);
                 }
-                expander.Content(headings);
                 shelf.Children().Append(expander);
             } else shelf.Children().Append(choose);
         }
@@ -338,8 +364,15 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         }
         auto const& document = library.documents()[*selected];
         window.Title(hstring(document.path.filename().wstring()) + L" — SSMV");
-        for (auto const& block : document.markdown.blocks) {
-            if (rendered.size() == renderLimit) break;
+        auto count = document.markdown.blocks.size();
+        if (renderStart >= count) renderStart = 0;
+        if (renderStart > 0) content.Children().Append(button(L"Previous part", [this] {
+            renderStart = renderStart >= maxRenderedBlocks ? renderStart - maxRenderedBlocks : 0;
+            render();
+        }));
+        auto end = std::min(count, renderStart + maxRenderedBlocks);
+        for (size_t index = renderStart; index < end; ++index) {
+            auto const& block = document.markdown.blocks[index];
             auto text = label(to_hstring(block.text), 16);
             text.IsTextSelectionEnabled(true);
             switch (block.kind) {
@@ -363,14 +396,13 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             content.Children().Append(text);
         }
         scroll.ChangeView(nullptr, 0.0, nullptr);
-        if (document.markdown.blocks.size() > rendered.size()) {
-            content.Children().Append(button(L"Load more", [this] {
-                auto offset = scroll.VerticalOffset();
-                renderLimit += maxRenderedBlocks;
-                render();
-                scroll.ChangeView(nullptr, offset, nullptr);
-            }));
-            status.Text(L"Showing the first " + to_hstring(rendered.size()) + L" blocks. Choose Load more to continue.");
+        if (end < count) content.Children().Append(button(L"Continue reading", [this, end] {
+            renderStart = end;
+            render();
+        }));
+        if (count > maxRenderedBlocks) {
+            status.Text(L"Part " + to_hstring(renderStart / maxRenderedBlocks + 1) + L" of " +
+                        to_hstring((count + maxRenderedBlocks - 1) / maxRenderedBlocks));
         } else status.Text(hstring(document.path.wstring()));
     }
 
@@ -378,6 +410,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         if (!selected) return;
         expandedPaths.erase(library.documents()[*selected].path);
         library.remove(*selected);
+        renderStart = 0;
         if (library.documents().empty()) selected.reset();
         else selected = std::min(*selected, library.documents().size() - 1);
         rebuildShelf();

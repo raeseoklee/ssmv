@@ -39,8 +39,10 @@ PDF export, remote URLs, LLM/CLI handoff, session persistence, installer file
 associations and automatic update checks remain porting work. The macOS version
 continues to provide its existing features. Do not use the 16 MiB input limit as a
 performance guarantee; Windows large-document measurements are still required.
-The view initially renders up to 2,000 blocks and offers **Load more** for the rest.
-Loaded blocks remain in memory; viewport virtualization is not implemented yet.
+The view shows up to 2,000 blocks per part with previous/next navigation; an
+expanded outline shows up to 200 headings at a time. Jumping to a heading loads
+its part without creating controls for the preceding document. Parsed documents
+remain in memory; continuous viewport virtualization is not implemented yet.
 
 ## Tests
 

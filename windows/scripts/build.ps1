@@ -24,7 +24,7 @@ foreach ($library in $assets.libraries.PSObject.Properties) {
         Get-ChildItem $package -Recurse -File | Where-Object {
             $_.Name -match '^(?i:license|notice|thirdparty|third-party|copyright)' -or $_.Extension -eq '.nuspec'
         } | ForEach-Object {
-            $relative = [System.IO.Path]::GetRelativePath($package, $_.FullName)
+            $relative = $_.FullName.Substring($package.TrimEnd([System.IO.Path]::DirectorySeparatorChar).Length + 1)
             $destination = Join-Path $noticeRoot $relative
             New-Item -ItemType Directory -Force (Split-Path $destination -Parent) > $null
             Copy-Item $_.FullName $destination
