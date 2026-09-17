@@ -102,6 +102,9 @@ function Invoke-AutomationElement($Element) {
 }
 
 function Open-AutomationMenu([int]$ProcessId, [string]$AutomationId) {
+    $target = $startedProcesses | Where-Object { $_.Id -eq $ProcessId } | Select-Object -First 1
+    if (!$target) { throw 'Refusing to activate a menu outside the test-owned process.' }
+    Set-TestForeground $target
     $menu = Wait-AutomationElement $ProcessId $AutomationId -AutomationId
     $expand = $null
     if ($menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
@@ -335,26 +338,30 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switc
     } finally { $null = [WindowCapture]::SetThreadDpiAwarenessContext($previousDpi) }
 }
 
+# UI Automation can expand a menu without activating its window. Establish focus
+# before menu/popup interactions as well as real keystrokes, including on Windows 11.
+function Set-TestForeground([Diagnostics.Process]$Target) {
+    $deadline = (Get-Date).AddSeconds(5)
+    do {
+        $Target.Refresh()
+        if ($Target.HasExited) { throw 'Cannot activate an exited test process.' }
+        $foregroundProcess = [uint32]0
+        $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+        if ($foregroundProcess -eq $Target.Id) { return }
+        $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    throw 'Refusing interaction: the isolated SSMV window is not foreground.'
+}
+
 # Real keystrokes target only the test-owned foreground process. UIA invocation
 # alone cannot prove that menu accelerators work with all menus closed.
 function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$Shift, [switch]$NoControl) {
-    $Target.Refresh()
-    if ($Target.HasExited) { throw 'Cannot send a shortcut to an exited test process.' }
-    $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
-    $deadline = (Get-Date).AddSeconds(5)
-    do {
-        $foregroundProcess = [uint32]0
-        $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
-        if ($foregroundProcess -eq $Target.Id) {
-            [WindowCapture]::SendShortcut($Key, $Shift.IsPresent, !$NoControl.IsPresent)
-            # SendInput queues events; allow key-up and layout handlers to finish
-            # before the next shortcut. Each action is still sent exactly once.
-            Start-Sleep -Milliseconds 150
-            return
-        }
-        Start-Sleep -Milliseconds 100
-    } while ((Get-Date) -lt $deadline)
-    throw 'Refusing to send keyboard input: the isolated SSMV window is not foreground.'
+    Set-TestForeground $Target
+    [WindowCapture]::SendShortcut($Key, $Shift.IsPresent, !$NoControl.IsPresent)
+    # SendInput queues events; allow key-up and layout handlers to finish
+    # before the next shortcut. Each action is still sent exactly once.
+    Start-Sleep -Milliseconds 150
 }
 
 function Wait-SavedPreference([string]$Preference, $Expected) {
@@ -503,6 +510,7 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
     [WindowCapture]::PositionForCapture($process.MainWindowHandle)
+    Set-TestForeground $process
     Save-WindowEvidence $process 'window-startup.png'
     $freshView = Open-AutomationMenu $process.Id 'menu.view'
     $null = Wait-AutomationElement $process.Id 'menu.appearance' -AutomationId

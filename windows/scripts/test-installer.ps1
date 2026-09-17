@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 if (!$IsWindows) { throw 'The installer smoke test requires Windows.' }
 $installerPath = (Resolve-Path $Installer).Path
 $installRoot = Join-Path $env:LOCALAPPDATA 'Programs/SSMV'
+$startMenuShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)) 'SSMV.lnk'
 $classes = 'HKCU:\Software\Classes'
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SSMV'
 $extensions = @('.md', '.markdown', '.mdown')
@@ -14,6 +15,9 @@ $registeredApplications = 'HKCU:\Software\RegisteredApplications'
 $ownedKeys = @("$classes\SSMV.Markdown", "$classes\Applications\SSMV.exe", $uninstallKey, $capabilitiesKey)
 foreach ($extension in $extensions) { $ownedKeys += "$classes\SystemFileAssociations\$extension\shell\SSMV" }
 # This test changes shell registrations. Never run it over an existing installation.
+if (Test-Path -LiteralPath $startMenuShortcut) {
+    throw 'An existing SSMV Start Menu shortcut must not be modified by this test.'
+}
 if ((Test-Path $installRoot) -or (Get-Process SSMV -ErrorAction SilentlyContinue)) {
     throw 'Close SSMV and remove the existing per-user installation before testing the installer.'
 }
@@ -66,6 +70,7 @@ function Assert-Registration {
         Assert-True ((Read-Default "$classes\SystemFileAssociations\$extension\shell\SSMV\command") -eq $command) "Incorrect Explorer verb: $extension"
     }
     Assert-True (Test-Path $uninstallKey) 'Installed Apps registration is missing.'
+    Assert-True (Test-Path -LiteralPath $startMenuShortcut) 'Start Menu shortcut is missing.'
     Assert-True (Test-Path $capabilitiesKey) 'Default Apps capabilities are missing.'
     Assert-True ((Get-Item $registeredApplications).GetValue('SSMV') -eq 'Software\SSMV\Capabilities') 'Default Apps registration is incorrect.'
 }
@@ -184,6 +189,7 @@ try {
     Assert-True (!$registered -or !$registered.GetValueNames().Contains('SSMV')) 'Uninstall left its RegisteredApplications value.'
     Assert-True (!(Test-Path (Join-Path $installRoot 'SSMV.exe'))) 'Uninstall left the app executable.'
     Assert-True (!(Test-Path $uninstaller)) 'Uninstall left its executable.'
+    Assert-True (!(Test-Path -LiteralPath $startMenuShortcut)) 'Uninstall left its Start Menu shortcut.'
     foreach ($extension in $extensions) {
         $key = Get-Item "$classes\$extension\OpenWithProgids"
         Assert-True (!$key.GetValueNames().Contains('SSMV.Markdown')) "Uninstall left its Open With value: $extension"
