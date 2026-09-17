@@ -8,7 +8,8 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 
 ![로컬 문서를 표시하는 Windows 개발 빌드](../docs/images/ssmv-windows-620f06b.png)
 
-Windows CI에서 `620f06b`의 x64 앱을 실행해 캡처했습니다.
+Windows CI에서 `620f06b`의 x64 앱을 실행해 캡처한 이전 화면입니다.
+아래에 설명한 메뉴·사이드바 개편은 아직 Windows 검증 전입니다.
 
 ## 빌드
 
@@ -32,6 +33,13 @@ Visual Studio에서 `SSMV.vcxproj`를 열어도 됩니다. 결과는 저장소 �
 아래 기능을 구현했습니다. 남은 작업과 검증 범위는
 [기능 동등성 점검표](../docs/WINDOWS-PARITY.ko.md)에 정리했습니다.
 
+창 상단의 **File**, **Edit**, **View** 메뉴에 명령과 단축키를 함께 표시합니다.
+테마는 **View → Appearance**에서 System, Light, Dark 중 선택합니다.
+사이드바는 문서 아이콘과 하위 제목을 표시하는 Windows 기본 트리 컨트롤을 사용합니다.
+**Documents** 오른쪽에는 추가·제거·목차 아이콘을 모았습니다. 아이콘에 마우스를
+올리면 기능과 단축키가 표시됩니다. 제거 버튼을 우클릭하면 **Remove All Documents…**를
+선택할 수 있습니다.
+
 - 파일 선택, 실행 인수, 드롭으로 `.md`, `.markdown`, `.mdown` 문서를 엽니다.
   실행 중인 앱에는 절대 경로를 전달합니다. 상대 경로 인수는 앱을 처음 실행할
   때만 지원하며, 기존 앱으로 전달할 때는 거부합니다.
@@ -43,11 +51,22 @@ Visual Studio에서 `SSMV.vcxproj`를 열어도 됩니다. 결과는 저장소 �
   개별 단어를 강조하거나 출현 횟수를 세지는 않습니다. 큰 표 안의 결과는 표의
   별도 페이지 버튼으로 찾아야 할 수 있습니다.
 - Ctrl++·Ctrl+-로 글자 크기를 바꾸고 Ctrl+0으로 초기화합니다. 텍스트 선택은
-  블록 단위이며 **More → Copy Document Text**로 문서 전체의 일반 텍스트를 복사합니다.
+  블록 단위이며 **Edit → Copy Document Text**로 문서 전체의 일반 텍스트를 복사합니다.
 - Ctrl+R로 새로 고치고 Ctrl+Shift+S로 원본 형식 그대로 복사본을 저장합니다.
   탐색기에서 파일 위치를 표시하고 F11로 전체 화면을 전환할 수 있습니다.
-- **More**에서 클립보드 Markdown을 가져옵니다. 재시작하면 목록, 선택 문서,
+- **File → Open from Clipboard**에서 클립보드 Markdown을 가져옵니다. 재시작하면 목록, 선택 문서,
   읽던 위치, 펼친 목차, 글자 크기, 테마를 복원합니다.
+
+macOS에서 Command를 쓰는 일반 명령은 Windows에서 Ctrl을 사용합니다.
+전체 단축키는 메뉴에 표시하며 자주 쓰는 명령은 다음과 같습니다.
+
+| 기능 | 단축키 |
+| --- | --- |
+| 파일 열기 | Ctrl+O |
+| 클립보드 Markdown 열기 | Ctrl+Shift+V |
+| 찾기 | Ctrl+F |
+| 복사본 저장 | Ctrl+Shift+S |
+| 전체 화면 | F11 |
 
 UTF-8 입력은 16 MiB로 제한합니다. 클립보드 문서는
 `%LOCALAPPDATA%\SSMV\imports`에 보관하며 합계 256 MiB까지 받습니다.
@@ -77,11 +96,13 @@ cmake --build windows/.build/core --config Release
 ctest --test-dir windows/.build/core -C Release --output-on-failure
 ```
 
-문서·Markdown·세션 테스트 3개 모음과 x64·ARM64 빌드를 통과했습니다.
+이전 읽기 기능 빌드 `620f06b`는 문서·Markdown·세션 테스트 3개 모음과
+x64·ARM64 빌드를 통과했습니다.
 [x64 자동 실행 검증](https://github.com/raeseoklee/ssmv/actions/runs/35182699940)에서는
 최초 실행과 기존 창으로 파일 전달, 검색 결과 있음·없음, 글자 크기·다크 테마 변경,
 목록 순서·선택 문서·읽기 설정 복원, 정상 종료를 확인했습니다. 로컬 메모리 검사
 도구인 AddressSanitizer와 UndefinedBehaviorSanitizer 검사도 통과했습니다.
+새 메뉴·사이드바 UI는 Windows 빌드와 조작 검증이 필요합니다.
 ARM64에서의 실제 실행은 아직 검증하지 않았습니다.
 
 배포 전에는 Windows에서 파일 선택 취소, 탐색기·바탕화면 드롭, 한글 경로,

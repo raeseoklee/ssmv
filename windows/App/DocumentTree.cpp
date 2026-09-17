@@ -4,6 +4,7 @@
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
 using namespace winrt;
@@ -55,12 +56,6 @@ struct DocumentTree::State {
                 }
             }
         });
-        if (kind != Kind::Pager) {
-            content.RightTapped([this, guard = std::weak_ptr<int>(lifetime), weak = make_weak(node)](auto const&, auto const&) {
-                if (guard.expired()) return;
-                if (auto current = weak.get()) owner.view.SelectedNode(current);
-            });
-        }
         entries.push_back({node, kind, document, value});
         return node;
     }
@@ -140,15 +135,36 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
     view.SelectionChanged([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, auto const&) {
         if (guard.expired() || state->updating) return;
         auto entry = state->find(view.SelectedNode());
-        if (!entry || entry->kind == State::Kind::Pager || !selected) return;
-        selected(entry->document, entry->kind == State::Kind::Heading ? std::optional<std::size_t>(entry->value) : std::nullopt);
+        if (!entry || entry->kind != State::Kind::Document || !selected) return;
+        selected(entry->document, std::nullopt);
     });
     view.ItemInvoked([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, TreeViewItemInvokedEventArgs const& args) {
         if (guard.expired() || state->updating) return;
         auto node = args.InvokedItem().try_as<TreeViewNode>();
         if (!node) node = view.NodeFromItem(args.InvokedItem());
         auto entry = state->find(node);
-        if (entry && entry->kind == State::Kind::Pager) state->page(entry->document, entry->value);
+        if (!entry) return;
+        if (entry->kind == State::Kind::Pager) state->page(entry->document, entry->value);
+        // Invoke headings even when already selected. Arrow keys move selection;
+        // Enter (or a click) activates the heading, without a duplicate first jump.
+        else if (entry->kind == State::Kind::Heading && selected) selected(entry->document, entry->value);
+    });
+    view.RightTapped([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, Input::RightTappedRoutedEventArgs const& args) {
+        if (guard.expired() || state->updating) return;
+        auto target = args.OriginalSource().try_as<DependencyObject>();
+        while (target && target != view) {
+            if (auto item = target.try_as<TreeViewItem>()) {
+                auto node = view.NodeFromContainer(item);
+                auto entry = state->find(node);
+                if (entry && entry->kind != State::Kind::Pager) {
+                    view.SelectedNode(node);
+                    if (entry->kind == State::Kind::Heading && selected)
+                        selected(entry->document, std::nullopt);
+                }
+                return;
+            }
+            target = Media::VisualTreeHelper::GetParent(target);
+        }
     });
 }
 DocumentTree::~DocumentTree() = default;

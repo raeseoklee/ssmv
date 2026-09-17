@@ -125,6 +125,30 @@ function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]
     }
 }
 
+function Assert-RepeatedHeadingNavigation([int]$ProcessId) {
+    $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
+    $condition = [Windows.Automation.AndCondition]::new(
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Markdown, at home on Windows.'))
+    $heading = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($null -eq $heading) { throw 'The public sample heading was not available in the document tree.' }
+    Invoke-AutomationElement $heading
+    Start-Sleep -Milliseconds 300 # Let the first bring-into-view/layout complete.
+    $reader = Wait-AutomationElement $ProcessId 'ReaderScroll' -AutomationId
+    $scroll = $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+    if (!$scroll.Current.VerticallyScrollable) { throw 'The public sample must scroll to exercise repeated heading navigation.' }
+    $scroll.SetScrollPercent([Windows.Automation.ScrollPattern]::NoScroll, 100)
+    $deadline = (Get-Date).AddSeconds(5)
+    while ($scroll.Current.VerticalScrollPercent -lt 90 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if ($scroll.Current.VerticalScrollPercent -lt 90) { throw 'Could not move the reader away from the selected heading.' }
+    # Invoke the same selected heading, without a selection change between calls.
+    Invoke-AutomationElement $heading
+    $deadline = (Get-Date).AddSeconds(5)
+    while ($scroll.Current.VerticalScrollPercent -ge 10 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if ($scroll.Current.VerticalScrollPercent -ge 10) { throw 'Invoking the already-selected heading did not return to its content.' }
+    Write-Output 'Repeated activation of the same selected heading returned the reader to its content.'
+}
+
 function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name) {
     Start-Sleep -Milliseconds 500
     $Target.Refresh()
@@ -139,6 +163,47 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name) {
         if (!$captured) { throw "Could not capture $Name evidence." }
         $bitmap.Save((Join-Path $evidence $Name))
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
+}
+
+# Real keystrokes target only the test-owned foreground process. UIA invocation
+# alone cannot prove that menu accelerators work with all menus closed.
+function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$Shift) {
+    $Target.Refresh()
+    if ($Target.HasExited) { throw 'Cannot send a shortcut to an exited test process.' }
+    $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
+    $deadline = (Get-Date).AddSeconds(5)
+    do {
+        $foregroundProcess = [uint32]0
+        $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+        if ($foregroundProcess -eq $Target.Id) {
+            [WindowCapture]::SendShortcut($Key, $Shift.IsPresent)
+            return
+        }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    throw 'Refusing to send keyboard input: the isolated SSMV window is not foreground.'
+}
+
+function Wait-SavedPreference([string]$Preference, $Expected) {
+    $deadline = (Get-Date).AddSeconds(10)
+    do {
+        $sessionFile = Join-Path $env:SSMV_DATA_DIR 'session.bin'
+        if (Test-Path $sessionFile -PathType Leaf) {
+            $reader = [IO.BinaryReader]::new([IO.File]::OpenRead($sessionFile))
+            try {
+                $null = $reader.ReadBytes(8)
+                $preferences = @{
+                    Theme = $reader.ReadUInt32()
+                    FontSize = $reader.ReadDouble()
+                    Outline = $reader.ReadBoolean()
+                    Sidebar = $reader.ReadBoolean()
+                }
+                if ($preferences[$Preference] -eq $Expected) { return }
+            } finally { $reader.Dispose() }
+        }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    throw "Shortcut did not update $Preference to $Expected."
 }
 
 function Read-SessionText([IO.BinaryReader]$Reader) {
@@ -193,6 +258,38 @@ public static class WindowCapture {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public INPUTUNION data; }
+    [StructLayout(LayoutKind.Explicit)] struct INPUTUNION {
+        [FieldOffset(0)] public KEYBDINPUT keyboard;
+        [FieldOffset(0)] public MOUSEINPUT mouse;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT {
+        public ushort key, scan; public uint flags, time; public UIntPtr extra;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT {
+        public int x, y; public uint mouseData, flags, time; public UIntPtr extra;
+    }
+    [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
+    static INPUT Keyboard(ushort key, bool up) {
+        return new INPUT { type = 1, data = new INPUTUNION {
+            keyboard = new KEYBDINPUT { key = key, flags = up ? 2u : 0u }
+        }};
+    }
+    public static void SendShortcut(ushort key, bool shift) {
+        INPUT[] events = shift
+            ? new[] { Keyboard(0x11, false), Keyboard(0x10, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x10, true), Keyboard(0x11, true) }
+            : new[] { Keyboard(0x11, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x11, true) };
+        if (SendInput((uint)events.Length, events, Marshal.SizeOf(typeof(INPUT))) != events.Length) {
+            int error = Marshal.GetLastWin32Error();
+            // Release modifiers even if Windows accepted only part of the sequence.
+            INPUT[] release = { Keyboard(key, true), Keyboard(0x10, true), Keyboard(0x11, true) };
+            SendInput((uint)release.Length, release, Marshal.SizeOf(typeof(INPUT)));
+            throw new System.ComponentModel.Win32Exception(error, "Shortcut injection failed.");
+        }
+    }
 }
 '@
     $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
@@ -205,6 +302,7 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
+    Assert-RepeatedHeadingNavigation $process.Id
     Save-WindowEvidence $process 'window.png'
     $editMenu = Open-AutomationMenu $process.Id 'menu.edit'
     $findCommand = Wait-AutomationElement $process.Id 'action.find' -AutomationId
@@ -221,7 +319,22 @@ public static class WindowCapture {
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
     $null = Wait-AutomationElement $process.Id 'No matches'
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
-    Invoke-MenuCommand $process.Id 'menu.view' 'action.increaseSize'
+    Send-TestShortcut $process 0x46 # Ctrl+F with the Edit menu closed.
+    $null = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
+    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
+    Send-TestShortcut $process 0xBB -Shift # Ctrl+Shift+= on the standard keyboard.
+    Wait-SavedPreference 'FontSize' 18
+    Send-TestShortcut $process 0x4C -Shift
+    Wait-SavedPreference 'Sidebar' $false
+    Send-TestShortcut $process 0x4C -Shift
+    Wait-SavedPreference 'Sidebar' $true
+    $null = Wait-AutomationElement $process.Id 'DocumentTree' -AutomationId
+    Send-TestShortcut $process 0x4F -Shift
+    Wait-SavedPreference 'Outline' $false
+    Send-TestShortcut $process 0x4F -Shift
+    Wait-SavedPreference 'Outline' $true
+    Assert-DocumentTree $process.Id @('Windows.md')
+    Write-Output 'Real Ctrl+F, Ctrl+Shift+=, Ctrl+Shift+L, and Ctrl+Shift+O shortcuts passed with menus closed.'
     $null = Open-AppearanceMenu $process.Id
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'theme.dark' -AutomationId)
     Assert-DarkTheme $process.Id

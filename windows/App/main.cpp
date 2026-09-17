@@ -328,6 +328,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         split.Pane(pane);
 
         scroll = ScrollViewer();
+        Automation::AutomationProperties::SetAutomationId(scroll, L"ReaderScroll");
         scroll.HorizontalScrollBarVisibility(ScrollBarVisibility::Disabled);
         content = StackPanel();
         content.Spacing(10);
@@ -350,6 +351,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             root.KeyboardAccelerators().Append(binding);
         };
         alias(Windows::System::VirtualKey::Add, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(1); }));
+        alias(static_cast<Windows::System::VirtualKey>(187), Windows::System::VirtualKeyModifiers::Control | Windows::System::VirtualKeyModifiers::Shift, guarded([this] { changeSize(1); }));
         alias(Windows::System::VirtualKey::Subtract, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(-1); }));
         alias(Windows::System::VirtualKey::Escape, Windows::System::VirtualKeyModifiers::None, guarded([this] { findPanel.Visibility(Visibility::Collapsed); }));
         syncChrome();
