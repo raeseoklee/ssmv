@@ -128,7 +128,8 @@ function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]
     }
 }
 
-function Assert-RepeatedHeadingNavigation([int]$ProcessId) {
+function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
+    $ProcessId = $Target.Id
     $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
@@ -143,7 +144,9 @@ function Assert-RepeatedHeadingNavigation([int]$ProcessId) {
         $tree.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { Write-Output ("Tree evidence: " + $_.Current.ControlType.ProgrammaticName + " / " + $_.Current.Name) }
         throw 'The public sample heading was not available in the document tree.'
     }
-    Invoke-AutomationElement $heading
+    $heading.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $heading.SetFocus()
+    Send-TestShortcut $Target 0x0D -NoControl
     Start-Sleep -Milliseconds 300 # Let the first bring-into-view/layout complete.
     $reader = Wait-AutomationElement $ProcessId 'ReaderScroll' -AutomationId
     $scroll = $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
@@ -152,15 +155,16 @@ function Assert-RepeatedHeadingNavigation([int]$ProcessId) {
     $deadline = (Get-Date).AddSeconds(5)
     while ($scroll.Current.VerticalScrollPercent -lt 90 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if ($scroll.Current.VerticalScrollPercent -lt 90) { throw 'Could not move the reader away from the selected heading.' }
-    # Invoke the same selected heading, without a selection change between calls.
-    Invoke-AutomationElement $heading
+    # Activate the same selected heading again, with no selection change.
+    $heading.SetFocus()
+    Send-TestShortcut $Target 0x0D -NoControl
     $deadline = (Get-Date).AddSeconds(5)
     while ($scroll.Current.VerticalScrollPercent -ge 10 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if ($scroll.Current.VerticalScrollPercent -ge 10) { throw 'Invoking the already-selected heading did not return to its content.' }
     Write-Output 'Repeated activation of the same selected heading returned the reader to its content.'
 }
 
-function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name) {
+function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switch]$IncludePopup) {
     Start-Sleep -Milliseconds 500
     $Target.Refresh()
     $rect = New-Object WindowCapture+RECT
@@ -168,17 +172,25 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name) {
     $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
-        $dc = $graphics.GetHdc()
-        try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
-        finally { $graphics.ReleaseHdc($dc) }
-        if (!$captured) { throw "Could not capture $Name evidence." }
+        if ($IncludePopup) {
+            $foregroundProcess = [uint32]0
+            $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+            if ($foregroundProcess -ne $Target.Id) { throw 'Refusing screen capture: the isolated app is not foreground.' }
+            # Copy only the app rectangle; the OS pointer is not painted by CopyFromScreen.
+            $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+        } else {
+            $dc = $graphics.GetHdc()
+            try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
+            finally { $graphics.ReleaseHdc($dc) }
+            if (!$captured) { throw "Could not capture $Name evidence." }
+        }
         $bitmap.Save((Join-Path $evidence $Name))
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
 
 # Real keystrokes target only the test-owned foreground process. UIA invocation
 # alone cannot prove that menu accelerators work with all menus closed.
-function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$Shift) {
+function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$Shift, [switch]$NoControl) {
     $Target.Refresh()
     if ($Target.HasExited) { throw 'Cannot send a shortcut to an exited test process.' }
     $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
@@ -187,7 +199,7 @@ function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$
         $foregroundProcess = [uint32]0
         $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
         if ($foregroundProcess -eq $Target.Id) {
-            [WindowCapture]::SendShortcut($Key, $Shift.IsPresent)
+            [WindowCapture]::SendShortcut($Key, $Shift.IsPresent, !$NoControl.IsPresent)
             return
         }
         Start-Sleep -Milliseconds 100
@@ -289,8 +301,8 @@ public static class WindowCapture {
             keyboard = new KEYBDINPUT { key = key, flags = up ? 2u : 0u }
         }};
     }
-    public static void SendShortcut(ushort key, bool shift) {
-        INPUT[] events = shift
+    public static void SendShortcut(ushort key, bool shift, bool control) {
+        INPUT[] events = !control ? new[] { Keyboard(key, false), Keyboard(key, true) } : shift
             ? new[] { Keyboard(0x11, false), Keyboard(0x10, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x10, true), Keyboard(0x11, true) }
             : new[] { Keyboard(0x11, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x11, true) };
         if (SendInput((uint)events.Length, events, Marshal.SizeOf(typeof(INPUT))) != events.Length) {
@@ -315,7 +327,7 @@ public static class WindowCapture {
     Save-WindowEvidence $process 'window-startup.png'
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
     Save-WindowEvidence $process 'window-expanded.png'
-    Assert-RepeatedHeadingNavigation $process.Id
+    Assert-RepeatedHeadingNavigation $process
     Save-WindowEvidence $process 'window.png'
     # Verify registration before the Edit menu has ever been opened.
     Send-TestShortcut $process 0x46
@@ -326,7 +338,7 @@ public static class WindowCapture {
     if ([string]::IsNullOrWhiteSpace($findCommand.Current.AcceleratorKey)) {
         throw 'Find must expose its keyboard shortcut through native accessibility.'
     }
-    Save-WindowEvidence $process 'window-menu.png'
+    Save-WindowEvidence $process 'window-menu.png' -IncludePopup
     Invoke-AutomationElement $findCommand
     $findBox = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
     $findBox.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('Hello from SSMV')

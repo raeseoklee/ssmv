@@ -182,6 +182,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         auto updateBackground = [this] {
             auto dark = root.ActualTheme() == ElementTheme::Dark;
             root.Background(Media::SolidColorBrush(dark ? Windows::UI::Color{255, 32, 32, 32} : Windows::UI::Color{255, 250, 250, 250}));
+            using Microsoft::UI::Windowing::TitleBarTheme;
+            window.AppWindow().TitleBar().PreferredTheme(dark ? TitleBarTheme::Dark : TitleBarTheme::Light);
         };
         root.ActualThemeChanged([updateBackground](auto const&, auto const&) { updateBackground(); });
         updateBackground();
