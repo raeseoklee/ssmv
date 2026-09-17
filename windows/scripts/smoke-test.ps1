@@ -14,19 +14,10 @@ $env:SSMV_DATA_DIR = Join-Path $testDirectory 'state'
 $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
 $startedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
-$dumpRegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\SSMV.exe'
-$dumpRegistryNativePath = 'HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\SSMV.exe'
-$dumpRegistryBackup = Join-Path $testDirectory 'wer-before.reg'
-$dumpRegistryExisted = Test-Path $dumpRegistryPath
-$dumpRegistryChanged = $false
-$preserveTestDirectory = $false
-$analyzedCrashes = [Collections.Generic.HashSet[int]]::new()
 $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
 New-Item -ItemType Directory -Force $evidence > $null
 
 function Write-CrashEvidence([Diagnostics.Process]$Target) {
-    $errorFile = Join-Path $env:SSMV_DATA_DIR 'last-error.txt'
-    if (Test-Path $errorFile) { Write-Host ('Unhandled XAML error: ' + (Get-Content $errorFile -Raw)) }
     $Target.Refresh()
     if ($Target.HasExited) {
         Write-Host ("SSMV process {0} exited: decimal={1}; hex=0x{2:X8}" -f $Target.Id, $Target.ExitCode, $Target.ExitCode)
@@ -37,27 +28,7 @@ function Write-CrashEvidence([Diagnostics.Process]$Target) {
         foreach ($event in $events) { Write-Host ("Crash event {0} / {1}: {2}" -f $event.ProviderName, $event.Id, $event.Message) }
         if (!$events) { Write-Host 'No matching SSMV Application error events are available yet.' }
     } catch { Write-Host "Application crash events unavailable: $_" }
-    if ($Target.HasExited -and $analyzedCrashes.Add($Target.Id)) {
-        $deadline = (Get-Date).AddSeconds(10)
-        $dump = $null
-        do {
-            $dump = Get-ChildItem -LiteralPath $evidence -Filter ('SSMV*.' + $Target.Id + '.dmp') -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($null -ne $dump -and $dump.Length -gt 0) { break }
-            Start-Sleep -Milliseconds 250
-        } while ((Get-Date) -lt $deadline)
-        if ($null -eq $dump) { Write-Host 'No WER dump became available within 10 seconds.'; return }
-        Write-Host "Crash dump: $($dump.Name), $($dump.Length) bytes."
-        $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Debuggers/x64/cdb.exe'
-        if (!(Test-Path $debugger -PathType Leaf)) { Write-Host 'Windows SDK cdb.exe is not installed; retaining dump as evidence.'; return }
-        $debugOutput = Join-Path $evidence 'crash-analysis.txt'
-        $debugError = Join-Path $evidence 'crash-analysis-stderr.txt'
-        $debugProcess = Start-Process -FilePath $debugger -ArgumentList ('-z "' + $dump.FullName + '" -c "!analyze -v; .exr -1; q"') -RedirectStandardOutput $debugOutput -RedirectStandardError $debugError -PassThru
-        try {
-            if (!$debugProcess.WaitForExit(30000)) { Stop-Process -Id $debugProcess.Id -Force; Write-Host 'Stopped crash analysis after 30 seconds.' }
-            if (Test-Path $debugOutput) { Get-Content -LiteralPath $debugOutput -TotalCount 160 | ForEach-Object { Write-Host $_ } }
-            if (Test-Path $debugError) { Get-Content -LiteralPath $debugError -TotalCount 10 | ForEach-Object { Write-Host $_ } }
-        } finally { $debugProcess.Dispose() }
-    }
+
 }
 
 function Wait-DocumentWindow([Diagnostics.Process]$Target, [string]$Title) {
@@ -363,16 +334,6 @@ function Assert-SavedSession {
 }
 
 try {
-    # WER configuration is scoped to this executable and restored even on failure.
-    if ($dumpRegistryExisted) {
-        & reg.exe export $dumpRegistryNativePath $dumpRegistryBackup /y > $null
-        if ($LASTEXITCODE -ne 0) { throw 'Could not preserve the existing SSMV WER configuration.' }
-    }
-    $dumpRegistryChanged = $true
-    New-Item -Path $dumpRegistryPath -Force > $null
-    New-ItemProperty -Path $dumpRegistryPath -Name DumpFolder -Value $evidence -PropertyType ExpandString -Force > $null
-    New-ItemProperty -Path $dumpRegistryPath -Name DumpType -Value 2 -PropertyType DWord -Force > $null
-    New-ItemProperty -Path $dumpRegistryPath -Name DumpCount -Value 1 -PropertyType DWord -Force > $null
     $process = Start-Process -FilePath $executablePath -ArgumentList ('"' + $document + '"') -PassThru
     $startedProcesses.Add($process)
     Wait-DocumentWindow $process 'Windows.md — SSMV'
@@ -499,8 +460,12 @@ public static class WindowCapture {
     Assert-DocumentTree $process.Id @('Windows.md')
     Write-Output 'Real Ctrl+F, Ctrl+Shift+=, Ctrl+Shift+L, and Ctrl+Shift+O shortcuts passed with menus closed.'
     $null = Open-AppearanceMenu $process.Id
-    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'theme.dark' -AutomationId)
+    $darkOption = Wait-AutomationElement $process.Id 'theme.dark' -AutomationId
+    $darkOption.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle()
+    Wait-SavedPreference 'Theme' 2
     Assert-DarkTheme $process.Id
+    $reader = Wait-AutomationElement $process.Id 'ReaderScroll' -AutomationId
+    $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern).SetScrollPercent(-1, 0)
     Save-WindowEvidence $process 'window-dark.png'
     Write-Output 'Native Find (match and no match), text-size increase, and Dark theme selection passed.'
 
@@ -536,16 +501,6 @@ public static class WindowCapture {
         if (!$started.HasExited) { Stop-Process -Id $started.Id -Force; $null = $started.WaitForExit(10000) }
         $started.Dispose()
     }
-    if ($dumpRegistryChanged) {
-        Remove-Item -LiteralPath $dumpRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
-        if ($dumpRegistryExisted) {
-            & reg.exe import $dumpRegistryBackup > $null
-            if ($LASTEXITCODE -ne 0) {
-                $preserveTestDirectory = $true
-                Write-Warning "Could not restore WER configuration; backup retained: $dumpRegistryBackup"
-            }
-        }
-    }
     $env:SSMV_DATA_DIR = $previousDataDirectory
-    if (!$preserveTestDirectory) { Remove-Item -LiteralPath $testDirectory -Recurse -Force }
+    Remove-Item -LiteralPath $testDirectory -Recurse -Force
 }
