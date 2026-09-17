@@ -8,6 +8,11 @@ on:
         description: "Append Windows installers to an existing release (e.g. v0.5.1); blank validates only"
         required: false
         type: string
+      replace_windows:
+        description: "Explicitly replace existing Windows assets on the same release; preserve macOS assets"
+        required: false
+        default: false
+        type: boolean
       installer_run:
         description: "Existing run containing the ARM64 installer to retest on Windows 11 (blank builds all targets)"
         required: false
@@ -177,12 +182,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Publish verified Windows assets without replacing existing files
+      - name: Publish verified Windows assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          REPLACE_WINDOWS: ${{ inputs.replace_windows }}
         run: |
           gh run download "$GITHUB_RUN_ID" --name SSMV-windows-x64-installer --dir dist/publish
           gh run download "$GITHUB_RUN_ID" --name SSMV-windows-ARM64-installer --dir dist/publish
-          python3 windows/scripts/publish-release.py --directory dist/publish --tag "$RELEASE_TAG" --commit "$GITHUB_SHA"
+          options=()
+          if [[ "$REPLACE_WINDOWS" == "true" ]]; then options+=(--replace-windows); fi
+          python3 windows/scripts/publish-release.py --directory dist/publish --tag "$RELEASE_TAG" --commit "$GITHUB_SHA" "${options[@]}"

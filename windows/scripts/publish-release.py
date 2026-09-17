@@ -1,4 +1,4 @@
-"""Append verified Windows installers to an existing release; never replace assets."""
+"""Append verified Windows installers to an existing release; replace Windows assets only when explicitly requested."""
 import argparse
 import hashlib
 import json
@@ -41,7 +41,7 @@ def prepare_assets(directory, tag, commit):
     return files
 
 
-def upload_plan(release, files):
+def upload_plan(release, files, replace_windows=False):
     if release.get("draft"):
         raise ValueError("Publish only to an existing published release")
     existing = {asset["name"]: asset for asset in release["assets"]}
@@ -50,18 +50,23 @@ def upload_plan(release, files):
         asset = existing.get(path.name)
         if asset:
             if asset.get("digest") != "sha256:" + sha256(path):
-                raise ValueError(f"Refusing to replace existing release asset: {path.name}")
+                if not replace_windows:
+                    raise ValueError(f"Refusing to replace existing release asset: {path.name}")
+                pending.append(path)
         else:
             pending.append(path)
     return pending
 
 
-def verify_release(before, after, files):
+def verify_release(before, after, files, replace_windows=False):
     for key in ("id", "tag_name", "target_commitish", "name", "body", "draft", "prerelease"):
         if before.get(key) != after.get(key):
             raise ValueError(f"Release metadata changed: {key}")
     assets = {asset["name"]: asset for asset in after["assets"]}
+    replaced = {path.name for path in files} if replace_windows else set()
     for original in before["assets"]:
+        if original["name"] in replaced:
+            continue
         current = assets.get(original["name"], {})
         for key in ("id", "size", "digest", "updated_at"):
             if current.get(key) != original.get(key):
@@ -76,6 +81,7 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--replace-windows", action="store_true")
     args = parser.parse_args()
     files = prepare_assets(args.directory, args.tag, args.commit)
     repository = os.environ["GH_REPO"]
@@ -85,13 +91,13 @@ def main():
     before = read_release()
     if before["tag_name"] != args.tag:
         raise ValueError("Release tag mismatch")
-    pending = upload_plan(before, files)
+    pending = upload_plan(before, files, args.replace_windows)
     if pending:
-        # No --clobber: collisions fail instead of deleting or replacing anything.
+        # The file list is restricted to the six validated Windows assets.
         subprocess.run(["gh", "release", "upload", args.tag, *map(str, pending),
-                        "--repo", repository], check=True)
-    verify_release(before, read_release(), files)
-    print(f"Verified {len(files)} Windows assets on {args.tag}; existing release assets preserved.")
+                        "--repo", repository, *( ["--clobber"] if args.replace_windows else [])], check=True)
+    verify_release(before, read_release(), files, args.replace_windows)
+    print(f"Verified {len(files)} Windows assets on {args.tag}; unrelated release assets preserved.")
 
 
 if __name__ == "__main__":

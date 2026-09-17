@@ -45,6 +45,21 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Refusing to replace"):
             publish.upload_plan(self.before, files)
 
+    def test_explicit_replacement_preserves_macos_and_metadata(self):
+        files = self.assets()
+        self.before["assets"] += [{"name": p.name, "digest": "sha256:old", "id": 10} for p in files]
+        self.assertEqual(publish.upload_plan(self.before, files, True), files)
+        after = copy.deepcopy(self.before)
+        after["assets"][1:] = [{"name": p.name, "digest": "sha256:" + publish.sha256(p), "id": 20} for p in files]
+        publish.verify_release(self.before, after, files, True)
+        self.assertEqual(publish.upload_plan(after, files, True), [])
+        after["assets"][0]["digest"] = "sha256:changed"
+        with self.assertRaisesRegex(ValueError, "Existing asset changed"):
+            publish.verify_release(self.before, after, files, True)
+        after = copy.deepcopy(self.before)
+        with self.assertRaisesRegex(ValueError, "integrity"):
+            publish.verify_release(self.before, after, files, True)
+
     def test_tampered_payload_and_wrong_commit_rejected(self):
         with self.assertRaisesRegex(ValueError, "provenance"):
             publish.prepare_assets(self.root, "v0.5.1", "b" * 40)
