@@ -2,6 +2,7 @@
 #undef GetCurrentTime
 #include <shellapi.h>
 #include <shobjidl.h>
+#include <shlobj.h>
 #include <microsoft.ui.xaml.window.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -91,6 +92,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     uint64_t generation = 0;
     bool closed = false;
     bool dialogOpen = false;
+    bool importingClipboard = false;
     std::vector<FrameworkElement> rendered;
     size_t renderStart = 0;
     uint64_t renderRevision = 0;
@@ -133,7 +135,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         try { if (auto saved = ssmv::readSession(dataDirectory / L"session.bin")) session = *saved; }
         catch (std::exception const& e) { sessionWritable = false; sessionError = e.what(); }
         fontSize = std::clamp(session.fontSize, 10.0, 32.0);
-        for (auto const& path : session.expandedPaths) expandedPaths.insert(std::filesystem::u8path(path));
+        for (auto const& path : session.expandedPaths) expandedPaths.insert(std::filesystem::path(to_hstring(path).c_str()));
         root = Grid();
         root.AllowDrop(true);
         auto updateBackground = [this] {
@@ -312,7 +314,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         initialized = true;
         if (!sessionError.empty()) error(L"Session could not be restored; automatic saving is disabled. " + to_hstring(sessionError));
         std::vector<std::filesystem::path> restoredPaths;
-        for (auto const& item : session.documents) restoredPaths.push_back(std::filesystem::u8path(item.path));
+        for (auto const& savedDocument : session.documents) restoredPaths.emplace_back(to_hstring(savedDocument.path).c_str());
         if (!restoredPaths.empty()) { restoring = true; load(std::move(restoredPaths)); }
         activation->attach(window.DispatcherQueue(), [this](auto paths) {
             if (closed) return;
@@ -684,6 +686,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     }
     fire_and_forget openClipboard() {
         auto lifetime = get_strong();
+        if (importingClipboard) co_return;
+        importingClipboard = true;
+        struct ResetImport { bool& flag; ~ResetImport() { flag = false; } } reset{importingClipboard};
         try {
             auto data = Clipboard::GetContent();
             if (!data.Contains(StandardDataFormats::Text())) { error(L"The clipboard contains no text."); co_return; }
@@ -736,6 +741,10 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (kind == ssmv::LinkKind::Web || kind == ssmv::LinkKind::Email) {
                 co_await Windows::System::Launcher::LaunchUriAsync(Uri(to_hstring(destination)));
             } else if (kind == ssmv::LinkKind::Relative) {
+                std::error_code comparisonError;
+                if (std::filesystem::equivalent(library.documents()[*selected].path.parent_path(), dataDirectory / L"imports", comparisonError)) {
+                    error(L"Imported text cannot open local-file links. Save a copy first to give it a local folder."); co_return;
+                }
                 auto fragment = destination.find('#'); destination = destination.substr(0, fragment);
                 auto relative = Uri::UnescapeComponent(to_hstring(destination));
                 auto relativePath = std::filesystem::path(relative.c_str());
