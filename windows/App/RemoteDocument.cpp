@@ -151,9 +151,9 @@ std::filesystem::path downloadRemoteDocument(std::wstring const& input,
     std::transform(prefix.begin(), prefix.end(), prefix.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (prefix.starts_with("<!doctype html") || prefix.starts_with("<html"))
         throw std::runtime_error("The URL returned a web page. Use its raw Markdown URL.");
-    auto folder = cacheDirectory / key(original) / key(url);
+    auto folder = cacheDirectory / key(url);
     std::filesystem::create_directories(folder);
-    auto filename = std::filesystem::path(std::wstring(checked(original).Path())).filename().wstring();
+    auto filename = std::filesystem::path(std::wstring(checked(url).Path())).filename().wstring();
     if (filename.empty()) filename = L"Remote document.md";
     for (auto& c : filename) if (c < 32 || std::wstring_view(L"<>:\"/\\|?*").find(c) != std::wstring_view::npos) c = L'_';
     if (filename.size() > 120) filename.resize(120);

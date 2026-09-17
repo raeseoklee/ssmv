@@ -799,20 +799,41 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         auto cancellation = std::make_shared<std::atomic_bool>(false);
         remoteCancellation = cancellation;
         auto directory = dataDirectory / L"remotes";
-        std::filesystem::path path;
+        std::optional<ssmv::Document> downloaded;
+        std::string fragment;
         hstring failure;
         auto request = generation;
         status.Text(L"Downloading Markdown…");
         try {
             co_await resume_background();
-            path = ssmv::downloadRemoteDocument(address, directory, cancellation);
+            auto path = ssmv::downloadRemoteDocument(address, directory, cancellation);
+            downloaded = ssmv::readDocument(path);
+            fragment = to_string(Uri(address).Fragment());
         } catch (hresult_error const& e) { failure = e.message(); }
         catch (std::exception const& e) { failure = to_hstring(e.what()); }
         co_await ui;
         if (remoteCancellation == cancellation) remoteCancellation.reset();
         if (closed || cancellation->load() || request != generation) co_return;
         if (!failure.empty()) { error(failure); co_return; }
-        load({path});
+        try {
+            auto path = pathText(downloaded->path);
+            bool registered = std::any_of(session.documents.begin(), session.documents.end(), [&](auto const& item) { return item.path == path; });
+            if (!registered && session.documents.size() >= ssmv::MaxSessionDocuments) {
+                error(L"The document list is full. Remove an entry before adding documents."); co_return;
+            }
+            rememberPosition();
+            auto const& documents = library.documents();
+            auto existing = std::find_if(documents.begin(), documents.end(), [&](auto const& item) { return item.path == downloaded->path; });
+            if (existing != documents.end()) {
+                selected = static_cast<size_t>(existing - documents.begin());
+                library.replace(*selected, std::move(*downloaded));
+            } else selected = library.insert(std::move(*downloaded));
+            if (!registered) session.documents.push_back({path, 0, 0});
+            lastQuery = L""; ++searchGeneration;
+            restorePage(); rebuildShelf(); render(); restoreScroll(); saveState();
+            if (!fragment.empty()) navigateLink(fragment);
+        } catch (hresult_error const& e) { error(e.message()); }
+        catch (std::exception const& e) { error(to_hstring(e.what())); }
     }
 
     bool isRemoteCache(std::filesystem::path const& path) const {

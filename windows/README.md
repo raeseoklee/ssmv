@@ -73,6 +73,8 @@ the full shortcut list; these are useful starting points:
 
 ## URL documents and PDF export
 
+[File menu](../docs/images/ssmv-windows-file-menu.png) · [Outline navigation highlight](../docs/images/ssmv-windows-outline-highlight.png)
+
 Use **File → Open URL…** (Ctrl+L) for a raw HTTPS Markdown URL or a GitHub
 `blob` file URL. Downloads accept UTF-8 text up to 16 MiB, follow at most five
 HTTPS redirects and enforce network timeouts. Credentials and HTML responses are

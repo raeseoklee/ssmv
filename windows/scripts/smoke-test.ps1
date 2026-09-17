@@ -609,8 +609,28 @@ public static class WindowCapture {
     Wait-DocumentWindow $cachedReader 'README.md — SSMV'
     $null = Wait-AutomationElement $cachedReader.Id $cacheMarker
     Assert-DocumentTree $cachedReader.Id @('Windows.md', 'Warm activation 한글.md', 'README.md')
+    Send-TestShortcut $cachedReader 0x52 # Ctrl+R must refresh both disk and the displayed document.
+    $deadline = (Get-Date).AddSeconds(30)
+    $refreshed = $false
+    do {
+        $cachedReader.Refresh()
+        if ($cachedReader.HasExited) { throw 'SSMV exited while refreshing the remote document.' }
+        $diskRefreshed = ![IO.File]::ReadAllText($cachedPath).Contains($cacheMarker)
+        $window = [Windows.Automation.AutomationElement]::FromHandle($cachedReader.MainWindowHandle)
+        $reader = $window.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, 'ReaderScroll'))
+        if ($diskRefreshed -and $null -ne $reader) {
+            $oldContent = $reader.FindFirst([Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $cacheMarker))
+            if ($null -eq $oldContent) { $refreshed = $true; break }
+        }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    if (!$refreshed) { throw 'Remote reload did not replace both cached Markdown and the in-memory reader content.' }
+    Wait-DocumentWindow $cachedReader 'README.md — SSMV'
+    Assert-DocumentTree $cachedReader.Id @('Windows.md', 'Warm activation 한글.md', 'README.md')
     Close-DocumentWindow $cachedReader
-    Write-Output 'Ctrl+L downloaded a GitHub document, cached Markdown and source metadata, and restored the selected document from local cache.'
+    Write-Output 'Ctrl+L downloaded a GitHub document, cached Markdown and source metadata, restored the selected document from local cache, and refreshed its displayed content without duplicating or reordering the shelf.'
 
 } catch {
     foreach ($started in $startedProcesses) {

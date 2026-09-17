@@ -45,6 +45,8 @@ int main(int argc, char**) {
                    "Final source was not cached");
             auto again = downloadRemoteDocument(L"https://github.com/raeseoklee/ssmv/blob/main/Examples/Windows.md", folder);
             expect(path == again, "Repeat URL did not reuse cached document identity");
+            auto raw = downloadRemoteDocument(L"https://raw.githubusercontent.com/raeseoklee/ssmv/main/Examples/Windows.md", folder);
+            expect(path == raw, "GitHub and raw URLs did not share the final URL cache identity");
             rejects([&] { downloadRemoteDocument(L"https://github.com/raeseoklee/ssmv", folder); });
             std::cout << "Public HTTPS download, cache refresh and HTML rejection passed.\n";
         }

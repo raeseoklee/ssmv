@@ -73,6 +73,8 @@ macOS에서 Command를 쓰는 일반 명령은 Windows에서 Ctrl을 사용합�
 
 ## URL 문서와 PDF 저장
 
+[File 메뉴](../docs/images/ssmv-windows-file-menu.png) · [목차 이동 강조](../docs/images/ssmv-windows-outline-highlight.png)
+
 **File → Open URL…**(Ctrl+L)에 원본 HTTPS Markdown 주소나 GitHub의 `blob`
 파일 주소를 입력합니다. UTF-8 문서는 16 MiB까지 받으며 HTTPS 리디렉션은
 최대 5회로 제한합니다. 네트워크 제한 시간을 두고, 인증 정보가 포함된 주소와
