@@ -99,7 +99,10 @@ function Assert-DarkTheme([int]$ProcessId) {
 function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]$ExerciseExpansion) {
     $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
     if ($tree.Current.ControlType -ne [Windows.Automation.ControlType]::Tree) {
-        throw 'Documents must expose a native Tree control.'
+        # WinUI exposes TreeView's internal TreeViewList as the Tree peer.
+        $tree = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Tree))
+        if ($null -eq $tree) { throw 'Documents must contain the native WinUI Tree peer.' }
     }
     $condition = [Windows.Automation.PropertyCondition]::new(
         [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem)
@@ -301,9 +304,14 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationTypes.dll')
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
+    Save-WindowEvidence $process 'window-startup.png'
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
     Assert-RepeatedHeadingNavigation $process.Id
     Save-WindowEvidence $process 'window.png'
+    # Verify registration before the Edit menu has ever been opened.
+    Send-TestShortcut $process 0x46
+    $null = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
+    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
     $editMenu = Open-AutomationMenu $process.Id 'menu.edit'
     $findCommand = Wait-AutomationElement $process.Id 'action.find' -AutomationId
     if ([string]::IsNullOrWhiteSpace($findCommand.Current.AcceleratorKey)) {
@@ -318,9 +326,6 @@ public static class WindowCapture {
     $findBox.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('ssmv-no-match-7f6a4b2e')
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
     $null = Wait-AutomationElement $process.Id 'No matches'
-    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
-    Send-TestShortcut $process 0x46 # Ctrl+F with the Edit menu closed.
-    $null = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
     Send-TestShortcut $process 0xBB -Shift # Ctrl+Shift+= on the standard keyboard.
     Wait-SavedPreference 'FontSize' 18
