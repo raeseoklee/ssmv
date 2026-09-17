@@ -29,12 +29,31 @@ struct DocumentTree::State {
     std::vector<Entry> entries;
     bool updating = false;
     bool outlines = true;
+    std::optional<std::size_t> activeDocument;
     explicit State(DocumentTree& input) : owner(input) {}
 
     std::optional<Entry> find(TreeViewNode const& node) const {
         auto it = std::find_if(entries.begin(), entries.end(), [&](auto const& entry) { return entry.node == node; });
         if (it == entries.end()) return std::nullopt;
         return *it;
+    }
+    void activateDocument(std::size_t document) {
+        if (activeDocument == document || !owner.selected) return;
+        activeDocument = document;
+        owner.selected(document, std::nullopt);
+    }
+    TreeViewNode nodeAt(DependencyObject target) const {
+        while (target && target != owner.view) {
+            if (auto item = target.try_as<TreeViewItem>()) return owner.view.NodeFromContainer(item);
+            target = Media::VisualTreeHelper::GetParent(target);
+        }
+        return nullptr;
+    }
+    void selectContextNode(TreeViewNode const& node) {
+        auto entry = find(node);
+        if (!entry || entry->kind == Kind::Pager) return;
+        owner.view.SelectedNode(node);
+        activateDocument(entry->document);
     }
     TreeViewNode root(std::size_t document) const {
         for (auto const& entry : entries)
@@ -69,12 +88,15 @@ struct DocumentTree::State {
         std::erase_if(entries, [&](auto const& entry) {
             return entry.document == document && entry.kind != Kind::Document;
         });
-        node.Children().Clear();
+        // WinUI TreeViewNodeVector::Clear collapses its owner even when the
+        // vector is empty. Do not cancel a lazy expansion before adding children.
+        if (node.Children().Size()) node.Children().Clear();
     }
     void page(std::size_t document, std::size_t start) {
         auto parent = root(document);
         if (!parent || !library || document >= library->documents().size()) return;
         bool const wasUpdating = updating;
+        bool const wasExpanded = parent.IsExpanded();
         updating = true;
         clearChildren(parent, document);
         auto const& headings = library->documents()[document].markdown.headings;
@@ -105,6 +127,9 @@ struct DocumentTree::State {
         }
         if (end < headings.size()) pager(L"More headings", end);
         parent.HasUnrealizedChildren(false);
+        // Replacing a nonempty page also collapses the native owner. Restore
+        // expansion while callbacks are suppressed, after new children exist.
+        parent.IsExpanded(wasExpanded);
         updating = wasUpdating;
     }
 };
@@ -138,7 +163,7 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
         if (guard.expired() || state->updating) return;
         auto entry = state->find(view.SelectedNode());
         if (!entry || entry->kind != State::Kind::Document || !selected) return;
-        selected(entry->document, std::nullopt);
+        state->activateDocument(entry->document);
     });
     view.ItemInvoked([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, TreeViewItemInvokedEventArgs const& args) {
         if (guard.expired() || state->updating) return;
@@ -149,24 +174,26 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
         if (entry->kind == State::Kind::Pager) state->page(entry->document, entry->value);
         // Invoke headings even when already selected. Arrow keys move selection;
         // Enter (or a click) activates the heading, without a duplicate first jump.
-        else if (entry->kind == State::Kind::Heading && selected) selected(entry->document, entry->value);
+        else if (entry->kind == State::Kind::Heading && selected) {
+            state->activeDocument = entry->document;
+            selected(entry->document, entry->value);
+        } else if (entry->kind == State::Kind::Document) state->activateDocument(entry->document);
     });
     view.RightTapped([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, Input::RightTappedRoutedEventArgs const& args) {
         if (guard.expired() || state->updating) return;
-        auto target = args.OriginalSource().try_as<DependencyObject>();
-        while (target && target != view) {
-            if (auto item = target.try_as<TreeViewItem>()) {
-                auto node = view.NodeFromContainer(item);
-                auto entry = state->find(node);
-                if (entry && entry->kind != State::Kind::Pager) {
-                    view.SelectedNode(node);
-                    if (entry->kind == State::Kind::Heading && selected)
-                        selected(entry->document, std::nullopt);
-                }
-                return;
-            }
-            target = Media::VisualTreeHelper::GetParent(target);
+        state->selectContextNode(state->nodeAt(args.OriginalSource().try_as<DependencyObject>()));
+    });
+    view.ContextRequested([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, Input::ContextRequestedEventArgs const& args) {
+        if (guard.expired() || state->updating) return;
+        auto node = state->nodeAt(args.OriginalSource().try_as<DependencyObject>());
+        Windows::Foundation::Point position;
+        if (!node && !args.TryGetPosition(view, position)) {
+            // Shift+F10/Menu may originate on the tree rather than its row.
+            if (auto root = view.XamlRoot())
+                node = state->nodeAt(Input::FocusManager::GetFocusedElement(root).try_as<DependencyObject>());
+            if (!node) node = view.SelectedNode();
         }
+        state->selectContextNode(node);
     });
 }
 DocumentTree::~DocumentTree() = default;
@@ -175,6 +202,7 @@ void DocumentTree::update(DocumentLibrary const& library, std::optional<std::siz
                           bool outlineEnabled, std::set<std::filesystem::path> const& expandedPaths) {
     state->updating = true;
     state->library = &library;
+    state->activeDocument = selectedIndex;
     state->outlines = outlineEnabled;
     state->entries.clear();
     view.RootNodes().Clear();
