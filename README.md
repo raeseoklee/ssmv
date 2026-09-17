@@ -36,7 +36,7 @@ Download an installer from [v0.5.1](https://github.com/raeseoklee/ssmv/releases/
 - [Windows x64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
 - [Windows ARM64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
 
-Setup installs for the current user and registers Markdown files for **Open with SSMV**. On Windows 11, use **Show more options** if needed. The installers are unsigned. See the [Windows installation and signing notes](windows/README.md#install-and-open-from-explorer).
+Setup installs for the current user and registers Markdown files for **Open with SSMV**. On Windows 11, use **Show more options** if needed. The installers are unsigned. See the [Windows installation instructions](windows/README.md#install-and-open-from-explorer).
 
 ### macOS
 

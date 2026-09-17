@@ -38,21 +38,6 @@ Windows 11에서는 **더 많은 옵션 표시** 안에 있을 수 있습니다.
 제거하며 원본 Markdown 파일은 남깁니다. 문서 목록, 환경 설정, 가져온 문서, 원격 캐시가
 있는 `%LOCALAPPDATA%\SSMV`도 보존합니다. 다른 앱의 파일 연결은 바꾸지 않습니다.
 
-## 서명
-
-현재 배포한 Windows 미리 보기 설치 파일은 서명되지 않았습니다. Windows에서는
-Authenticode 코드 서명을 사용합니다. 테스트용 자체 인증서로 파일에 서명할 수는 있지만,
-다른 PC는 해당 인증서를 기본으로 신뢰하지 않으므로 일반 배포 시 SmartScreen 경고를
-해결하지 못합니다. Git 커밋 서명, SHA-256 파일, CI 빌드 출처 기록도 Authenticode
-서명과는 다릅니다. 자세한 내용은 Microsoft의 [코드 서명 안내](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)와
-[SmartScreen 안내](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)를 참고하세요.
-
-일반 배포에는 신뢰받는 코드 서명 인증서나 서비스가 필요합니다.
-[SignPath Foundation](https://signpath.org/terms)은 심사를 통과한 오픈소스 프로젝트에
-무료 서명을 제공하지만, 승인이 보장되지는 않습니다. 신뢰받는 인증서로 서명해도
-새 설치 파일은 평판이 쌓이기 전까지 SmartScreen 경고가 나올 수 있습니다.
-SSMV에는 아직 서명 서비스를 연결하지 않았습니다.
-
 ## 빌드
 
 Windows에 Visual Studio 2022의 **C++를 사용한 데스크톱 개발**과 Windows SDK

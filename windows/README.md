@@ -40,21 +40,6 @@ installed app, shortcuts and SSMV's file registrations. It preserves original
 Markdown files and `%LOCALAPPDATA%\SSMV`, including the document list, preferences,
 imports and remote cache. Other applications' registrations remain intact.
 
-## Signing
-
-The published Windows preview installers are unsigned. Windows uses Authenticode
-code signing; a self-signed certificate can sign a file for testing, but other PCs
-do not trust it by default. It does not solve public-download SmartScreen warnings.
-Git commit signatures, SHA-256 files, and CI provenance are not Authenticode signatures.
-See Microsoft's [code signing options](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)
-and [SmartScreen guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
-
-Public signing requires a trusted code-signing identity. [SignPath Foundation](https://signpath.org/terms)
-offers free signing to approved open-source projects; acceptance is not automatic.
-A trusted signature identifies the publisher but does not guarantee that a new
-installer will have enough SmartScreen reputation to avoid warnings. SSMV has not
-yet configured a signing provider.
-
 ## Build
 
 On Windows, install Visual Studio 2022 with **Desktop development with C++**,
