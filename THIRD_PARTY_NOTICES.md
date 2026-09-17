@@ -51,6 +51,28 @@ standard library. No third-party Markdown parser source is vendored.
 
 Windows App SDK package license terms govern redistribution of runtime files.
 C++/WinRT includes its own license in the package. Before publishing a Windows
-installer or release, retain the restored packages' license/notice files, review
-the actual runtime files included, and complete the distribution review.
+release, retain the restored packages' license/notice files and review the actual
+runtime files included.
 Windows builds are currently development artifacts, not signed release packages.
+
+
+## Windows installer and C++ runtime
+
+The development installer is built with [NSIS 3.12](https://nsis.sourceforge.io/Download).
+NSIS's installer code and standard plug-ins use the zlib/libpng license, except
+components identified separately in its [license appendix](https://nsis.sourceforge.io/Docs/AppendixI.html).
+Compression modules have their own terms; the LZMA module includes a linking
+exception. NSIS is a packaging tool and does not change the license of SSMV's code.
+
+The installer stages unmodified release Microsoft Visual C++ runtime DLLs from
+Visual Studio's architecture-specific `VC\Redist\MSVC` directory alongside the
+app. Microsoft lists the redistributable files and restrictions in
+[Distributable Code for Visual Studio 2022](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution#visual-c-runtime-files).
+Redistribution remains subject to the license terms of the builder's validly
+licensed Visual Studio installation; debug runtime files are not redistributable.
+These Microsoft binaries are not covered by SSMV's MIT License. The portable app
+build and installer payload have different CRT packaging requirements.
+
+This notice identifies the packaging dependencies and their governing sources.
+It does not certify every future Windows release or replace review of its actual
+payload, retained notices and applicable Microsoft license terms.

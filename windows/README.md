@@ -11,6 +11,32 @@ controls; there is no embedded browser or background server.
 Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows-native-ui-dark.png) ·
 [Menu shortcuts](../docs/images/ssmv-windows-native-ui-menu.png)
 
+## Install and open from Explorer
+
+Use `SSMV-windows-x64-setup.exe` on an x64 PC or
+`SSMV-windows-ARM64-setup.exe` on an ARM64 PC. These are unsigned development
+installers for Windows 10 build 19041 or newer, not a published Windows release.
+Windows may display an unknown
+publisher warning.
+
+Close SSMV before installing or upgrading, then run the installer under your normal
+Windows account. It installs for that account without administrator privileges to
+`%LOCALAPPDATA%\Programs\SSMV` and adds a Start menu shortcut. The installer
+includes the Windows App SDK files and app-local Microsoft Visual C++ runtime;
+no separate Visual C++ download is needed for this installation.
+
+After installation, right-click a `.md`, `.markdown` or `.mdown` file and select
+**Open with SSMV**. On Windows 11, this command may appear under **Show more options**.
+SSMV also appears in **Open with**. To open files by double-clicking, choose SSMV
+as the default app yourself through Windows **Open with** or **Settings → Apps →
+Default apps**. Setup does not replace your current default or modify `UserChoice`.
+
+Run a newer installer to update the installed copy. To remove it, use Windows
+**Settings → Apps → Installed apps → SSMV → Uninstall**. Uninstall removes the
+installed app, shortcuts and SSMV's file registrations. It preserves original
+Markdown files and `%LOCALAPPDATA%\SSMV`, including the document list, preferences,
+imports and remote cache. Other applications' registrations remain intact.
+
 ## Build
 
 On Windows, install Visual Studio 2022 with **Desktop development with C++**,
@@ -27,7 +53,22 @@ You can also open `SSMV.vcxproj` in Visual Studio. Output goes to
 `dist/windows/<architecture>/Release/` at the repository root. Keep that entire
 folder together: this is an unpackaged, self-contained Windows App SDK app, not
 a standalone executable. The matching Microsoft Visual C++ Redistributable is
-required. Builds are unsigned; installation and signing are not configured yet.
+required for this portable output. Builds are unsigned.
+
+To build an installer, install [NSIS 3.12](https://nsis.sourceforge.io/Download)
+and build the app first:
+
+```powershell
+./windows/scripts/build.ps1 -Platform x64
+./windows/scripts/build-installer.ps1 -Platform x64
+# Use -Platform ARM64 for both commands when building the ARM64 installer.
+```
+
+Output is `dist/SSMV-windows-<architecture>-setup.exe` at the repository root.
+The installer build stages a separate copy of the app with matching release CRT
+DLLs from Visual Studio's redistributable directory. It does not change the portable
+build's runtime prerequisites. See [third-party notices](../THIRD_PARTY_NOTICES.md)
+for the runtime and installer license sources.
 
 ## Reading features
 
@@ -107,7 +148,7 @@ the remainder. Parsed documents remain in memory. These bounds do not establish
 large-document performance parity; continuous viewport virtualization is pending.
 
 Remote URL CLI arguments, stdin/title CLI delivery, imported-document
-management, added/modified sorting, installer file associations, update guidance
+management, added/modified sorting, update guidance
 and Help/About remain incomplete. Web hyperlinks open in the default browser;
 that is different from loading remote Markdown into SSMV. Neither platform fetches
 embedded image pixels or provides Markdown editing. Windows full screen currently
@@ -143,6 +184,7 @@ responsiveness on Windows. This work does not create a release or change Homebre
 - `Core/`: portable parser and document library.
 - `Tests/`: core regression tests.
 - `scripts/build.ps1`: Windows build entry point.
+- `scripts/build-installer.ps1`: NSIS installer packaging entry point.
 
 The Windows and macOS apps share project documentation and example documents,
 not platform UI code. See [Microsoft's deployment documentation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app)

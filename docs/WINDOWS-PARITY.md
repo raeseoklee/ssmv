@@ -42,7 +42,7 @@ virtualization; matching appearance alone does not establish performance parity.
 | HTTPS Markdown | Implemented; main native flows verified | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
 | LLM/CLI handoff | Partial; native checks pending | File arguments and single-instance forwarding are implemented. Forwarded arguments must be absolute; relative arguments are rejected on warm launch. HTTPS, UTF-8 stdin and optional titles remain pending. Bound and validate the private inbox, recover pending requests and prevent duplicate imports. Document exit codes and PowerShell usage. No MCP server is required. |
 | PDF export | Implemented with formatting gaps | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
-| File associations | Pending | A supported install registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and double-click after user selection. Uninstall removes only SSMV's registrations. |
+| File associations | NSIS installer implemented; native installation checks pending | Per-user setup registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and **Open with SSMV**. Windows 11 may place the command under **Show more options**. Double-click follows the user's default-app choice; setup does not change it. Uninstall removes only SSMV registrations and preserves document/session/cache data. |
 | Update guidance | Pending | Choose a Windows distribution channel before implementing checks. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
 | Help and About | Pending | Provide product identity, version and Windows shortcuts; keep English default documentation with a separate Korean link. |
 
@@ -69,7 +69,7 @@ were visually reviewed. These checks do not establish complete macOS parity,
 cover every native interaction or verify ARM64 runtime behavior.
 
 PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations are not retained.
-Next priorities are durable import management, CLI delivery and installation integration. Publish feature
+Next priorities are durable import management and CLI delivery. Installer signing and public distribution remain pending. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.
 

@@ -11,6 +11,30 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 `6c0d9c3`의 x64 화면입니다. [다크 모드](../docs/images/ssmv-windows-native-ui-dark.png) ·
 [메뉴 단축키](../docs/images/ssmv-windows-native-ui-menu.png)
 
+## 설치와 탐색기에서 열기
+
+x64 PC에서는 `SSMV-windows-x64-setup.exe`, ARM64 PC에서는
+`SSMV-windows-ARM64-setup.exe`를 실행하세요. 아직 서명하지 않은 개발용 설치
+프로그램이며 Windows 10 빌드 19041 이상이 필요합니다. 정식 Windows 배포판은
+아닙니다. Windows에서 게시자를 확인할 수
+없다는 경고가 나올 수 있습니다.
+
+설치하거나 업데이트하기 전에 SSMV를 종료하세요. 평소 사용하는 Windows 계정으로
+설치하면 관리자 권한 없이 `%LOCALAPPDATA%\Programs\SSMV`에 설치되고 시작 메뉴에
+바로 가기가 추가됩니다. 설치 프로그램에 Windows App SDK 파일과 Microsoft Visual
+C++ 런타임을 함께 넣었으므로 Visual C++ 패키지를 따로 받을 필요는 없습니다.
+
+설치 후 `.md`, `.markdown`, `.mdown` 파일을 우클릭해 **Open with SSMV**를 선택하세요.
+Windows 11에서는 **더 많은 옵션 표시** 안에 있을 수 있습니다. **연결 프로그램**
+목록에도 SSMV가 등록됩니다. 더블클릭으로 열려면 Windows의 **연결 프로그램** 또는
+**설정 → 앱 → 기본 앱**에서 직접 SSMV를 선택하세요. 설치 프로그램은 기존 기본 앱과
+`UserChoice` 설정을 바꾸지 않습니다.
+
+업데이트할 때는 새 설치 프로그램을 실행하세요. 삭제는 Windows **설정 → 앱 → 설치된
+앱 → SSMV → 제거**에서 진행합니다. 설치된 앱, 바로 가기, SSMV의 파일 연결 등록만
+제거하며 원본 Markdown 파일은 남깁니다. 문서 목록, 환경 설정, 가져온 문서, 원격 캐시가
+있는 `%LOCALAPPDATA%\SSMV`도 보존합니다. 다른 앱의 파일 연결은 바꾸지 않습니다.
+
 ## 빌드
 
 Windows에 Visual Studio 2022의 **C++를 사용한 데스크톱 개발**과 Windows SDK
@@ -26,7 +50,22 @@ Windows App SDK의 WinUI 구성 요소와 C++/WinRT는 지정된 버전을 NuGet
 Visual Studio에서 `SSMV.vcxproj`를 열어도 됩니다. 결과는 저장소 루트의
 `dist/windows/<아키텍처>/Release/`에 생성됩니다. 실행 파일 하나만 옮기지 말고
 폴더 전체를 함께 보관하세요. 해당 아키텍처의 Microsoft Visual C++ 재배포
-패키지가 필요합니다. 앱 서명과 설치 프로그램은 아직 준비되지 않았습니다.
+패키지가 필요합니다. 이 포터블 빌드는 서명되지 않았습니다.
+
+설치 프로그램을 만들려면 [NSIS 3.12](https://nsis.sourceforge.io/Download)를 설치하고
+앱을 먼저 빌드하세요.
+
+```powershell
+./windows/scripts/build.ps1 -Platform x64
+./windows/scripts/build-installer.ps1 -Platform x64
+# ARM64 설치 프로그램을 만들 때는 두 명령 모두 -Platform ARM64를 사용합니다.
+```
+
+결과는 저장소 루트의 `dist/SSMV-windows-<아키텍처>-setup.exe`입니다.
+설치 프로그램 빌드는 앱을 별도 폴더로 복사한 뒤 Visual Studio 재배포 폴더에서
+해당 아키텍처의 릴리스 CRT DLL을 가져옵니다. 포터블 빌드의 실행 조건은 바꾸지
+않습니다. 런타임과 설치 도구의 라이선스 출처는
+[외부 코드 고지](../THIRD_PARTY_NOTICES.md)에 정리했습니다.
 
 ## 문서 읽기 기능
 
@@ -108,7 +147,7 @@ UTF-8 입력은 16 MiB로 제한합니다. 클립보드 문서는
 후속 작업입니다.
 
 원격 URL을 인수로 받는 CLI, 표준 입력·제목을 받는 CLI, 가져온 문서 관리,
-추가·수정 순서 정렬, 설치 시 파일 연결, 업데이트 안내, 도움말·About은 남아 있습니다.
+추가·수정 순서 정렬, 업데이트 안내, 도움말·About은 남아 있습니다.
 일반 웹 링크는 기본 브라우저로 엽니다.
 두 플랫폼 모두 삽입 이미지의 픽셀을 내려받아 표시하거나 Markdown을 편집하지는
 않습니다. Windows 전체 화면은 현재 앱 내부 컨트롤을 유지하며 macOS처럼 마우스를
