@@ -17,7 +17,7 @@ std::size_t run(std::string_view line, char character) {
 bool space(char c) { return c == ' ' || c == '\t'; }
 }
 LinkKind classifyLink(std::string_view destination) {
-    if (destination.empty()) return LinkKind::Unsafe;
+    if (destination.empty() || destination.size() > MaxInlineLinkBytes) return LinkKind::Unsafe;
     for (unsigned char c : destination) if (c <= 32 || c == 127 || c == '\\') return LinkKind::Unsafe;
     if (destination.front() == '#') return LinkKind::Anchor;
     if (destination.front() == '/' || destination.front() == '%') return LinkKind::Unsafe;
@@ -34,16 +34,26 @@ LinkKind classifyLink(std::string_view destination) {
 }
 namespace {
 // Every search shares a linear budget; malformed delimiters cannot cause quadratic work.
+struct InlineStyle {
+    bool bold = false, italic = false, strikethrough = false, code = false;
+    std::string_view destination;
+};
 struct InlineParser {
     std::vector<InlineSpan> spans;
     std::size_t budget;
-    void append(std::string_view text, const InlineSpan& style) {
-        if (text.empty()) return;
+    std::size_t destinationBytes = 0;
+    std::string_view lastDestination = {};
+    bool exceeded = false;
+    void append(std::string_view text, const InlineStyle& style) {
+        if (text.empty() || exceeded) return;
         if (!spans.empty()) {
             auto& last = spans.back();
-            if (last.bold == style.bold && last.italic == style.italic && last.strikethrough == style.strikethrough && last.code == style.code && last.destination == style.destination) { last.text.append(text); return; }
+            if (last.bold == style.bold && last.italic == style.italic && last.strikethrough == style.strikethrough && last.code == style.code && lastDestination.data() == style.destination.data() && lastDestination.size() == style.destination.size()) { last.text.append(text); return; }
         }
-        spans.push_back(style); spans.back().text = text;
+        if (spans.size() >= MaxInlineSpans || style.destination.size() > MaxInlineDestinationBytes - destinationBytes) { exceeded = true; return; }
+        destinationBytes += style.destination.size();
+        spans.push_back({std::string(text), style.bold, style.italic, style.strikethrough, style.code, std::string(style.destination)});
+        lastDestination = style.destination;
     }
     std::size_t find(std::string_view source, std::string_view token, std::size_t start) {
         for (auto i = start; i + token.size() <= source.size() && budget; ++i) {
@@ -65,9 +75,9 @@ struct InlineParser {
         }
         return std::string_view::npos;
     }
-    void parse(std::string_view source, InlineSpan style = {}, unsigned depth = 0) {
+    void parse(std::string_view source, InlineStyle style = {}, unsigned depth = 0) {
         if (depth >= 16 || !budget) { append(source, style); return; }
-        for (std::size_t i = 0; i < source.size();) {
+        for (std::size_t i = 0; i < source.size() && !exceeded;) {
             if (!budget) { append(source.substr(i), style); break; }
             --budget;
             const char c = source[i];
@@ -118,7 +128,12 @@ struct InlineParser {
                 }
                 append(source.substr(i, markerRun), style); i += markerRun; continue;
             }
-            append(source.substr(i, 1), style); ++i;
+            // Ordinary UTF-8/text bytes share a single append; style comparisons
+            // and destination handling must never scale with label byte count.
+            const auto start = i++;
+            while (i < source.size() && source[i] != '\\' && source[i] != '`' && source[i] != '[' && source[i] != '*' && source[i] != '_' && source[i] != '~') ++i;
+            budget -= std::min(budget, i - start - 1);
+            append(source.substr(start, i - start), style);
         }
     }
 };
@@ -150,7 +165,9 @@ std::vector<TableAlignment> tableSeparator(std::string_view line) {
 }
 }
 std::vector<InlineSpan> parseInline(std::string_view source) {
-    InlineParser parser{{}, source.size() * 24 + 1}; parser.parse(source); return std::move(parser.spans);
+    InlineParser parser{{}, source.size() * 24 + 1}; parser.parse(source);
+    if (parser.exceeded) return {{std::string(source), false, false, false, false, {}}};
+    return std::move(parser.spans);
 }
 std::string plainInlineText(std::string_view source) {
     std::string text; for (const auto& span : parseInline(source)) text += span.text; return text;

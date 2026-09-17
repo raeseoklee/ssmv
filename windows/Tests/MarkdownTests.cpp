@@ -41,6 +41,27 @@ int main() {
         check(plainInlineText(adversarial) == adversarial, "Adversarial unmatched labels bounded");
         check(plainInlineText(std::string(300000, '*')) == std::string(300000, '*'), "Unmatched delimiter runs bounded");
         check(std::chrono::steady_clock::now() - start < std::chrono::seconds(10), "Linear scan budget");
+        const auto longStart = std::chrono::steady_clock::now();
+        const std::string longLabel(8 * 1024 * 1024, 'a');
+        const std::string longDestination = "https://example.com/" + std::string(8 * 1024 * 1024, 'b');
+        auto longSpans = parseInline("[" + longLabel + "](" + longDestination + ")");
+        check(longSpans.size() == 1 && longSpans[0].text == longLabel && longSpans[0].destination.empty(), "Oversize destination inert; long label preserved");
+        const std::string maxDestination = "https://example.com/" + std::string(MaxInlineLinkBytes - 20, 'c');
+        longSpans = parseInline("[" + longLabel + "](" + maxDestination + ")");
+        check(longSpans.size() == 1 && longSpans[0].text == longLabel && longSpans[0].destination == maxDestination, "Large literal label merges once");
+        std::string escapedLabel;
+        for (int i = 0; i < 100000; ++i) escapedLabel += "\\*";
+        longSpans = parseInline("[" + escapedLabel + "](" + maxDestination + ")");
+        check(longSpans.size() == 1 && longSpans[0].text == std::string(100000, '*'), "Escaped label merges without repeated destination comparison");
+        std::string formattedLabel;
+        for (int i = 0; i < 10000; ++i) formattedLabel += "**b** plain ";
+        auto amplified = "[" + formattedLabel + "](" + maxDestination + ")";
+        longSpans = parseInline(amplified);
+        check(longSpans.size() == 1 && longSpans[0].text == amplified && longSpans[0].destination.empty(), "Copied link metadata budget falls back to inert source");
+        longSpans = parseInline(formattedLabel);
+        check(longSpans.size() == 1 && longSpans[0].text == formattedLabel && !longSpans[0].bold, "Span count budget falls back to inert source");
+        check(classifyLink(std::string(MaxInlineLinkBytes + 1, 'a')) == LinkKind::Unsafe, "Link length ceiling");
+        check(std::chrono::steady_clock::now() - longStart < std::chrono::seconds(10), "Long label and metadata amplification bounded");
         std::cout << "Markdown tests passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

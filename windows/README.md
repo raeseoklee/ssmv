@@ -8,7 +8,7 @@ controls; there is no embedded browser or background server.
 
 ![SSMV Windows development build reading a local Markdown document](../docs/images/ssmv-windows-0a2d059.png)
 
-Captured from the native x64 app on the Windows CI runner.
+Screenshot from the previous native x64 build; it does not yet show this reading increment.
 
 ## Build
 
@@ -28,25 +28,45 @@ folder together: this is an unpackaged, self-contained Windows App SDK app, not
 a standalone executable. The matching Microsoft Visual C++ Redistributable is
 required. Builds are unsigned; installation and signing are not configured yet.
 
-## Initial scope
+## Reading features
 
-- Open local `.md`, `.markdown` and `.mdown` files with the picker, file arguments,
-  or drag and drop.
-- Switch documents in a collapsible sidebar; browse headings, sort by name, and
-  remove individual entries or clear the list after confirmation.
-- Display headings, paragraphs, lists, quotes, separators and fenced code using
-  native controls, with system, light and dark themes.
-- Read UTF-8 files up to 16 MiB. Removing entries never deletes source files.
+The current source adds these features; native Windows validation of this increment
+is pending. See the [parity checklist](../docs/WINDOWS-PARITY.md) for remaining work.
 
-This first renderer is a Markdown subset. Full inline formatting, tables, images,
-PDF export, remote URLs, LLM/CLI handoff, session persistence, installer file
-associations and automatic update checks remain porting work. The macOS version
-continues to provide its existing features. Do not use the 16 MiB input limit as a
-performance guarantee; Windows large-document measurements are still required.
-The view shows up to 2,000 blocks per part with previous/next navigation; an
-expanded outline shows up to 200 headings at a time. Jumping to a heading loads
-its part without creating controls for the preceding document. Parsed documents
-remain in memory; continuous viewport virtualization is not implemented yet.
+- Open local `.md`, `.markdown` and `.mdown` files through a picker, arguments or
+  drops. Forward absolute file paths to the running app. Relative arguments work
+  on a cold launch but are rejected when forwarding to an existing instance.
+- Switch documents in a collapsible sidebar, browse headings, sort by name and
+  remove entries. Clearing the list requires confirmation and never deletes sources.
+- Read headings, lists, quotes, code, emphasis, strikethrough, links and aligned
+  tables with native text controls. This remains a Markdown subset.
+- Find matching **sections** with Ctrl+F and F3/Shift+F3. Search navigates between
+  blocks; it does not highlight or count individual occurrences. Large tables may
+  require their own page controls after navigating to the table.
+- Change text size with Ctrl++/Ctrl+- and reset with Ctrl+0. Selection is per block;
+  **More → Copy Document Text** copies the full document's plain text.
+- Reload with Ctrl+R, save the original Markdown bytes with Ctrl+Shift+S, reveal
+  a file in Explorer and enter/leave full screen with F11.
+- Import clipboard Markdown from **More**, and restore the shelf, selected document,
+  reading position, expanded outlines, text size and appearance on restart.
+
+UTF-8 input is limited to 16 MiB. Clipboard imports are stored under
+`%LOCALAPPDATA%\SSMV\imports` with a 256 MiB total limit. Removing them from the
+sidebar preserves those files; an in-app retained-import manager is not yet available.
+Session data is stored alongside them. If session recovery fails, the app reports
+an error and disables automatic session writes to protect the existing state.
+
+The body displays at most 2,000 blocks per part; outlines show 200 headings per
+part. Tables display 100 body rows and 12 columns at a time, with navigation for
+the remainder. Parsed documents remain in memory. These bounds do not establish
+large-document performance parity; continuous viewport virtualization is pending.
+
+PDF export, remote Markdown URLs, stdin/title CLI delivery, imported-document
+management, added/modified sorting, installer file associations, update guidance
+and Help/About remain incomplete. Web hyperlinks open in the default browser;
+that is different from loading remote Markdown into SSMV. Neither platform fetches
+embedded image pixels or provides Markdown editing. Windows full screen currently
+retains its in-app controls; matching macOS hover-reveal behavior remains work.
 
 ## Tests
 
@@ -59,13 +79,14 @@ cmake --build windows/.build/core --config Release
 ctest --test-dir windows/.build/core -C Release --output-on-failure
 ```
 
-GitHub Actions builds the Windows app for x64 and ARM64 and runs core tests.
-The x64 smoke test also launches the app, opens a sample document through a file
-argument, captures the window and verifies normal exit after closing it. These
-automated checks do not cover every native interaction: before a release,
-check file-picker cancellation, Explorer and desktop drops, Korean paths, keyboard
-navigation, sidebar/outline behavior, theme switching, display scaling, Narrator,
-and large-document responsiveness on a Windows machine.
+Three portable suites (documents, Markdown and session persistence) pass for this
+increment. The workflow builds x64 and ARM64 and is intended to exercise activation,
+restart recovery and screenshots on x64; **those native checks are pending for this
+change**. ARM64 runtime behavior must be checked separately.
+
+Before release, validate picker cancellation, Explorer/desktop drops, Korean paths,
+keyboard navigation, tables, theme changes, display scaling, Narrator and large-file
+responsiveness on Windows. This work does not create a release or change Homebrew.
 
 ## Layout
 

@@ -27,8 +27,6 @@
 #include <winrt/Microsoft.UI.Windowing.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
 #include <winrt/Windows.Storage.Streams.h>
-#include <map>
-#include <fstream>
 #include <algorithm>
 #include <optional>
 #include <deque>
@@ -46,6 +44,11 @@ using namespace Windows::ApplicationModel::DataTransfer;
 
 namespace {
 constexpr size_t maxRenderedBlocks = 2000;
+
+IAsyncAction writeDocument(std::filesystem::path path, std::string bytes) {
+    co_await resume_background();
+    ssmv::writeFileAtomically(path, bytes);
+}
 
 TextBlock label(hstring const& text, double size = 14) {
     TextBlock result;
@@ -90,6 +93,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     bool dialogOpen = false;
     std::vector<FrameworkElement> rendered;
     size_t renderStart = 0;
+    uint64_t renderRevision = 0;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
     std::set<std::filesystem::path> expandedPaths;
@@ -385,8 +389,12 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             try {
                 co_await ui;
                 if (closed || request != generation) continue;
+                lastQuery = L""; ++searchGeneration;
                 for (auto& document : loaded) {
-                    if (library.documents().size() >= ssmv::MaxSessionDocuments) { failures = "The document list is full."; break; }
+                    auto path = pathText(document.path);
+                    bool registered = std::any_of(session.documents.begin(), session.documents.end(), [&](auto const& item) { return item.path == path; });
+                    if (!registered && session.documents.size() >= ssmv::MaxSessionDocuments) { failures = "The document list is full. Clear missing entries before adding files."; continue; }
+                    if (!registered) session.documents.push_back({path, 0, 0});
                     selected = library.insert(std::move(document));
                 }
                 if (restoring) {
@@ -470,6 +478,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     }
 
     void render() {
+        ++renderRevision;
         content.Children().Clear();
         rendered.clear();
         if (!selected || *selected >= library.documents().size()) {
@@ -507,6 +516,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
 
     void removeSelected() {
         if (!selected) return;
+        lastQuery = L""; ++searchGeneration;
         auto removed = pathText(library.documents()[*selected].path);
         std::erase_if(session.documents, [&](auto const& item) { return item.path == removed; });
         expandedPaths.erase(library.documents()[*selected].path);
@@ -538,6 +548,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 restoring = false;
                 expandedPaths.clear();
                 library.clear();
+                lastQuery = L""; ++searchGeneration;
                 session.documents.clear(); session.selectedPath.clear();
                 selected.reset();
                 rebuildShelf();
@@ -564,9 +575,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     void restorePage() { if (auto item = position()) renderStart = size_t(item->bodyPage) * maxRenderedBlocks; else renderStart = 0; }
     void restoreScroll() {
         if (auto item = position()) {
-            auto path = item->path; auto offset = item->scrollOffset;
-            window.DispatcherQueue().TryEnqueue([weak = get_weak(), path, offset] {
-                if (auto self = weak.get(); self && !self->closed && self->selected &&
+            auto path = item->path; auto offset = item->scrollOffset; auto revision = renderRevision;
+            window.DispatcherQueue().TryEnqueue([weak = get_weak(), path, offset, revision] {
+                if (auto self = weak.get(); self && !self->closed && self->selected && self->renderRevision == revision &&
                     pathText(self->library.documents()[*self->selected].path) == path) {
                     self->scroll.UpdateLayout(); self->scroll.ChangeView(nullptr, offset, nullptr);
                 }
@@ -635,7 +646,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             } else if (!matches.empty()) matchIndex = previous ? (matchIndex + matches.size() - 1) % matches.size() : (matchIndex + 1) % matches.size();
             if (matches.empty()) { findStatus.Text(L"No matches"); co_return; }
             rememberPosition(); auto target = matches[matchIndex]; renderStart = target / maxRenderedBlocks * maxRenderedBlocks;
-            render(); rendered[target - renderStart].StartBringIntoView();
+            render();
+            if (target >= renderStart && target - renderStart < rendered.size()) rendered[target - renderStart].StartBringIntoView();
             findStatus.Text(to_hstring(matchIndex + 1) + L" / " + to_hstring(matches.size()) + L" matching sections");
         } catch (hresult_error const& e) { failure = e.message(); }
         catch (std::exception const& e) { failure = to_hstring(e.what()); }
@@ -685,7 +697,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (total + bytes.size() > 256 * 1024 * 1024) { error(L"Imported documents exceed the 256 MiB storage limit."); co_return; }
             GUID id{}; check_hresult(CoCreateGuid(&id)); wchar_t name[40]{}; StringFromGUID2(id, name, 40);
             auto path = directory / (std::wstring(L"Clipboard ") + name + L".md");
-            ssmv::writeFileAtomically(path, bytes); if (!closed) load({path});
+            co_await writeDocument(path, std::move(bytes)); if (!closed) load({path});
         } catch (hresult_error const& e) { error(e.message()); }
         catch (std::exception const& e) { error(to_hstring(e.what())); }
     }
@@ -700,7 +712,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             check_hresult(picker.as<IInitializeWithWindow>()->Initialize(hwnd));
             picker.SuggestedFileName(name); picker.FileTypeChoices().Insert(L"Markdown", single_threaded_vector<hstring>({L".md"}));
             auto file = co_await picker.PickSaveFileAsync();
-            if (file && !closed) { ssmv::writeFileAtomically(std::filesystem::path(file.Path().c_str()), source); error(L"Markdown copy saved."); }
+            if (file && !closed) { co_await writeDocument(std::filesystem::path(file.Path().c_str()), std::move(source)); error(L"Markdown copy saved."); }
         } catch (hresult_error const& e) { error(e.message()); }
         catch (std::exception const& e) { error(to_hstring(e.what())); }
     }
@@ -739,7 +751,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                     for (char& c : slug) { if (c == ' ') c = '-'; else if (c >= 'A' && c <= 'Z') c += 'a' - 'A'; }
                     if (slug == anchor) {
                         renderStart = heading.blockIndex / maxRenderedBlocks * maxRenderedBlocks;
-                        auto target = heading.blockIndex; render(); rendered[target - renderStart].StartBringIntoView(); break;
+                        auto target = heading.blockIndex; render();
+            if (target >= renderStart && target - renderStart < rendered.size()) rendered[target - renderStart].StartBringIntoView(); break;
                     }
                 }
             }
