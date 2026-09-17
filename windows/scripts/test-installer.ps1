@@ -91,11 +91,15 @@ try {
         $path = "$classes\$extension"
         $old = Get-Item $path -ErrorAction SilentlyContinue
         $hadDefault = $old -and $old.GetValueNames().Contains('')
-        $seeded += @{ Path = $path; Existed = [bool]$old; HadDefault = [bool]$hadDefault; Default = $(if ($hadDefault) { $old.GetValue('') }); Kind = $(if ($hadDefault) { $old.GetValueKind('') }) }
-        if (!(Test-Path $path)) { New-Item $path -Force > $null }
-        (Get-Item $path).SetValue('', $foreignProgId, [Microsoft.Win32.RegistryValueKind]::String)
-        if (!(Test-Path "$path\OpenWithProgids")) { New-Item "$path\OpenWithProgids" -Force > $null }
-        (Get-Item "$path\OpenWithProgids").SetValue($foreignProgId, '', [Microsoft.Win32.RegistryValueKind]::String)
+        $seeded += @{ Path = $path; Existed = [bool]$old; HadDefault = [bool]$hadDefault; Default = $(if ($hadDefault) { $old.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) }); Kind = $(if ($hadDefault) { $old.GetValueKind('') }) }
+        # Registry-provider Get-Item opens read-only handles. Open writable handles
+        # explicitly for fixture mutations without replacing existing keys or values.
+        $writable = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($path.Substring(6), $true)
+        try { $writable.SetValue('', $foreignProgId, [Microsoft.Win32.RegistryValueKind]::String) }
+        finally { $writable.Dispose() }
+        $writable = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey(($path.Substring(6) + '\OpenWithProgids'), $true)
+        try { $writable.SetValue($foreignProgId, '', [Microsoft.Win32.RegistryValueKind]::String) }
+        finally { $writable.Dispose() }
     }
     Run-Installer $installerPath '/S' $true
     foreach ($file in @('SSMV.exe', 'Microsoft.UI.Xaml.dll', 'vcruntime140.dll', 'msvcp140.dll', 'Uninstall.exe')) {
@@ -192,13 +196,18 @@ try {
     $env:SSMV_DATA_DIR = $previousDataDirectory
     # Restore only the values seeded by this test; never recursively erase classes or user data.
     foreach ($entry in $seeded) {
-        $key = Get-Item $entry.Path -ErrorAction SilentlyContinue
+        $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($entry.Path.Substring(6), $true)
         if ($key) {
-            if ($entry.HadDefault) { $key.SetValue('', $entry.Default, $entry.Kind) }
-            elseif ($key.GetValue('') -eq $foreignProgId) { $key.DeleteValue('', $false) }
+            try {
+                if ($entry.HadDefault) { $key.SetValue('', $entry.Default, $entry.Kind) }
+                elseif ($key.GetValue('') -eq $foreignProgId) { $key.DeleteValue('', $false) }
+            } finally { $key.Dispose() }
         }
-        $openWith = Get-Item ($entry.Path + '\OpenWithProgids') -ErrorAction SilentlyContinue
-        if ($openWith) { $openWith.DeleteValue($foreignProgId, $false) }
+        $openWith = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey(($entry.Path.Substring(6) + '\OpenWithProgids'), $true)
+        if ($openWith) {
+            try { $openWith.DeleteValue($foreignProgId, $false) }
+            finally { $openWith.Dispose() }
+        }
     }
     foreach ($file in @($unrelated, $dataSentinel)) { if (Test-Path $file) { Remove-Item -LiteralPath $file -Force } }
     if (Test-Path $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
