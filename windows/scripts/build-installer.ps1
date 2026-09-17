@@ -84,7 +84,7 @@ $version = $manifest.assembly.assemblyIdentity.version
 $revision = (& git -C $repository rev-parse --short HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]+$') { throw 'A source Git revision is required for development installer provenance.' }
 $output = Join-Path $repository "dist/SSMV-windows-$Platform-setup.exe"
-$arguments = @('/V3', "/DPAYLOAD_DIR=$payload", "/DOUTPUT_FILE=$output", "/DPRODUCT_VERSION=$version",
+$arguments = @('/V3', '/INPUTCHARSET', 'UTF8', "/DPAYLOAD_DIR=$payload", "/DOUTPUT_FILE=$output", "/DPRODUCT_VERSION=$version",
     "/DBUILD_LABEL=development.$revision", "/DARCH=$Platform", "/DINSTALL_FILES=$installInclude", "/DUNINSTALL_FILES=$uninstallInclude",
     (Join-Path $repository 'windows/Installer/SSMV.nsi'))
 & $Makensis @arguments

@@ -55,7 +55,7 @@ LangString UninstallFailed ${LANG_KOREAN} "일부 SSMV 파일을 제거하지 �
 Function ${PREFIX}CheckApplication
   IfFileExists "$INSTDIR\SSMV.exe" 0 done
   System::Call 'kernel32::CreateFileW(w "$INSTDIR\SSMV.exe", i 0x40000000, i 0, p 0, i 3, i 0, p 0) p.r0'
-  ${If} $0 == -1
+  ${If} $0 = -1
     MessageBox MB_OK|MB_ICONEXCLAMATION "$(CloseApp)" /SD IDOK
     SetErrorLevel 2
     Quit
@@ -79,13 +79,14 @@ Function .onInit
     Goto unsupported
   ${EndIf}
   System::Call 'kernel32::IsWow64Process2(p -1, *i .r0, *i .r1) i.r2'
-  ${If} $2 == 0
+  ${If} $2 = 0
     Goto unsupported
   ${EndIf}
+  ; System returns a decimal number; <> uses IntCmp rather than string comparison.
 !if "${ARCH}" == "ARM64"
-  ${If} $1 != 0xAA64
+  ${If} $1 <> 0xAA64
 !else if "${ARCH}" == "x64"
-  ${If} $1 != 0x8664
+  ${If} $1 <> 0x8664
 !else
   !error "ARCH must be x64 or ARM64"
 !endif
@@ -137,7 +138,7 @@ existing:
   ClearErrors
   ExecWait '$\"$INSTDIR\Uninstall.exe$\" /S _?=$INSTDIR' $0
   ${If} ${Errors}
-  ${OrIf} $0 != 0
+  ${OrIf} $0 <> 0
     MessageBox MB_OK|MB_ICONSTOP "$(UpgradeFailed)" /SD IDOK
     SetErrorLevel 5
     Quit
@@ -204,7 +205,7 @@ SectionEnd
 
 !macro UnregisterExtension EXT
   ; Keep other applications' associations and all UserChoice/default values.
-  ${If} $2 == 1
+  ${If} $2 = 1
     DeleteRegValue HKCU "Software\Classes\${EXT}\OpenWithProgids" "SSMV.Markdown"
     DeleteRegKey /ifempty HKCU "Software\Classes\${EXT}\OpenWithProgids"
     DeleteRegKey /ifempty HKCU "Software\Classes\${EXT}"
@@ -220,7 +221,7 @@ Section "Uninstall"
   ; Remove tracked files first; keep registrations available if a file is locked.
   ; The generated macro ignores nonempty directories but records Delete failures.
   !insertmacro UninstallPayload
-  ${If} $R9 != 0
+  ${If} $R9 <> 0
     MessageBox MB_OK|MB_ICONSTOP "$(UninstallFailed)" /SD IDOK
     SetErrorLevel 7
     Quit
