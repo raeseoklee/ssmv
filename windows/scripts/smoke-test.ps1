@@ -176,6 +176,43 @@ function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]
     }
 }
 
+function Assert-NavigationHighlight([Diagnostics.Process]$Target, [switch]$Expired) {
+    $block = Wait-AutomationElement $Target.Id 'reader.block.0' -AutomationId
+    $deadline = (Get-Date).AddSeconds($(if ($Expired) { 4 } else { 1 }))
+    do {
+        $highlighted = $block.Current.HelpText -eq 'Navigation target'
+        if ($highlighted -ne $Expired.IsPresent) { return }
+        Start-Sleep -Milliseconds 50
+    } while ((Get-Date) -lt $deadline)
+    throw $(if ($Expired) { 'The outline navigation highlight did not expire.' } else { 'The activated heading did not receive a navigation highlight.' })
+}
+
+function Assert-URLDialogCancellation([Diagnostics.Process]$Target) {
+    # Verify the real shortcut before File has ever been opened.
+    Send-TestShortcut $Target 0x4C # Ctrl+L
+    $input = Wait-AutomationElement $Target.Id 'URLInput' -AutomationId
+    $input.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('https://example.invalid/document.md')
+    $null = Wait-AutomationElement $Target.Id 'Open'
+    Invoke-AutomationElement (Wait-AutomationElement $Target.Id 'Cancel')
+    Wait-DocumentWindow $Target 'Windows.md — SSMV'
+    Assert-DocumentTree $Target.Id @('Windows.md')
+    $window = [Windows.Automation.AutomationElement]::FromHandle($Target.MainWindowHandle)
+    $remaining = $window.FindAll([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, 'URLInput'))
+    if (@($remaining | Where-Object { !$_.Current.IsOffscreen }).Count) { throw 'Cancel did not dismiss the URL dialog.' }
+    $menu = Open-AutomationMenu $Target.Id 'menu.file'
+    try {
+        foreach ($command in @(@('action.openURL', 'Ctrl+L'), @('action.exportPDF', 'Ctrl+P'))) {
+            $item = Wait-AutomationElement $Target.Id $command[0] -AutomationId
+            if ($item.Current.AcceleratorKey -ne $command[1]) {
+                throw "Expected $($command[0]) to expose $($command[1]); found '$($item.Current.AcceleratorKey)'."
+            }
+        }
+        Save-WindowEvidence $Target 'window-file-menu.png' -IncludePopup
+    } finally { Close-AutomationMenu $menu }
+    Write-Output 'Ctrl+L opened the URL dialog; cancellation preserved the document shelf. URL and PDF menu shortcuts are exposed.'
+}
+
 function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
     $ProcessId = $Target.Id
     $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
@@ -195,7 +232,9 @@ function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
     $heading.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
     $heading.SetFocus()
     Send-TestShortcut $Target 0x0D -NoControl
-    Start-Sleep -Milliseconds 300 # Let the first bring-into-view/layout complete.
+    Assert-NavigationHighlight $Target
+    Save-WindowEvidence $Target 'window-outline-highlight.png'
+    Assert-NavigationHighlight $Target -Expired
     $reader = Wait-AutomationElement $ProcessId 'ReaderScroll' -AutomationId
     $scroll = $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
     if (!$scroll.Current.VerticallyScrollable) { throw 'The public sample must scroll to exercise repeated heading navigation.' }
@@ -206,10 +245,12 @@ function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
     # Activate the same selected heading again, with no selection change.
     $heading.SetFocus()
     Send-TestShortcut $Target 0x0D -NoControl
+    Assert-NavigationHighlight $Target
     $deadline = (Get-Date).AddSeconds(5)
     while ($scroll.Current.VerticalScrollPercent -ge 10 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if ($scroll.Current.VerticalScrollPercent -ge 10) { throw 'Invoking the already-selected heading did not return to its content.' }
-    Write-Output 'Repeated activation of the same selected heading returned the reader to its content.'
+    Assert-NavigationHighlight $Target -Expired
+    Write-Output 'Repeated heading activation returned to its content and reapplied the transient highlight; both highlights expired.'
 }
 
 function Assert-InactiveOutlineCollapse([Diagnostics.Process]$Target) {
@@ -471,6 +512,7 @@ public static class WindowCapture {
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
     Save-WindowEvidence $process 'window-expanded.png'
     Assert-RepeatedHeadingNavigation $process
+    Assert-URLDialogCancellation $process
     Save-WindowEvidence $process 'window.png'
     # Verify registration before the Edit menu has ever been opened.
     Send-TestShortcut $process 0x46

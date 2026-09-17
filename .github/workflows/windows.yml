@@ -13,7 +13,26 @@ jobs:
           persist-credentials: false
       - run: cmake -S windows -B windows/.build/core -A x64
       - run: cmake --build windows/.build/core --config Release
+      - name: Prepare native PDF printer
+        shell: pwsh
+        run: |
+          if (!(Get-Printer -Name 'Microsoft Print to PDF' -ErrorAction SilentlyContinue)) {
+            Enable-WindowsOptionalFeature -Online -FeatureName Printing-PrintToPDFServices-Features -All -NoRestart
+            if (!(Get-Printer -Name 'Microsoft Print to PDF' -ErrorAction SilentlyContinue)) {
+              Add-Printer -Name 'Microsoft Print to PDF' -DriverName 'Microsoft Print To PDF' -PortName 'PORTPROMPT:'
+            }
+          }
       - run: ctest --test-dir windows/.build/core -C Release --output-on-failure
+        env:
+          SSMV_PDF_TEST_OUTPUT: ${{ github.workspace }}/dist/windows/pdf-evidence
+      - name: Verify public HTTPS Markdown import
+        run: ./windows/.build/core/Release/ssmv_remote_tests.exe --network
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: SSMV-windows-pdf-evidence
+          path: dist/windows/pdf-evidence/
+          if-no-files-found: ignore
   app:
     runs-on: windows-2022
     strategy:

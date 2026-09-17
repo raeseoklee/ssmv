@@ -28,6 +28,10 @@
 #include "Activation.hpp"
 #include "ReaderMenu.hpp"
 #include "DocumentTree.hpp"
+#include "RemoteDocument.hpp"
+#include "PdfExport.hpp"
+#include <atomic>
+#include <chrono>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Microsoft.UI.Windowing.h>
@@ -110,6 +114,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     uint64_t renderRevision = 0;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
+    std::shared_ptr<std::atomic_bool> remoteCancellation, pdfCancellation;
+    DispatcherTimer navigationTimer{nullptr};
+    Border highlightedBlock{nullptr};
     std::set<std::filesystem::path> expandedPaths;
 
     Button button(hstring const& title, auto action) {
@@ -164,6 +171,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         SendMessageW(nativeWindow, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(nativeSmallIcon));
         window.Closed([this](auto const&, auto const&) {
             rememberPosition(); saveState(); activation->stop(); closed = true; ++generation;
+            cancelTransfers(); clearNavigationHighlight();
         });
         wchar_t location[32768]{};
         auto length = GetEnvironmentVariableW(L"SSMV_DATA_DIR", location, 32768);
@@ -216,10 +224,12 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         };
         ssmv::MenuActions actions;
         actions.open = guarded([this] { pick(); });
+        actions.openURL = guarded([this] { openURLDialog(); });
+        actions.exportPDF = guarded([this] { exportPDF(); });
         actions.clipboard = guarded([this] { openClipboard(); });
         actions.saveCopy = guarded([this] { saveCopy(); });
         actions.reload = guarded([this] { reload(); });
-        actions.cancelLoading = guarded([this] { ++generation; pendingLoads.clear(); restoring = false; error(L"Loading canceled."); });
+        actions.cancelLoading = guarded([this] { ++generation; pendingLoads.clear(); restoring = false; cancelTransfers(); error(L"Operation canceled."); });
         actions.removeSelected = guarded([this] { removeSelected(); });
         actions.removeAll = guarded([this] { removeAll(); });
         actions.reveal = guarded([this] { reveal(); });
@@ -314,7 +324,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (block) renderStart = *block / maxRenderedBlocks * maxRenderedBlocks;
             else restorePage();
             render();
-            if (block && *block >= renderStart && *block - renderStart < rendered.size()) rendered[*block - renderStart].StartBringIntoView();
+            if (block) showNavigationTarget(*block);
             else restoreScroll();
             saveState();
         });
@@ -493,6 +503,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
 
     void render() {
         syncChrome();
+        clearNavigationHighlight();
         ++renderRevision;
         content.Children().Clear();
         rendered.clear();
@@ -515,8 +526,10 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         for (size_t index = renderStart; index < end; ++index) {
             auto const& block = document.markdown.blocks[index];
             auto element = ssmv::renderBlock(block, fontSize, [this](std::string destination) { navigateLink(std::move(destination)); });
-            rendered.push_back(element);
-            content.Children().Append(element);
+            Border wrapper; wrapper.Child(element); wrapper.CornerRadius({4, 4, 4, 4});
+            Automation::AutomationProperties::SetAutomationId(wrapper, L"reader.block." + to_hstring(index));
+            rendered.push_back(wrapper);
+            content.Children().Append(wrapper);
         }
         scroll.ChangeView(nullptr, 0.0, nullptr);
         if (end < count) content.Children().Append(button(L"Continue reading", [this, end] {
@@ -528,6 +541,43 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                         to_hstring((count + maxRenderedBlocks - 1) / maxRenderedBlocks));
         } else status.Text(hstring(document.path.filename().wstring()));
         ToolTipService::SetToolTip(status, box_value(document.path.wstring()));
+    }
+
+    void clearNavigationHighlight() {
+        if (navigationTimer) navigationTimer.Stop();
+        if (scroll) Automation::AutomationProperties::SetHelpText(scroll, L"");
+        if (highlightedBlock) {
+            highlightedBlock.Background(nullptr);
+            Automation::AutomationProperties::SetHelpText(highlightedBlock, L"");
+            highlightedBlock = nullptr;
+        }
+    }
+
+    void showNavigationTarget(size_t index) {
+        if (index < renderStart || index - renderStart >= rendered.size()) return;
+        clearNavigationHighlight();
+        highlightedBlock = rendered[index - renderStart].as<Border>();
+        highlightedBlock.Background(Media::SolidColorBrush(root.ActualTheme() == ElementTheme::Dark
+            ? Windows::UI::Color{255, 91, 76, 30} : Windows::UI::Color{255, 255, 238, 173}));
+        Automation::AutomationProperties::SetHelpText(highlightedBlock, L"Navigation target");
+        Automation::AutomationProperties::SetHelpText(scroll, L"Navigation target: " + to_hstring(index));
+        // Complete layout first so new document parts have accurate scroll bounds.
+        content.UpdateLayout();
+        BringIntoViewOptions options; options.VerticalAlignmentRatio(0); options.AnimationDesired(false);
+        highlightedBlock.StartBringIntoView(options);
+        if (!navigationTimer) {
+            navigationTimer = DispatcherTimer();
+            navigationTimer.Interval(std::chrono::milliseconds(1800));
+            navigationTimer.Tick([weak = get_weak()](auto const&, auto const&) {
+                if (auto self = weak.get()) self->clearNavigationHighlight();
+            });
+        }
+        navigationTimer.Start();
+    }
+
+    void cancelTransfers() {
+        if (remoteCancellation) remoteCancellation->store(true);
+        if (pdfCancellation) pdfCancellation->store(true);
     }
 
     void removeSelected() {
@@ -561,6 +611,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (!closed && result == ContentDialogResult::Primary) {
                 ++generation;
                 pendingLoads.clear();
+                cancelTransfers();
                 restoring = false;
                 expandedPaths.clear();
                 library.clear();
@@ -663,7 +714,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (matches.empty()) { findStatus.Text(L"No matches"); co_return; }
             rememberPosition(); auto target = matches[matchIndex]; renderStart = target / maxRenderedBlocks * maxRenderedBlocks;
             render();
-            if (target >= renderStart && target - renderStart < rendered.size()) rendered[target - renderStart].StartBringIntoView();
+            showNavigationTarget(target);
             findStatus.Text(to_hstring(matchIndex + 1) + L" / " + to_hstring(matches.size()) + L" matching sections");
         } catch (hresult_error const& e) { failure = e.message(); }
         catch (std::exception const& e) { failure = to_hstring(e.what()); }
@@ -683,6 +734,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         auto lifetime = get_strong(); apartment_context ui;
         if (!selected) co_return;
         rememberPosition(); auto path = library.documents()[*selected].path; auto request = generation;
+        if (auto source = remoteSource(path)) { openRemote(*source); co_return; }
         std::optional<ssmv::Document> document; std::string failure;
         co_await resume_background();
         try { document = ssmv::readDocument(path); } catch (std::exception const& e) { failure = e.what(); }
@@ -720,6 +772,87 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         } catch (hresult_error const& e) { error(e.message()); }
         catch (std::exception const& e) { error(to_hstring(e.what())); }
     }
+    fire_and_forget openURLDialog() {
+        auto lifetime = get_strong();
+        if (dialogOpen) co_return;
+        dialogOpen = true;
+        std::wstring address;
+        try {
+            TextBox input; input.PlaceholderText(L"https://…/document.md"); input.MinWidth(360);
+            Automation::AutomationProperties::SetAutomationId(input, L"URLInput");
+            Automation::AutomationProperties::SetName(input, L"Markdown URL");
+            ContentDialog dialog; dialog.XamlRoot(root.XamlRoot()); dialog.RequestedTheme(root.RequestedTheme());
+            dialog.Title(box_value(L"Open Markdown URL")); dialog.Content(input);
+            dialog.PrimaryButtonText(L"Open"); dialog.CloseButtonText(L"Cancel");
+            dialog.DefaultButton(ContentDialogButton::Primary);
+            auto result = co_await dialog.ShowAsync();
+            if (result == ContentDialogResult::Primary && !closed) address = input.Text().c_str();
+        } catch (hresult_error const& e) { error(e.message()); }
+        catch (std::exception const& e) { error(to_hstring(e.what())); }
+        dialogOpen = false;
+        if (!address.empty()) openRemote(std::move(address));
+    }
+
+    fire_and_forget openRemote(std::wstring address) {
+        auto lifetime = get_strong(); apartment_context ui;
+        if (remoteCancellation) remoteCancellation->store(true);
+        auto cancellation = std::make_shared<std::atomic_bool>(false);
+        remoteCancellation = cancellation;
+        auto directory = dataDirectory / L"remotes";
+        std::filesystem::path path;
+        hstring failure;
+        auto request = generation;
+        status.Text(L"Downloading Markdown…");
+        try {
+            co_await resume_background();
+            path = ssmv::downloadRemoteDocument(address, directory, cancellation);
+        } catch (hresult_error const& e) { failure = e.message(); }
+        catch (std::exception const& e) { failure = to_hstring(e.what()); }
+        co_await ui;
+        if (remoteCancellation == cancellation) remoteCancellation.reset();
+        if (closed || cancellation->load() || request != generation) co_return;
+        if (!failure.empty()) { error(failure); co_return; }
+        load({path});
+    }
+
+    std::optional<std::wstring> remoteSource(std::filesystem::path const& path) {
+        // Only app-owned remote cache entries may supply link-resolution metadata.
+        auto relative = path.lexically_relative(dataDirectory / L"remotes");
+        if (relative.empty() || relative.is_absolute() || *relative.begin() == L"..") return std::nullopt;
+        return ssmv::remoteDocumentSource(path);
+    }
+
+    fire_and_forget exportPDF() {
+        auto lifetime = get_strong(); apartment_context ui;
+        if (!selected || pdfCancellation) co_return;
+        auto snapshot = library.documents()[*selected].markdown;
+        auto name = library.documents()[*selected].path.stem().wstring();
+        auto cancellation = std::make_shared<std::atomic_bool>(false);
+        pdfCancellation = cancellation;
+        hstring failure;
+        bool saved = false;
+        try {
+            Windows::Storage::Pickers::FileSavePicker picker;
+            HWND hwnd = nullptr; check_hresult(window.as<IWindowNative>()->get_WindowHandle(&hwnd));
+            check_hresult(picker.as<IInitializeWithWindow>()->Initialize(hwnd));
+            picker.SuggestedFileName(name); picker.FileTypeChoices().Insert(L"PDF document", single_threaded_vector<hstring>({L".pdf"}));
+            auto file = co_await picker.PickSaveFileAsync();
+            if (file && !closed && !cancellation->load()) {
+                auto destination = std::filesystem::path(file.Path().c_str());
+                status.Text(L"Exporting PDF…");
+                co_await resume_background();
+                ssmv::ui::exportPdf(snapshot, name, destination, *cancellation);
+                saved = true;
+            }
+        } catch (hresult_error const& e) { failure = e.message(); }
+        catch (std::exception const& e) { failure = to_hstring(e.what()); }
+        co_await ui;
+        if (pdfCancellation == cancellation) pdfCancellation.reset();
+        if (closed || cancellation->load()) co_return;
+        if (!failure.empty()) error(failure);
+        else if (saved) error(L"PDF saved.");
+    }
+
     fire_and_forget saveCopy() {
         auto lifetime = get_strong();
         if (!selected) co_return;
@@ -755,6 +888,15 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (kind == ssmv::LinkKind::Web || kind == ssmv::LinkKind::Email) {
                 co_await Windows::System::Launcher::LaunchUriAsync(Uri(to_hstring(destination)));
             } else if (kind == ssmv::LinkKind::Relative) {
+                if (auto source = remoteSource(library.documents()[*selected].path)) {
+                    auto address = ssmv::resolveRemoteLink(*source, to_hstring(destination).c_str());
+                    auto linkPath = Uri(address).Path();
+                    auto extension = std::filesystem::path(linkPath.c_str()).extension().wstring();
+                    std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t c) { return static_cast<wchar_t>(towlower(c)); });
+                    if (extension == L".md" || extension == L".markdown" || extension == L".mdown") openRemote(address);
+                    else co_await Windows::System::Launcher::LaunchUriAsync(Uri(address));
+                    co_return;
+                }
                 std::error_code comparisonError;
                 if (std::filesystem::equivalent(library.documents()[*selected].path.parent_path(), dataDirectory / L"imports", comparisonError)) {
                     error(L"Imported text cannot open local-file links. Save a copy first to give it a local folder."); co_return;
@@ -775,7 +917,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                     if (slug == anchor) {
                         renderStart = heading.blockIndex / maxRenderedBlocks * maxRenderedBlocks;
                         auto target = heading.blockIndex; render();
-            if (target >= renderStart && target - renderStart < rendered.size()) rendered[target - renderStart].StartBringIntoView(); break;
+            showNavigationTarget(target); break;
                     }
                 }
             }

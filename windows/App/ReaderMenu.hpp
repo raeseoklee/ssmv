@@ -7,7 +7,7 @@
 
 namespace ssmv {
 struct MenuActions {
-    std::function<void()> open, clipboard, saveCopy, reload, cancelLoading;
+    std::function<void()> open, openURL, exportPDF, clipboard, saveCopy, reload, cancelLoading;
     std::function<void()> removeSelected, removeAll, reveal, close;
     std::function<void()> find, findNext, findPrevious, copyDocument;
     std::function<void()> increaseSize, decreaseSize, resetSize;
