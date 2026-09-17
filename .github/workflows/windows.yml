@@ -116,18 +116,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SSMV_INSTALLER_RUN: ${{ inputs.installer_run || github.run_id }}
         run: gh run download $env:SSMV_INSTALLER_RUN --name SSMV-windows-ARM64-installer --dir dist/windows11
-      - name: Prepare the disposable Windows 11 desktop
-        shell: pwsh
-        run: |
-          # The hosted image can start WWAHost welcome content that locks foreground
-          # activation. This cleanup is confined to this disposable CI user session.
-          $session = (Get-Process -Id $PID).SessionId
-          Get-Process WWAHost -ErrorAction SilentlyContinue | Where-Object {
-            $_.SessionId -eq $session -and $_.Path -ieq (Join-Path $env:WINDIR 'System32/WWAHost.exe')
-          } | ForEach-Object {
-            Write-Host "Closing hosted desktop WWAHost: PID=$($_.Id); title=$($_.MainWindowTitle)"
-            Stop-Process -Id $_.Id -Force
-          }
       - name: Verify Windows 11 native installation and reading
         shell: pwsh
         run: ./windows/scripts/test-installer.ps1 -Installer dist/windows11/SSMV-windows-ARM64-setup.exe -FullReaderSmoke

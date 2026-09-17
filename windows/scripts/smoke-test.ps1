@@ -343,6 +343,7 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switc
 function Set-TestForeground([Diagnostics.Process]$Target) {
     $focusAttempted = $false
     $focusFailure = $null
+    $focusCandidates = [Collections.Generic.List[string]]::new()
     $lastForegroundResult = $false
     $deadline = (Get-Date).AddSeconds(5)
     do {
@@ -357,7 +358,26 @@ function Set-TestForeground([Diagnostics.Process]$Target) {
             try {
                 $window = [Windows.Automation.AutomationElement]::FromHandle($Target.MainWindowHandle)
                 if ($window.Current.ProcessId -ne $Target.Id) { throw 'UI Automation returned a window owned by a different process.' }
-                $window.SetFocus()
+                # A WinUI top-level window is not itself keyboard-focusable. Focus
+                # an enabled visible descendant without invoking its action.
+                $condition = [Windows.Automation.AndCondition]::new([Windows.Automation.Condition[]]@(
+                    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $Target.Id),
+                    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsKeyboardFocusableProperty, $true),
+                    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty, $true),
+                    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty, $false)))
+                $candidates = $window.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+                if (!$candidates.Count) { throw 'No visible keyboard-focusable control belongs to the test window.' }
+                for ($index = 0; $index -lt [Math]::Min(8, $candidates.Count) -and (Get-Date) -lt $deadline; $index++) {
+                    $candidate = $candidates[$index]
+                    try {
+                        $current = $candidate.Current
+                        if ($current.ProcessId -ne $Target.Id -or !$current.IsKeyboardFocusable -or !$current.IsEnabled -or $current.IsOffscreen) { continue }
+                        $focusCandidates.Add("name='$($current.Name)' id='$($current.AutomationId)'")
+                        $candidate.SetFocus()
+                        $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+                        if ($foregroundProcess -eq $Target.Id) { return }
+                    } catch { $focusFailure = $_.Exception.Message }
+                }
             } catch { $focusFailure = $_.Exception.Message }
         }
         Start-Sleep -Milliseconds 100
@@ -366,10 +386,10 @@ function Set-TestForeground([Diagnostics.Process]$Target) {
     $foregroundProcess = [uint32]0
     $null = [WindowCapture]::GetWindowThreadProcessId($foregroundWindow, [ref]$foregroundProcess)
     $foreground = if ($foregroundProcess) { Get-Process -Id $foregroundProcess -ErrorAction SilentlyContinue }
-    Write-Host ("Foreground diagnostics: userInteractive={0}; callerSession={1}; targetPID={2}; targetSession={3}; targetHWND=0x{4:X}; foregroundHWND=0x{5:X}; foregroundPID={6}; foregroundName={7}; foregroundSession={8}; SetForegroundWindow={9}; UIASetFocusError={10}" -f
+    Write-Host ("Foreground diagnostics: userInteractive={0}; callerSession={1}; targetPID={2}; targetSession={3}; targetHWND=0x{4:X}; foregroundHWND=0x{5:X}; foregroundPID={6}; foregroundName={7}; foregroundSession={8}; SetForegroundWindow={9}; UIASetFocusError={10}; UIAFocusCandidates={11}" -f
         [Environment]::UserInteractive, ([Diagnostics.Process]::GetCurrentProcess().SessionId), $Target.Id, $Target.SessionId,
         $Target.MainWindowHandle.ToInt64(), $foregroundWindow.ToInt64(), $foregroundProcess, $foreground.ProcessName,
-        $foreground.SessionId, $lastForegroundResult, $focusFailure)
+        $foreground.SessionId, $lastForegroundResult, $focusFailure, ($focusCandidates -join '; '))
     throw 'Refusing interaction: the isolated SSMV window is not foreground.'
 }
 
