@@ -10,7 +10,8 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 
 Windows에 Visual Studio 2022의 **C++를 사용한 데스크톱 개발**과 Windows SDK
 10.0.19041 이상을 설치하세요. ARM64 빌드에는 해당 C++ 빌드 도구도 필요합니다.
-Microsoft Windows App SDK와 C++/WinRT는 지정된 버전을 NuGet으로 받습니다.
+Windows App SDK의 WinUI 구성 요소와 C++/WinRT는 지정된 버전을 NuGet으로
+받습니다. 사용하지 않는 AI·ML 구성 요소는 포함하지 않습니다.
 
 ```powershell
 ./windows/scripts/build.ps1

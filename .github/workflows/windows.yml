@@ -41,3 +41,9 @@ jobs:
         with:
           name: SSMV-windows-${{ matrix.platform }}-development
           path: dist/windows/${{ matrix.platform }}/Release/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && matrix.platform == 'x64'
+        with:
+          name: SSMV-windows-smoke-evidence
+          path: dist/windows/smoke/
+          if-no-files-found: ignore

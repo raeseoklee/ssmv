@@ -43,7 +43,7 @@ OpenAI, nor the Markdown Mark's creator endorses SSMV.
 
 ## Windows platform components
 
-The Windows development project restores Microsoft.WindowsAppSDK 1.8.260804001
+The Windows development project restores Microsoft.WindowsAppSDK.WinUI 1.8.260803003
 and Microsoft.Windows.CppWinRT 2.0.250303.1 from NuGet. These packages and their
 transitive dependencies retain their own licenses; SSMV's MIT license does not
 relicense the Windows SDK or runtime. The Windows core parser uses only the C++

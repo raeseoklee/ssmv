@@ -10,7 +10,8 @@ controls; there is no embedded browser or background server.
 
 On Windows, install Visual Studio 2022 with **Desktop development with C++**,
 the Windows SDK (10.0.19041 or newer), and C++ ARM64 build tools if targeting ARM64.
-NuGet restores the pinned Microsoft Windows App SDK and C++/WinRT packages.
+NuGet restores the pinned Windows App SDK WinUI component and C++/WinRT packages.
+The project references the UI component directly to avoid unused AI/ML components.
 
 ```powershell
 ./windows/scripts/build.ps1

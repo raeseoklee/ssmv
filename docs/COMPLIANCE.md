@@ -163,7 +163,7 @@ and CLI delivery from the installed application.
 The repository now separates macOS and Windows source. Relocated macOS source,
 tests, package manifest and resources are unchanged. The Windows implementation
 is new project-owned C++ code and uses the standard library for Markdown parsing.
-Its only direct package references are the requested Microsoft Windows App SDK
+Its only direct package references are the requested Microsoft Windows App SDK WinUI component
 and C++/WinRT build support, pinned in `windows/SSMV.vcxproj`.
 
 The package manifests and bundled license files were inspected. Microsoft
