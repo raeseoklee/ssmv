@@ -8,6 +8,11 @@ on:
         description: "Existing run containing the ARM64 installer to retest on Windows 11 (blank builds all targets)"
         required: false
         type: string
+      full_reader_smoke:
+        description: "Also run foreground keyboard/popup checks (requires an interactive desktop that permits activation)"
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -110,15 +115,17 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Download the ARM64 installer from this run
+      - name: Download the ARM64 installer
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           SSMV_INSTALLER_RUN: ${{ inputs.installer_run || github.run_id }}
         run: gh run download $env:SSMV_INSTALLER_RUN --name SSMV-windows-ARM64-installer --dir dist/windows11
-      - name: Verify Windows 11 native installation and reading
+      - name: Verify Windows 11 native installation and Explorer activation
         shell: pwsh
-        run: ./windows/scripts/test-installer.ps1 -Installer dist/windows11/SSMV-windows-ARM64-setup.exe -FullReaderSmoke
+        env:
+          SSMV_FULL_READER_SMOKE: ${{ inputs.full_reader_smoke && '1' || '0' }}
+        run: ./windows/scripts/test-installer.ps1 -Installer dist/windows11/SSMV-windows-ARM64-setup.exe -FullReaderSmoke:($env:SSMV_FULL_READER_SMOKE -eq '1')
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
