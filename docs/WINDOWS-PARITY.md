@@ -39,9 +39,9 @@ virtualization; matching appearance alone does not establish performance parity.
 | --- | --- | --- |
 | Clipboard Markdown | Implemented; interaction checks pending | Import valid text into durable app-managed storage, preserve it across restart and keep source removal separate from permanent deletion. Enforce the 16 MiB input limit. |
 | Imported-document management | Pending | List retained imports, save copies and explicitly delete retained content. Removing from the sidebar must not delete it. The current clipboard path preserves unlisted imports and limits storage to 256 MiB, but has no management UI. Bound storage and recover after interrupted writes. |
-| HTTPS Markdown | Implemented; verification in progress | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
+| HTTPS Markdown | Implemented; main native flows verified | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
 | LLM/CLI handoff | Partial; native checks pending | File arguments and single-instance forwarding are implemented. Forwarded arguments must be absolute; relative arguments are rejected on warm launch. HTTPS, UTF-8 stdin and optional titles remain pending. Bound and validate the private inbox, recover pending requests and prevent duplicate imports. Document exit codes and PowerShell usage. No MCP server is required. |
-| PDF export | Partial; verification in progress | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
+| PDF export | Implemented with formatting gaps | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
 | File associations | Pending | A supported install registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and double-click after user selection. Uninstall removes only SSMV's registrations. |
 | Update guidance | Pending | Choose a Windows distribution channel before implementing checks. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
 | Help and About | Pending | Provide product identity, version and Windows shortcuts; keep English default documentation with a separate Korean link. |
@@ -72,3 +72,10 @@ PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations a
 Next priorities are durable import management, CLI delivery and installation integration. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.
+
+The [Windows feature run](https://github.com/raeseoklee/ssmv/actions/runs/35191012521)
+checks five suites, real HTTPS downloads, GitHub/raw alias identity, URL-dialog opening,
+cached restart followed by a live Ctrl+R refresh, and navigation-highlight reapplication/expiry.
+PDF checks cover cancellation before/during export and preservation of existing output.
+A 22-page Unicode/table PDF was visually inspected for text, columns and page numbers.
+Native runtime verification is x64; ARM64 is build-only.
