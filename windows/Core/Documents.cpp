@@ -5,7 +5,6 @@
 #include <stdexcept>
 
 namespace ssmv {
-namespace {
 bool validUTF8(std::string_view text) {
     for (std::size_t i = 0; i < text.size();) {
         auto byte = static_cast<unsigned char>(text[i++]);
@@ -21,6 +20,7 @@ bool validUTF8(std::string_view text) {
     }
     return true;
 }
+namespace {
 std::string pathText(const std::filesystem::path& path) {
     const auto bytes = path.u8string();
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
@@ -72,6 +72,10 @@ std::size_t DocumentLibrary::insert(Document document) {
     }
     documents_.push_back(std::move(document));
     return documents_.size() - 1;
+}
+void DocumentLibrary::replace(std::size_t index, Document document) {
+    if (index >= documents_.size() || documents_[index].path != document.path) throw std::invalid_argument("Reload must preserve document identity.");
+    documents_[index] = std::move(document);
 }
 void DocumentLibrary::remove(std::size_t index) {
     if (index >= documents_.size()) throw std::out_of_range("Document index is out of range.");

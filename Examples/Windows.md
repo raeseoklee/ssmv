@@ -1,24 +1,34 @@
 # Markdown, at home on Windows.
 
-SSMV is a native reader for local Markdown documents.
+A **native reader** for *focused reading*, with `C++20` and WinUI 3.
+See the [SSMV project](https://github.com/raeseoklee/ssmv) for source and documentation.
+
+| Read | Navigate | Keep |
+| :--- | :---: | ---: |
+| **Rich text** and `code` | Sidebar and headings | Your source files |
+| Tables and quotes | Find matching sections | Reading position |
+| Light and dark themes | Keyboard shortcuts | Markdown copies |
 
 ## Open and switch documents
 
-- Press Ctrl+O to open one or more Markdown files.
-- Drop files from Explorer anywhere in the window.
-- Select a document in the sidebar to read it.
-- Expand a document to browse its headings.
+- Press Ctrl+O to open Markdown files, or drop them from Explorer.
+- Select a document in the sidebar and expand it to browse headings.
+- Use Ctrl+F, then F3 or Shift+F3, to visit matching sections.
+- Adjust text size with Ctrl++ and Ctrl+-, or reset it with Ctrl+0.
 
 ## Keep your list organized
 
-Right-click the sidebar to sort documents by name or remove every entry.
-Removing documents from the list leaves the original files on disk.
+Right-click the sidebar to sort by name or remove entries. Clearing the list asks
+for confirmation and leaves the original files on disk. The app restores your list
+and reading position on restart.
 
-## Choose your appearance
+## More ways to read
 
-Use the theme selector to follow Windows, or choose Light or Dark.
+Use **More** to open clipboard Markdown, save a copy or copy the whole document as
+plain text. Ctrl+R reloads a file; F11 switches full screen. Choose System, Light or
+Dark from the theme selector.
 
-## Code and quotes
+> Keep the reader quiet, and let the document do the talking.
 
 ```cpp
 #include <iostream>
@@ -27,9 +37,9 @@ int main() {
 }
 ```
 
-> A quiet place to read your documents.
-
 ---
 
-This Windows edition is in development. Its Markdown renderer currently supports
-block structure; inline formatting, tables and images are not yet rendered.
+This Windows edition is in development. PDF export, remote Markdown loading and
+stdin CLI delivery are still pending. Search finds sections rather than individual
+occurrences; text selection is per block. Clipboard imports remain stored when
+removed from the list.

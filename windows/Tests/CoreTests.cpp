@@ -40,6 +40,12 @@ int main() {
             (void)library.documents()[1].markdown.headings; check(library.documents()[0].path == fs::canonical(b), "Outline access must preserve order"); }
         library.sortByName(); check(library.documents()[0].path == fs::canonical(a), "Explicit ascending sort");
         library.sortByName(false); check(library.documents().back().path == fs::canonical(a), "Descending sort");
+        auto firstPath = library.documents()[0].path;
+        write(firstPath, "# Reloaded");
+        library.replace(0, readDocument(firstPath));
+        check(library.documents()[0].markdown.headings[0].text == "Reloaded" && library.documents()[0].path == firstPath, "Reload preserves list identity");
+        rejects([&] { library.replace(0, readDocument(a)); });
+        rejects([&] { library.replace(99, readDocument(a)); });
         library.remove(0); library.clear();
         check(fs::exists(a) && fs::exists(b) && fs::exists(c), "Library removal must not delete source");
         check(readDocument(a).source == original, "Source bytes must remain unchanged");
