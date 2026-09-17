@@ -2,8 +2,8 @@
 
 [한국어](README.ko.md) · [Project overview](../README.md)
 
-The Windows port uses C++20, C++/WinRT and WinUI 3. It is a development build,
-not a published release or a replacement for the macOS app. It uses native text
+The Windows preview uses C++20, C++/WinRT and WinUI 3. It does not yet provide
+all macOS features. It uses native text
 controls; there is no embedded browser or background server.
 
 ![SSMV Windows development build reading a local Markdown document](../docs/images/ssmv-windows-native-ui.png)
@@ -13,12 +13,14 @@ Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows
 
 ## Install and open from Explorer
 
-Use `SSMV-windows-x64-setup.exe` on an x64 PC or
-`SSMV-windows-ARM64-setup.exe` on an ARM64 PC. These are unsigned development
-installers for Windows 10 build 19041 or newer, including Windows 11. Check
-**Settings → System → About → System type** to choose the architecture. These are
-not a published Windows release. Windows may display an unknown
-publisher warning.
+Windows preview installers use the existing [v0.5.1 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1):
+
+- [x64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
+- [ARM64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
+
+Windows 10 build 19041 or newer, including Windows 11, is required. Check
+**Settings → System → About → System type** to choose the architecture.
+Installers are unsigned; Windows may display an unknown publisher warning.
 
 Close SSMV before installing or upgrading, then run the installer under your normal
 Windows account. It installs for that account without administrator privileges to
@@ -190,9 +192,16 @@ Use the matching ARM64 installer on ARM64. The Windows workflow's manual
 `installer_run` input can reuse an existing ARM64 installer for a Windows 11
 retest; `full_reader_smoke` opts into the foreground-dependent reader checks.
 
-Before release, validate picker cancellation, Explorer/desktop drops, Korean paths,
+To publish Windows preview assets, manually run the Windows workflow with
+`release_tag` set to `v0.5.1` and leave `installer_run` empty. Publication requires
+successful core tests, app builds and Windows 11 installer checks. The reuse-only
+`installer_run` mode cannot publish. This attaches versioned Windows installers to
+the existing release without moving its tag or replacing macOS assets.
+
+Before claiming complete parity, validate picker cancellation, Explorer/desktop drops, Korean paths,
 keyboard navigation, tables, theme changes, display scaling, Narrator and large-file
-responsiveness on Windows. This work does not create a release or change Homebrew.
+responsiveness on Windows. Windows preview assets do not change the existing
+macOS release assets, tag or Homebrew distribution.
 
 ## Layout
 

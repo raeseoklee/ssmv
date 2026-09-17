@@ -2,8 +2,8 @@
 
 [English](README.md) · [프로젝트 소개](../docs/README.ko.md)
 
-C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정식 배포판이
-아니며 macOS 버전의 모든 기능을 제공하지는 않습니다. 문서는 Windows 기본
+C++20, C++/WinRT, WinUI 3로 개발한 Windows 미리 보기 버전입니다.
+아직 macOS 버전의 모든 기능을 제공하지는 않습니다. 문서는 Windows 기본
 텍스트 컨트롤로 표시합니다.
 
 ![로컬 문서를 표시하는 Windows 개발 빌드](../docs/images/ssmv-windows-native-ui.png)
@@ -13,12 +13,14 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 
 ## 설치와 탐색기에서 열기
 
-x64 PC에서는 `SSMV-windows-x64-setup.exe`, ARM64 PC에서는
-`SSMV-windows-ARM64-setup.exe`를 실행하세요. 아직 서명하지 않은 개발용 설치
-프로그램이며 Windows 10 빌드 19041 이상과 Windows 11을 지원합니다. 아키텍처는
-**설정 → 시스템 → 정보 → 시스템 종류**에서 확인하세요. 정식 Windows 배포판은
-아닙니다. Windows에서 게시자를 확인할 수
-없다는 경고가 나올 수 있습니다.
+Windows 미리 보기 설치 프로그램은 기존 [v0.5.1 릴리스](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1)에 연결합니다.
+
+- [x64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
+- [ARM64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
+
+Windows 10 빌드 19041 이상과 Windows 11을 지원합니다. 아키텍처는
+**설정 → 시스템 → 정보 → 시스템 종류**에서 확인하세요. 서명하지 않은 설치
+프로그램이므로 Windows에서 게시자를 확인할 수 없다는 경고가 나올 수 있습니다.
 
 설치하거나 업데이트하기 전에 SSMV를 종료하세요. 평소 사용하는 Windows 계정으로
 설치하면 관리자 권한 없이 `%LOCALAPPDATA%\Programs\SSMV`에 설치되고 시작 메뉴에
@@ -187,6 +189,13 @@ ARM64에서는 해당 설치 프로그램을 지정하세요. Windows 워크플�
 다시 진행할 수 있습니다. `full_reader_smoke`는 앱 창을 전면에 두어야 하는 읽기 기능
 검사를 추가하는 옵션입니다.
 
-배포 전에는 Windows에서 파일 선택 취소, 탐색기·바탕화면 드롭, 한글 경로,
+Windows 미리 보기 설치 파일을 게시할 때는 Windows 워크플로를 수동 실행하며
+`release_tag`를 `v0.5.1`로 지정하고 `installer_run`은 비워 두세요. 코어 테스트,
+앱 빌드, Windows 11 설치 검사가 모두 성공해야 게시합니다. 기존 설치 파일을
+재검사하는 `installer_run` 모드에서는 게시할 수 없습니다. 버전이 붙은 Windows
+설치 파일만 기존 릴리스에 추가하며 태그와 macOS 파일은 바꾸지 않습니다.
+
+완전한 기능 동등성을 안내하기 전에는 Windows에서 파일 선택 취소, 탐색기·바탕화면 드롭, 한글 경로,
 키보드 조작, 표, 테마, 화면 배율, 내레이터와 대용량 문서 응답성을 확인해야 합니다.
-이번 작업으로 새 버전을 배포하거나 Homebrew를 변경하지 않습니다.
+Windows 미리 보기 파일 추가는 기존 macOS 릴리스 파일, 태그, Homebrew 배포를
+변경하지 않습니다.

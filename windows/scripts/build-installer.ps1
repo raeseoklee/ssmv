@@ -1,10 +1,12 @@
 param(
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release',
     [ValidateSet('x64', 'ARM64')][string]$Platform = 'x64',
-    [string]$Makensis
+    [string]$Makensis,
+    [string]$ReleaseTag
 )
 $ErrorActionPreference = 'Stop'
 if ($Configuration -ne 'Release') { throw 'Only Release binaries may be redistributed.' }
+if ($ReleaseTag -and $ReleaseTag -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'ReleaseTag must have the form vMAJOR.MINOR.PATCH.' }
 $repository = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $source = Join-Path $repository "dist/windows/$Platform/$Configuration"
 if (!(Test-Path (Join-Path $source 'SSMV.exe'))) { throw 'Build the Release app with build.ps1 before packaging.' }
@@ -83,13 +85,19 @@ $uninstallInclude = Join-Path $stage 'uninstall-files.nsh'
 $version = $manifest.assembly.assemblyIdentity.version
 $revision = (& git -C $repository rev-parse --short HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]+$') { throw 'A source Git revision is required for development installer provenance.' }
+$buildLabel = "development.$revision"
+if ($ReleaseTag) {
+    $buildLabel = $ReleaseTag.Substring(1)
+    $version = "$buildLabel.0"
+    if (@($buildLabel.Split('.') | Where-Object { [long]$_ -gt 65535 }).Count) { throw 'Installer version components must not exceed 65535.' }
+}
 $output = Join-Path $repository "dist/SSMV-windows-$Platform-setup.exe"
 $arguments = @('/V3', '/INPUTCHARSET', 'UTF8', "/DPAYLOAD_DIR=$payload", "/DOUTPUT_FILE=$output", "/DPRODUCT_VERSION=$version",
-    "/DBUILD_LABEL=development.$revision", "/DARCH=$Platform", "/DINSTALL_FILES=$installInclude", "/DUNINSTALL_FILES=$uninstallInclude",
+    "/DBUILD_LABEL=$buildLabel", "/DARCH=$Platform", "/DINSTALL_FILES=$installInclude", "/DUNINSTALL_FILES=$uninstallInclude",
     (Join-Path $repository 'windows/Installer/SSMV.nsi'))
 & $Makensis @arguments
 if ($LASTEXITCODE -ne 0) { throw "NSIS compilation failed ($LASTEXITCODE)." }
-[ordered]@{ commit = (& git -C $repository rev-parse HEAD).Trim(); architecture = $Platform; nsis = $nsisVersion;
+[ordered]@{ commit = (& git -C $repository rev-parse HEAD).Trim(); architecture = $Platform; nsis = $nsisVersion; release_tag = $ReleaseTag; version = $buildLabel;
     file = [IO.Path]::GetFileName($output); sha256 = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash } |
     ConvertTo-Json | Set-Content -LiteralPath ($output + '.json') -Encoding utf8
 Write-Output "Built $output"

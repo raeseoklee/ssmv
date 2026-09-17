@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: "Append Windows installers to an existing release (e.g. v0.5.1); blank validates only"
+        required: false
+        type: string
       installer_run:
         description: "Existing run containing the ARM64 installer to retest on Windows 11 (blank builds all targets)"
         required: false
@@ -16,7 +20,28 @@ on:
 permissions:
   contents: read
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test release integrity and preservation rules
+        run: python3 -B windows/scripts/test-publish-release.py
+      - name: Validate publication request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          INSTALLER_RUN: ${{ inputs.installer_run }}
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+            [[ "$GITHUB_REF" == "refs/heads/main" && -z "$INSTALLER_RUN" ]] || exit 1
+            gh release view "$RELEASE_TAG" --json tagName,isDraft
+          fi
   core:
+    needs: prepare
     if: ${{ inputs.installer_run == '' }}
     runs-on: windows-2022
     steps:
@@ -46,6 +71,7 @@ jobs:
           path: dist/windows/pdf-evidence/
           if-no-files-found: ignore
   app:
+    needs: prepare
     if: ${{ inputs.installer_run == '' }}
     runs-on: windows-2022
     strategy:
@@ -76,7 +102,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed.' }
       - name: Build per-user NSIS installer
         shell: pwsh
-        run: ./windows/scripts/build-installer.ps1 -Platform ${{ matrix.platform }}
+        env:
+          SSMV_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: ./windows/scripts/build-installer.ps1 -Platform ${{ matrix.platform }} -ReleaseTag $env:SSMV_RELEASE_TAG
       - name: Verify installer and Explorer integration
         if: matrix.platform == 'x64'
         shell: pwsh
@@ -134,3 +162,27 @@ jobs:
             dist/windows/installer-smoke/
             dist/windows/smoke/
           if-no-files-found: ignore
+
+  publish:
+    needs: [prepare, core, app, windows11]
+    if: ${{ success() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != '' && inputs.installer_run == '' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: windows-release-${{ inputs.release_tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Publish verified Windows assets without replacing existing files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name SSMV-windows-x64-installer --dir dist/publish
+          gh run download "$GITHUB_RUN_ID" --name SSMV-windows-ARM64-installer --dir dist/publish
+          python3 windows/scripts/publish-release.py --directory dist/publish --tag "$RELEASE_TAG" --commit "$GITHUB_SHA"

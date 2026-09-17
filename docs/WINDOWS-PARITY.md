@@ -5,7 +5,7 @@
 This checklist compares the Windows port with the implemented macOS app, not with
 every feature in the Markdown specification. It includes the current reading and
 session increment and native menu/tree redesign. **Implemented; interaction checks pending** means code exists, with broader
-manual acceptance checks still required. The verified native scope is listed below. The Windows app remains a development build.
+manual acceptance checks still required. The verified native scope is listed below. The Windows app remains a preview.
 
 The Windows window uses File/Edit/View menus with visible Ctrl-based shortcuts,
 a native document tree and compact add/remove/outline controls beside Documents.
@@ -43,7 +43,7 @@ virtualization; matching appearance alone does not establish performance parity.
 | LLM/CLI handoff | Partial; native checks pending | File arguments and single-instance forwarding are implemented. Forwarded arguments must be absolute; relative arguments are rejected on warm launch. HTTPS, UTF-8 stdin and optional titles remain pending. Bound and validate the private inbox, recover pending requests and prevent duplicate imports. Document exit codes and PowerShell usage. No MCP server is required. |
 | PDF export | Implemented with formatting gaps | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
 | File associations | NSIS installer and native lifecycle checks verified | Per-user setup registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and **Open with SSMV**. Windows 11 may place the command under **Show more options**. Double-click follows the user's default-app choice; setup does not change it. Uninstall removes only SSMV registrations and preserves document/session/cache data. |
-| Update guidance | Pending | Choose a Windows distribution channel before implementing checks. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
+| Update guidance | In-app checks pending | Windows preview installers use GitHub release assets; users run a newer installer to update. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
 | Help and About | Pending | Provide product identity, version and Windows shortcuts; keep English default documentation with a separate Korean link. |
 
 Windows uses native equivalents: Ctrl+O, Ctrl+F, Ctrl+C and Ctrl+A replace
@@ -69,7 +69,7 @@ were visually reviewed. These checks do not establish complete macOS parity
 or cover every native interaction; that earlier run did not exercise ARM64 at runtime.
 
 PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations are not retained.
-Next priorities are durable import management and CLI delivery. Installer signing and public distribution remain pending. Publish feature
+Next priorities are durable import management and CLI delivery. Windows preview installers target the existing [v0.5.1 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1); signing remains pending. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.
 
