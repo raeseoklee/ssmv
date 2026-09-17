@@ -57,6 +57,20 @@ function Run-Installer([string]$Path, [string]$Arguments, [bool]$ExpectedSuccess
     $process = Start-Process -FilePath $Path -ArgumentList $Arguments -PassThru
     if (!$process.WaitForExit(60000)) { $process.Kill(); throw "Installer process timed out: $Path" }
     Write-Host "$Path $Arguments -> $($process.ExitCode)"
+    if ((($process.ExitCode -eq 0) -eq $ExpectedSuccess) -eq $false) {
+        try {
+            $failureLog = Join-Path ([IO.Path]::GetTempPath()) 'SSMV-install-error.txt'
+            if (Test-Path -LiteralPath $failureLog) {
+                Copy-Item -LiteralPath $failureLog -Destination (Join-Path $evidence 'SSMV-install-error.txt') -Force
+                Write-Host 'Installer failure-stage log (first 100 lines):'
+                Get-Content -LiteralPath $failureLog -TotalCount 100 | ForEach-Object { Write-Host $_ }
+            } else { Write-Host 'No installer failure-stage log was written.' }
+            if (Test-Path -LiteralPath $installRoot) {
+                Write-Host 'Installed top-level filenames (first 80):'
+                Get-ChildItem -LiteralPath $installRoot -File -Force | Select-Object -First 80 -ExpandProperty Name | ForEach-Object { Write-Host $_ }
+            } else { Write-Host 'The installation directory does not exist.' }
+        } catch { Write-Host "Installer failure diagnostics could not be collected: $($_.Exception.Message)" }
+    }
     Assert-True (($process.ExitCode -eq 0) -eq $ExpectedSuccess) 'Installer exit code did not match the expected outcome.'
 }
 function Assert-Registration {

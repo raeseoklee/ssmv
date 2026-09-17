@@ -13,6 +13,7 @@ ManifestDPIAware true
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SSMV"
 !define CAPABILITIES "Software\SSMV\Capabilities"
 !define OPEN_COMMAND '$\"$INSTDIR\SSMV.exe$\" $\"%1$\"'
+Var FailureStage
 Name "So Simple Markdown Viewer"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\SSMV"
@@ -67,9 +68,21 @@ FunctionEnd
 !insertmacro CheckApplication ""
 !insertmacro CheckApplication "un."
 
+Function InstallFailure
+  ; Keep a small failure-only diagnostic for silent deployments. Never log user files.
+  System::Call 'kernel32::GetLastError() i.r3'
+  FileOpen $4 "$TEMP\SSMV-install-error.txt" w
+  FileWrite $4 "stage=$FailureStage$\r$\narchitecture=${ARCH}$\r$\nbuild=${BUILD_LABEL}$\r$\nwin32_error=$3$\r$\n"
+  FileClose $4
+  MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
+  SetErrorLevel 6
+  Quit
+FunctionEnd
+
 Function .onInit
   SetShellVarContext current
   SetRegView 64
+  Delete "$TEMP\SSMV-install-error.txt"
   ; Deliberately ignore /D=: uninstallation is restricted to this one owned location.
   StrCpy $INSTDIR "$LOCALAPPDATA\Programs\SSMV"
   ${IfNot} ${AtLeastWin10}
@@ -135,8 +148,17 @@ existing:
     SetErrorLevel 4
     Quit
   ${EndIf}
+  ; Run the old uninstaller from a private temporary copy, as NSIS normally does.
+  ; Waiting on that copy avoids keeping the installed image mapped while replacing it.
+  InitPluginsDir
   ClearErrors
-  ExecWait '$\"$INSTDIR\Uninstall.exe$\" /S _?=$INSTDIR' $0
+  CopyFiles /SILENT "$INSTDIR\Uninstall.exe" "$PLUGINSDIR\SSMV-old-uninstall.exe"
+  ${If} ${Errors}
+    MessageBox MB_OK|MB_ICONSTOP "$(UpgradeFailed)" /SD IDOK
+    SetErrorLevel 5
+    Quit
+  ${EndIf}
+  ExecWait '$\"$PLUGINSDIR\SSMV-old-uninstall.exe$\" /S _?=$INSTDIR' $0
   ${If} ${Errors}
   ${OrIf} $0 <> 0
     MessageBox MB_OK|MB_ICONSTOP "$(UpgradeFailed)" /SD IDOK
@@ -146,31 +168,37 @@ existing:
 new:
   ; Establish an owned recovery uninstaller before extracting any application file.
   ; A failed extraction can then be retried through the normal upgrade path.
+  StrCpy $FailureStage "recovery registration"
   ClearErrors
   SetOutPath "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "So Simple Markdown Viewer"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   ${If} ${Errors}
-    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
-    SetErrorLevel 6
-    Quit
+    Call InstallFailure
   ${EndIf}
+  StrCpy $FailureStage "recovery uninstaller"
+  StrCpy $5 0
+write_recovery:
+  ClearErrors
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   ${If} ${Errors}
-    Delete "$INSTDIR\Uninstall.exe"
-    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
-    SetErrorLevel 6
-    Quit
+    IntOp $5 $5 + 1
+    ${If} $5 < 20
+      ; Security scanners may retain a handle briefly after the old process exits.
+      Sleep 250
+      Goto write_recovery
+    ${EndIf}
+    Call InstallFailure
   ${EndIf}
+  StrCpy $FailureStage "payload extraction"
   ClearErrors
   SetOverwrite on
   !insertmacro InstallPayload
   ${If} ${Errors}
-    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
-    SetErrorLevel 6
-    Quit
+    Call InstallFailure
   ${EndIf}
+  StrCpy $FailureStage "application registration"
   WriteRegStr HKCU "Software\Classes\SSMV.Markdown" "" "Markdown document"
   WriteRegStr HKCU "Software\Classes\SSMV.Markdown\DefaultIcon" "" '$\"$INSTDIR\SSMV.exe$\",0'
   WriteRegStr HKCU "Software\Classes\SSMV.Markdown\shell\open\command" "" '${OPEN_COMMAND}'
@@ -195,9 +223,7 @@ new:
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   ${If} ${Errors}
-    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
-    SetErrorLevel 6
-    Quit
+    Call InstallFailure
   ${EndIf}
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   SetErrorLevel 0
