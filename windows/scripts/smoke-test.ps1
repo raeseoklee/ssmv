@@ -15,6 +15,21 @@ $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
 $startedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
 
+function Write-CrashEvidence([Diagnostics.Process]$Target) {
+    $errorFile = Join-Path $env:SSMV_DATA_DIR 'last-error.txt'
+    if (Test-Path $errorFile) { Write-Host ('Unhandled XAML error: ' + (Get-Content $errorFile -Raw)) }
+    $Target.Refresh()
+    if ($Target.HasExited) {
+        Write-Host ("SSMV process {0} exited: decimal={1}; hex=0x{2:X8}" -f $Target.Id, $Target.ExitCode, $Target.ExitCode)
+    }
+    try {
+        $events = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-5) } -MaxEvents 30 -ErrorAction Stop |
+            Where-Object { $_.Message -match '(?i)ssmv(?:\.exe)?' } | Select-Object -First 3
+        foreach ($event in $events) { Write-Host ("Crash event {0} / {1}: {2}" -f $event.ProviderName, $event.Id, $event.Message) }
+        if (!$events) { Write-Host 'No matching SSMV Application error events are available yet.' }
+    } catch { Write-Host "Application crash events unavailable: $_" }
+}
+
 function Wait-DocumentWindow([Diagnostics.Process]$Target, [string]$Title) {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $deadline) {
@@ -43,6 +58,14 @@ function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$Automa
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId), $identity)
     $deadline = (Get-Date).AddSeconds(15)
     do {
+        $target = $startedProcesses | Where-Object { $_.Id -eq $ProcessId } | Select-Object -First 1
+        if ($null -ne $target) {
+            $target.Refresh()
+            if ($target.HasExited) {
+                Write-CrashEvidence $target
+                throw "SSMV exited while waiting for '$Value'; exit code $($target.ExitCode)."
+            }
+        }
         $candidates = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
         foreach ($element in $candidates) {
             if ($element.Current.IsEnabled -and !$element.Current.IsOffscreen) { return $element }
@@ -368,6 +391,11 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
     Save-WindowEvidence $process 'window-startup.png'
+    $freshView = Open-AutomationMenu $process.Id 'menu.view'
+    $null = Wait-AutomationElement $process.Id 'menu.appearance' -AutomationId
+    Save-WindowEvidence $process 'window-view-initial.png' -IncludePopup
+    Close-AutomationMenu $freshView
+    Write-Output 'Fresh View menu opened before tree or keyboard interactions.'
     Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
     Save-WindowEvidence $process 'window-expanded.png'
     Assert-RepeatedHeadingNavigation $process
@@ -430,6 +458,12 @@ public static class WindowCapture {
     Close-DocumentWindow $restored
     Assert-SavedSession
     Write-Output 'Cold open, same-process warm activation, two-file session persistence, selected-document and reading-preference restoration, and orderly closes passed.'
+} catch {
+    foreach ($started in $startedProcesses) {
+        $started.Refresh()
+        if ($started.HasExited -and $started.ExitCode -ne 0) { Write-CrashEvidence $started }
+    }
+    throw
 } finally {
     foreach ($started in $startedProcesses) {
         $started.Refresh()

@@ -172,6 +172,10 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             dataDirectory = std::filesystem::path(local) / L"SSMV";
             CoTaskMemFree(local);
         }
+        UnhandledException([this](auto const&, UnhandledExceptionEventArgs const& args) {
+            try { ssmv::writeFileAtomically(dataDirectory / L"last-error.txt", to_string(args.Message())); }
+            catch (...) {} // Keep the original unhandled exception and termination behavior.
+        });
         std::string sessionError;
         try { if (auto saved = ssmv::readSession(dataDirectory / L"session.bin")) session = *saved; }
         catch (std::exception const& e) { sessionWritable = false; sessionError = e.what(); }
