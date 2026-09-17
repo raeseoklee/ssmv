@@ -15,6 +15,12 @@ std::size_t run(std::string_view line, char character) {
     return count;
 }
 bool space(char c) { return c == ' ' || c == '\t'; }
+std::size_t lineEnding(std::string_view source, std::size_t offset) {
+    if (offset >= source.size()) return 0;
+    if (source[offset] == '\n') return 1;
+    if (source[offset] == '\r') return offset + 1 < source.size() && source[offset + 1] == '\n' ? 2 : 1;
+    return 0;
+}
 }
 LinkKind classifyLink(std::string_view destination) {
     if (destination.empty() || destination.size() > MaxInlineLinkBytes) return LinkKind::Unsafe;
@@ -81,14 +87,37 @@ struct InlineParser {
             if (!budget) { append(source.substr(i), style); break; }
             --budget;
             const char c = source[i];
+            // Source wrapping is a soft break. Only two trailing spaces or an
+            // unescaped backslash request a displayed line break outside code.
+            if (space(c) || lineEnding(source, i) || (c == '\\' && lineEnding(source, i + 1))) {
+                const auto start = i;
+                while (i < source.size() && space(source[i])) ++i;
+                const bool backslash = c == '\\';
+                const auto newline = lineEnding(source, i + (backslash ? 1 : 0));
+                if (newline) {
+                    const bool hard = backslash || (i >= start + 2 && source[i - 1] == ' ' && source[i - 2] == ' ');
+                    append(hard ? "\n" : " ", style);
+                    i += newline + (backslash ? 1 : 0);
+                    while (i < source.size() && space(source[i])) ++i;
+                } else {
+                    append(source.substr(start, i - start), style);
+                }
+                budget -= std::min(budget, i - start - 1);
+                continue;
+            }
             if (c == '\\' && i + 1 < source.size() && std::ispunct(static_cast<unsigned char>(source[i + 1]))) { append(source.substr(i + 1, 1), style); i += 2; continue; }
             if (c == '`') {
                 auto length = run(source.substr(i), '`');
                 auto end = findMarker(source, c, length, i + length);
                 if (end != std::string_view::npos) {
                     auto code = style; code.code = true;
-                    std::string content(source.substr(i + length, end - i - length));
-                    std::replace(content.begin(), content.end(), '\n', ' ');
+                    const auto literal = source.substr(i + length, end - i - length);
+                    std::string content;
+                    content.reserve(literal.size());
+                    for (std::size_t offset = 0; offset < literal.size();) {
+                        if (const auto newline = lineEnding(literal, offset)) { content.push_back(' '); offset += newline; }
+                        else content.push_back(literal[offset++]);
+                    }
                     if (content.size() >= 2 && content.front() == ' ' && content.back() == ' ' && content.find_first_not_of(' ') != std::string::npos) content = content.substr(1, content.size() - 2);
                     append(content, code); i = end + length; continue;
                 }
@@ -131,7 +160,7 @@ struct InlineParser {
             // Ordinary UTF-8/text bytes share a single append; style comparisons
             // and destination handling must never scale with label byte count.
             const auto start = i++;
-            while (i < source.size() && source[i] != '\\' && source[i] != '`' && source[i] != '[' && source[i] != '*' && source[i] != '_' && source[i] != '~') ++i;
+            while (i < source.size() && !space(source[i]) && !lineEnding(source, i) && source[i] != '\\' && source[i] != '`' && source[i] != '[' && source[i] != '*' && source[i] != '_' && source[i] != '~') ++i;
             budget -= std::min(budget, i - start - 1);
             append(source.substr(start, i - start), style);
         }

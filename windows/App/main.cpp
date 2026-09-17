@@ -356,10 +356,16 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         Automation::AutomationProperties::SetAutomationId(scroll, L"ReaderScroll");
         scroll.HorizontalScrollBarVisibility(ScrollBarVisibility::Disabled);
         content = StackPanel();
-        content.Spacing(10);
-        content.Margin({28, 20, 28, 28});
-        content.MaxWidth(1100);
+        content.Spacing(0);
+        content.Margin({41, 28, 41, 28});
         content.HorizontalAlignment(HorizontalAlignment::Stretch);
+        auto updateReaderBackground = [](FrameworkElement const& target) {
+            target.as<ScrollViewer>().Background(Media::SolidColorBrush(
+                target.ActualTheme() == ElementTheme::Dark ? Windows::UI::Color{255, 30, 30, 30}
+                                                          : Windows::UI::Color{255, 255, 255, 255}));
+        };
+        scroll.ActualThemeChanged([updateReaderBackground](auto const& sender, auto const&) { updateReaderBackground(sender); });
+        updateReaderBackground(scroll);
         scroll.Content(content);
         split.Content(scroll);
         status = label(L"Open Markdown files or drop them anywhere in this window.");
@@ -526,6 +532,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         for (size_t index = renderStart; index < end; ++index) {
             auto const& block = document.markdown.blocks[index];
             auto element = ssmv::renderBlock(block, fontSize, [this](std::string destination) { navigateLink(std::move(destination)); });
+            if (index == 0 && block.kind == ssmv::BlockKind::Heading) {
+                auto margin = element.Margin(); margin.Top = 0; element.Margin(margin);
+            }
             Border wrapper; wrapper.Child(element); wrapper.CornerRadius({4, 4, 4, 4});
             Automation::AutomationProperties::SetAutomationId(wrapper, L"reader.block." + to_hstring(index));
             rendered.push_back(wrapper);

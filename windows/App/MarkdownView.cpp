@@ -25,6 +25,8 @@ TextBlock text(std::string const& source, double size, Navigation const& navigat
                bool bold = false, bool literal = false) {
     TextBlock result;
     result.FontSize(size);
+    result.LineHeight(size * 1.125 + 5);
+    result.LineStackingStrategy(LineStackingStrategy::BlockLineHeight);
     result.TextWrapping(TextWrapping::Wrap);
     result.IsTextSelectionEnabled(true);
     if (literal) {
@@ -32,13 +34,20 @@ TextBlock text(std::string const& source, double size, Navigation const& navigat
         result.FontFamily(FontFamily(L"Consolas"));
         return result;
     }
+    TextHighlighter codeHighlight;
+    int32_t offset = 0;
     for (auto const& span : parseInline(source)) {
         Run run;
         run.Text(to_hstring(span.text));
-        if (bold || span.bold) run.FontWeight(Windows::UI::Text::FontWeights::SemiBold());
+        if (bold || span.bold) run.FontWeight(Windows::UI::Text::FontWeights::Bold());
         if (span.italic) run.FontStyle(Windows::UI::Text::FontStyle::Italic);
         if (span.strikethrough) run.TextDecorations(Windows::UI::Text::TextDecorations::Strikethrough);
-        if (span.code) run.FontFamily(FontFamily(L"Consolas"));
+        if (span.code) {
+            run.FontFamily(FontFamily(L"Consolas"));
+            run.FontSize(size - 1);
+            codeHighlight.Ranges().Append(TextRange{offset, static_cast<int32_t>(run.Text().size())});
+        }
+        offset += static_cast<int32_t>(run.Text().size());
         if (!span.destination.empty() && classifyLink(span.destination) != LinkKind::Unsafe && navigate) {
             Hyperlink link;
             link.Inlines().Append(run);
@@ -51,6 +60,19 @@ TextBlock text(std::string const& source, double size, Navigation const& navigat
         } else {
             result.Inlines().Append(run);
         }
+    }
+    if (codeHighlight.Ranges().Size()) {
+        auto update = [codeHighlight](TextBlock const& target) {
+            bool dark = target.ActualTheme() == ElementTheme::Dark;
+            codeHighlight.Background(SolidColorBrush(dark ? Windows::UI::Color{255, 62, 62, 62}
+                                                         : Windows::UI::Color{255, 230, 230, 230}));
+            codeHighlight.Foreground(target.Foreground());
+        };
+        update(result);
+        result.TextHighlighters().Append(codeHighlight);
+        result.ActualThemeChanged([update](FrameworkElement const& sender, auto const&) {
+            update(sender.as<TextBlock>());
+        });
     }
     return result;
 }
@@ -167,6 +189,7 @@ FrameworkElement renderBlock(Block const& block, double fontSize, Navigation nav
         for (auto const& row : data->rows) data->columns = std::max(data->columns, row.size());
         StackPanel table;
         table.Spacing(8);
+        table.Margin({0, 0, 0, 12});
         paintTable(table, data, 0, 0);
         return table;
     }
@@ -177,18 +200,19 @@ FrameworkElement renderBlock(Block const& block, double fontSize, Navigation nav
         decorate(rule, false);
         return rule;
     }
-    auto body = text(block.text, fontSize, navigate, block.kind == BlockKind::Heading,
+    const double size = block.kind == BlockKind::Heading ? fontSize + std::max(0, 7 - block.level) * 3 : fontSize;
+    auto body = text(block.text, size, navigate, block.kind == BlockKind::Heading,
                      block.kind == BlockKind::Code);
     if (block.kind == BlockKind::Heading) {
-        body.FontSize(fontSize * (block.level == 1 ? 1.875 : block.level == 2 ? 1.5625 : 1.25));
-        body.Margin({0, 14, 0, 4});
+        body.Margin({0, 14, 0, 10});
     } else if (block.kind == BlockKind::Code || block.kind == BlockKind::Quote) {
         Border wrapper;
         bool code = block.kind == BlockKind::Code;
         wrapper.Padding({12, 8, 12, 8});
         wrapper.BorderThickness(code ? Thickness{1, 1, 1, 1} : Thickness{3, 0, 0, 0});
-        if (code) body.FontSize(fontSize * 0.875);
+        if (code) { body.FontSize(fontSize - 1); body.LineHeight((fontSize - 1) * 1.125 + 3); }
         decorate(wrapper, code);
+        wrapper.Margin({0, 0, 0, 12});
         wrapper.Child(body);
         return wrapper;
     } else if (block.kind == BlockKind::UnorderedListItem || block.kind == BlockKind::OrderedListItem) {
@@ -200,12 +224,13 @@ FrameworkElement renderBlock(Block const& block, double fontSize, Navigation nav
         auto marker = text(block.kind == BlockKind::UnorderedListItem ? "•" :
                            std::to_string(block.startNumber) + ".", fontSize, {});
         marker.Margin({0, 0, 8, 0});
-        row.Margin({static_cast<double>(std::min(block.indent, size_t{32})) * fontSize * 0.5, 0, 0, 0});
+        row.Margin({static_cast<double>(std::min(block.indent, size_t{32})) * fontSize * 0.5, 0, 0, 6});
         Grid::SetColumn(body, 1);
         row.Children().Append(marker);
         row.Children().Append(body);
         return row;
     }
+    if (block.kind == BlockKind::Paragraph) body.Margin({0, 0, 0, 12});
     return body;
 }
 }
