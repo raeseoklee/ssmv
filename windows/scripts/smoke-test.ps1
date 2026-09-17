@@ -240,8 +240,17 @@ function Assert-InactiveOutlineCollapse([Diagnostics.Process]$Target) {
     if ($Target.MainWindowTitle -ne 'Windows.md — SSMV') { throw 'Selecting an inactive heading changed the active document before invocation.' }
     $second = & $findRow 'Warm activation 한글.md'
     $second.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
-    $first = & $findRow 'Windows.md'
-    if (!$first.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) {
+    $deadline = (Get-Date).AddSeconds(5)
+    do {
+        $first = & $findRow 'Windows.md'
+        $selected = $first.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+        if ($selected) { break }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    if (!$selected) {
+        $Target.Refresh()
+        Write-Host "Reader title after inactive collapse: $($Target.MainWindowTitle)"
+        Save-WindowEvidence $Target 'inactive-collapse-failure.png'
         throw 'Collapsing an inactive outline did not restore selection to the active document.'
     }
     $Target.Refresh()

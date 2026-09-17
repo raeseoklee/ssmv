@@ -83,16 +83,17 @@ struct DocumentTree::State {
         // Drop metadata before the controls: no retained outline nodes after a
         // collapse or page change, and no stale indices after a library update.
         auto current = find(owner.view.SelectedNode());
-        if (current && current->document == document && current->kind != Kind::Document)
-            // Paging another outline must not highlight its root while toolbar
-            // commands still target the currently displayed document.
-            owner.view.SelectedNode(activeDocument ? root(*activeDocument) : nullptr);
+        bool const restoreSelection = !current ||
+            (current->document == document && current->kind != Kind::Document);
         std::erase_if(entries, [&](auto const& entry) {
             return entry.document == document && entry.kind != Kind::Document;
         });
         // WinUI TreeViewNodeVector::Clear collapses its owner even when the
         // vector is empty. Do not cancel a lazy expansion before adding children.
         if (node.Children().Size()) node.Children().Clear();
+        // Native collection removal can clear SelectedNodes. Restore after the
+        // removal, using the displayed document rather than the paged outline.
+        if (restoreSelection) owner.view.SelectedNode(activeDocument ? root(*activeDocument) : nullptr);
     }
     void page(std::size_t document, std::size_t start) {
         auto parent = root(document);
@@ -158,6 +159,12 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
         state->updating = true;
         state->clearChildren(args.Node(), entry->document);
         args.Node().HasUnrealizedChildren(state->outlines && !state->library->documents()[entry->document].markdown.headings.empty());
+        // WinUI removes descendants from its flat list before raising Collapsed;
+        // the previously selected heading may therefore already be unavailable.
+        // Keep the visible selection synchronized with the displayed document.
+        auto current = state->find(view.SelectedNode());
+        if (!current || current->document == entry->document)
+            view.SelectedNode(state->activeDocument ? state->root(*state->activeDocument) : nullptr);
         state->updating = false;
         if (expanded) expanded(state->library->documents()[entry->document].path, false);
     });
