@@ -43,10 +43,32 @@ function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$Automa
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId), $identity)
     $deadline = (Get-Date).AddSeconds(15)
     do {
-        $element = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-        if ($null -ne $element -and $element.Current.IsEnabled -and !$element.Current.IsOffscreen) { return $element }
+        $candidates = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+        foreach ($element in $candidates) {
+            if ($element.Current.IsEnabled -and !$element.Current.IsOffscreen) { return $element }
+        }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
+    if ($Value -eq 'menu.appearance' -or $Value -eq 'theme.dark') {
+        try {
+            $processCondition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId)
+            $elements = [Windows.Automation.AutomationElement]::RootElement.FindAll(
+                [Windows.Automation.TreeScope]::Descendants, $processCondition)
+            Write-Host "Menu diagnostics for '$Value' (up to 100 native controls):"
+            $elements | Select-Object -First 100 | ForEach-Object {
+                $current = $_.Current
+                Write-Host ("  {0} id='{1}' name='{2}' offscreen={3} enabled={4} rect={5}" -f
+                    $current.ControlType.ProgrammaticName, $current.AutomationId, $current.Name,
+                    $current.IsOffscreen, $current.IsEnabled, $current.BoundingRectangle)
+            }
+            # This diagnostic is reached before the private warm-activation fixture.
+            $target = Get-Process -Id $ProcessId
+            if ($target.MainWindowTitle -eq 'Windows.md — SSMV') {
+                Save-WindowEvidence $target 'window-menu-failure.png' -IncludePopup
+            }
+        } catch { Write-Host "Menu diagnostics failed: $_" }
+    }
     throw "Native UI control was not available: '$Value' (process $ProcessId)."
 }
 
@@ -59,7 +81,9 @@ function Open-AutomationMenu([int]$ProcessId, [string]$AutomationId) {
     $menu = Wait-AutomationElement $ProcessId $AutomationId -AutomationId
     $expand = $null
     if ($menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+        if ($AutomationId -eq 'menu.view') { Write-Host "View menu before Expand: $($expand.Current.ExpandCollapseState)" }
         $expand.Expand()
+        if ($AutomationId -eq 'menu.view') { Write-Host "View menu after Expand: $($expand.Current.ExpandCollapseState)" }
     } else { Invoke-AutomationElement $menu }
     return $menu
 }
@@ -167,25 +191,34 @@ function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
 function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switch]$IncludePopup) {
     Start-Sleep -Milliseconds 500
     $Target.Refresh()
-    $rect = New-Object WindowCapture+RECT
-    if (![WindowCapture]::GetWindowRect($Target.MainWindowHandle, [ref]$rect)) { throw 'Could not measure the screenshot window.' }
-    $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    # GetWindowRect is DPI-virtualized and includes invisible resize borders;
+    # DWM frame bounds provide visible physical pixels for screen captures.
+    $previousDpi = [WindowCapture]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
+    if ($previousDpi -eq [IntPtr]::Zero) { throw 'Could not establish physical-pixel screenshot coordinates.' }
     try {
-        if ($IncludePopup) {
-            $foregroundProcess = [uint32]0
-            $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
-            if ($foregroundProcess -ne $Target.Id) { throw 'Refusing screen capture: the isolated app is not foreground.' }
-            # Copy only the app rectangle; the OS pointer is not painted by CopyFromScreen.
-            $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        } else {
-            $dc = $graphics.GetHdc()
-            try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
-            finally { $graphics.ReleaseHdc($dc) }
-            if (!$captured) { throw "Could not capture $Name evidence." }
-        }
-        $bitmap.Save((Join-Path $evidence $Name))
-    } finally { $graphics.Dispose(); $bitmap.Dispose() }
+        $rect = New-Object WindowCapture+RECT
+        $measured = if ($IncludePopup) {
+            [WindowCapture]::DwmGetWindowAttribute($Target.MainWindowHandle, 9, [ref]$rect, 16) -eq 0
+        } else { [WindowCapture]::GetWindowRect($Target.MainWindowHandle, [ref]$rect) }
+        if (!$measured) { throw 'Could not measure the screenshot window.' }
+        $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            if ($IncludePopup) {
+                $foregroundProcess = [uint32]0
+                $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+                if ($foregroundProcess -ne $Target.Id) { throw 'Refusing screen capture: the isolated app is not foreground.' }
+                # Copy only the app rectangle; the OS pointer is not painted by CopyFromScreen.
+                $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+            } else {
+                $dc = $graphics.GetHdc()
+                try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
+                finally { $graphics.ReleaseHdc($dc) }
+                if (!$captured) { throw "Could not capture $Name evidence." }
+            }
+            $bitmap.Save((Join-Path $evidence $Name))
+        } finally { $graphics.Dispose(); $bitmap.Dispose() }
+    } finally { $null = [WindowCapture]::SetThreadDpiAwarenessContext($previousDpi) }
 }
 
 # Real keystrokes target only the test-owned foreground process. UIA invocation
@@ -200,6 +233,9 @@ function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$
         $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
         if ($foregroundProcess -eq $Target.Id) {
             [WindowCapture]::SendShortcut($Key, $Shift.IsPresent, !$NoControl.IsPresent)
+            # SendInput queues events; allow key-up and layout handlers to finish
+            # before the next shortcut. Each action is still sent exactly once.
+            Start-Sleep -Milliseconds 150
             return
         }
         Start-Sleep -Milliseconds 100
@@ -226,7 +262,12 @@ function Wait-SavedPreference([string]$Preference, $Expected) {
         }
         Start-Sleep -Milliseconds 100
     } while ((Get-Date) -lt $deadline)
-    throw "Shortcut did not update $Preference to $Expected."
+    Write-Host "Preference failure: $Preference expected=$Expected; last saved state=$($preferences | ConvertTo-Json -Compress)"
+    try {
+        $target = $startedProcesses | Where-Object { !$_.HasExited -and $_.MainWindowTitle -eq 'Windows.md — SSMV' } | Select-Object -First 1
+        if ($null -ne $target) { Save-WindowEvidence $target 'window-preference-failure.png' -IncludePopup }
+    } catch { Write-Host "Preference screenshot failed: $_" }
+    throw "Shortcut did not update $Preference to $Expected; last actual value: $($preferences[$Preference])."
 }
 
 function Read-SessionText([IO.BinaryReader]$Reader) {
@@ -279,6 +320,8 @@ using System;
 using System.Runtime.InteropServices;
 public static class WindowCapture {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out RECT value, uint size);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
