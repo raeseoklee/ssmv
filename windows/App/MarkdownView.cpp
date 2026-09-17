@@ -133,6 +133,9 @@ void paintTable(StackPanel const& host, std::shared_ptr<TableData const> const& 
     horizontal.VerticalScrollBarVisibility(ScrollBarVisibility::Disabled);
     horizontal.VerticalScrollMode(ScrollMode::Disabled);
     horizontal.Content(grid);
+    horizontal.SizeChanged([weak = make_weak(grid), columns = columnEnd - columnStart](auto const&, SizeChangedEventArgs const& args) {
+        if (auto target = weak.get()) target.Width(std::max(80.0 * static_cast<double>(columns), static_cast<double>(args.NewSize().Width)));
+    });
     host.Children().Append(horizontal);
     StackPanel pager;
     // A vertical pager remains reachable even in a narrow reading pane.

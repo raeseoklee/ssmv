@@ -70,7 +70,7 @@ function Assert-DarkTheme([int]$ProcessId) {
     $deadline = (Get-Date).AddSeconds(15)
     do {
         $combo = Wait-AutomationElement $ProcessId 'theme selector' -ComboBox
-        $selection = $combo.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()
+        $selection = $combo.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
         if ($selection.Count -eq 1 -and $selection[0].Current.Name -eq 'Dark') { return }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
