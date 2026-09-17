@@ -8,6 +8,8 @@ SSMV is a **lightweight Markdown viewer for macOS**. Read local files, public Ma
 
 ![SSMV in light mode with multiple documents and an expanded heading outline](docs/images/ssmv-sidebar-9450b1ce.png)
 
+A Windows edition using C++ and WinUI 3 is in development in [`windows/`](windows/). The installation and features below describe the released macOS app.
+
 ## Features
 
 - **Open straight from Finder.** Use Open With, or set SSMV as your default for double-click access.
@@ -148,7 +150,7 @@ Use `UNIVERSAL=1 scripts/build-app.sh` to build for both Apple Silicon and Intel
 - Source and issues: [raeseoklee/ssmv](https://github.com/raeseoklee/ssmv)
 - Homebrew tap: [raeseoklee/homebrew-tap](https://github.com/raeseoklee/homebrew-tap)
 - Release notes: [CHANGELOG.md](CHANGELOG.md)
-- License: [MIT](LICENSE). The app icon was created with an AI image-generation tool; its prompt is included in [Resources/AppIcon-prompt.txt](Resources/AppIcon-prompt.txt).
+- License: [MIT](LICENSE). The app icon was created with an AI image-generation tool; its prompt is included in [macos/Resources/AppIcon-prompt.txt](macos/Resources/AppIcon-prompt.txt).
 
 - [Security](SECURITY.md) · [Publication review](docs/COMPLIANCE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 

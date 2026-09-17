@@ -8,6 +8,8 @@ SSMV는 **macOS용 가벼운 Markdown 뷰어**입니다. 로컬 파일, 공개 M
 
 ![여러 문서와 제목별 목차를 표시하는 SSMV 라이트 모드 화면](images/ssmv-sidebar-9450b1ce.png)
 
+C++과 WinUI 3를 사용하는 Windows 버전은 [`windows/`](../windows/)에서 개발 중입니다. 아래 설치 방법과 기능 설명은 배포된 macOS 앱을 기준으로 합니다.
+
 ## 주요 기능
 
 - **Finder에서 바로 열기.** 다음으로 열기를 사용하거나 기본 앱으로 설정해 더블클릭으로 엽니다.
@@ -152,7 +154,7 @@ Apple Silicon과 Intel을 모두 지원하는 Universal 앱을 빌드하려면 `
 - 소스와 이슈: [raeseoklee/ssmv](https://github.com/raeseoklee/ssmv)
 - Homebrew tap: [raeseoklee/homebrew-tap](https://github.com/raeseoklee/homebrew-tap)
 - 변경 기록: [CHANGELOG.md](../CHANGELOG.md)
-- 라이선스: [MIT](../LICENSE). 앱 아이콘은 AI 이미지 생성 도구로 만들었으며 [생성 프롬프트](../Resources/AppIcon-prompt.txt)를 함께 공개합니다.
+- 라이선스: [MIT](../LICENSE). 앱 아이콘은 AI 이미지 생성 도구로 만들었으며 [생성 프롬프트](../macos/Resources/AppIcon-prompt.txt)를 함께 공개합니다.
 - [보안 안내](../SECURITY.md) · [공개 전 검토](../docs/COMPLIANCE.md) · [외부 구성 요소와 출처 고지](../THIRD_PARTY_NOTICES.md)
 
 - 대용량 문서 측정 결과: [PERFORMANCE.md](PERFORMANCE.md)
