@@ -14,6 +14,22 @@ $env:SSMV_DATA_DIR = Join-Path $testDirectory 'state'
 $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
 $startedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
+$evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
+New-Item -ItemType Directory -Force $evidence > $null
+
+function Write-CrashEvidence([Diagnostics.Process]$Target) {
+    $Target.Refresh()
+    if ($Target.HasExited) {
+        Write-Host ("SSMV process {0} exited: decimal={1}; hex=0x{2:X8}" -f $Target.Id, $Target.ExitCode, $Target.ExitCode)
+    }
+    try {
+        $events = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-5) } -MaxEvents 30 -ErrorAction Stop |
+            Where-Object { $_.Message -match '(?i)ssmv(?:\.exe)?' } | Select-Object -First 3
+        foreach ($event in $events) { Write-Host ("Crash event {0} / {1}: {2}" -f $event.ProviderName, $event.Id, $event.Message) }
+        if (!$events) { Write-Host 'No matching SSMV Application error events are available yet.' }
+    } catch { Write-Host "Application crash events unavailable: $_" }
+
+}
 
 function Wait-DocumentWindow([Diagnostics.Process]$Target, [string]$Title) {
     $deadline = (Get-Date).AddSeconds(30)
@@ -36,19 +52,47 @@ function Close-DocumentWindow([Diagnostics.Process]$Target) {
 }
 
 # UI Automation patterns exercise native controls without sending keyboard input.
-function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$AutomationId, [switch]$ComboBox) {
+function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$AutomationId) {
     $property = if ($AutomationId) { [Windows.Automation.AutomationElement]::AutomationIdProperty } else { [Windows.Automation.AutomationElement]::NameProperty }
-    $identity = if ($ComboBox) {
-        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox)
-    } else { [Windows.Automation.PropertyCondition]::new($property, $Value) }
+    $identity = [Windows.Automation.PropertyCondition]::new($property, $Value)
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId), $identity)
     $deadline = (Get-Date).AddSeconds(15)
     do {
-        $element = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-        if ($null -ne $element -and $element.Current.IsEnabled -and !$element.Current.IsOffscreen) { return $element }
+        $target = $startedProcesses | Where-Object { $_.Id -eq $ProcessId } | Select-Object -First 1
+        if ($null -ne $target) {
+            $target.Refresh()
+            if ($target.HasExited) {
+                Write-CrashEvidence $target
+                throw "SSMV exited while waiting for '$Value'; exit code $($target.ExitCode)."
+            }
+        }
+        $candidates = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+        foreach ($element in $candidates) {
+            if ($element.Current.IsEnabled -and !$element.Current.IsOffscreen) { return $element }
+        }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
+    if ($Value -eq 'menu.appearance' -or $Value -eq 'theme.dark') {
+        try {
+            $processCondition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId)
+            $elements = [Windows.Automation.AutomationElement]::RootElement.FindAll(
+                [Windows.Automation.TreeScope]::Descendants, $processCondition)
+            Write-Host "Menu diagnostics for '$Value' (up to 100 native controls):"
+            $elements | Select-Object -First 100 | ForEach-Object {
+                $current = $_.Current
+                Write-Host ("  {0} id='{1}' name='{2}' offscreen={3} enabled={4} rect={5}" -f
+                    $current.ControlType.ProgrammaticName, $current.AutomationId, $current.Name,
+                    $current.IsOffscreen, $current.IsEnabled, $current.BoundingRectangle)
+            }
+            # This diagnostic is reached before the private warm-activation fixture.
+            $target = Get-Process -Id $ProcessId
+            if ($target.MainWindowTitle -eq 'Windows.md — SSMV') {
+                Save-WindowEvidence $target 'window-menu-failure.png' -IncludePopup
+            }
+        } catch { Write-Host "Menu diagnostics failed: $_" }
+    }
     throw "Native UI control was not available: '$Value' (process $ProcessId)."
 }
 
@@ -57,24 +101,237 @@ function Invoke-AutomationElement($Element) {
     $pattern.Invoke()
 }
 
-function Invoke-MoreCommand([int]$ProcessId, [string]$Command) {
-    $more = Wait-AutomationElement $ProcessId 'More'
+function Open-AutomationMenu([int]$ProcessId, [string]$AutomationId) {
+    $menu = Wait-AutomationElement $ProcessId $AutomationId -AutomationId
     $expand = $null
-    if ($more.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+    if ($menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+        if ($AutomationId -eq 'menu.view') { Write-Host "View menu before Expand: $($expand.Current.ExpandCollapseState)" }
         $expand.Expand()
-    } else { Invoke-AutomationElement $more }
-    Invoke-AutomationElement (Wait-AutomationElement $ProcessId $Command)
+        if ($AutomationId -eq 'menu.view') { Write-Host "View menu after Expand: $($expand.Current.ExpandCollapseState)" }
+    } else { Invoke-AutomationElement $menu }
+    return $menu
+}
+
+function Close-AutomationMenu($Menu) {
+    $expand = $null
+    if ($Menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+        $expand.Collapse()
+    } else { Invoke-AutomationElement $Menu }
+}
+
+function Invoke-MenuCommand([int]$ProcessId, [string]$MenuId, [string]$CommandId) {
+    $null = Open-AutomationMenu $ProcessId $MenuId
+    Invoke-AutomationElement (Wait-AutomationElement $ProcessId $CommandId -AutomationId)
+}
+
+function Open-AppearanceMenu([int]$ProcessId) {
+    $menu = Open-AutomationMenu $ProcessId 'menu.view'
+    $null = Open-AutomationMenu $ProcessId 'menu.appearance'
+    return $menu
 }
 
 function Assert-DarkTheme([int]$ProcessId) {
+    $menu = Open-AppearanceMenu $ProcessId
+    try {
+        $dark = Wait-AutomationElement $ProcessId 'theme.dark' -AutomationId
+        $pattern = $null
+        if ($dark.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+            if ($pattern.Current.ToggleState -eq [Windows.Automation.ToggleState]::On) { return }
+        } elseif ($dark.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$pattern)) {
+            if ($pattern.Current.IsSelected) { return }
+        }
+        throw 'The Appearance menu did not select or restore Dark.'
+    } finally { Close-AutomationMenu $menu }
+}
+
+function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]$ExerciseExpansion) {
+    $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
+    if ($tree.Current.ControlType -ne [Windows.Automation.ControlType]::Tree) {
+        # WinUI exposes TreeView's internal TreeViewList as the Tree peer.
+        $tree = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Tree))
+        if ($null -eq $tree) { throw 'Documents must contain the native WinUI Tree peer.' }
+    }
+    $condition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem)
+    # Raw descendants can include headings: compare only the expected file identities.
+    $rows = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+    $fileRows = @($rows | Where-Object { $_.Current.Name -in $ExpectedNames })
+    $actualNames = @($fileRows | ForEach-Object { $_.Current.Name })
+    if (($actualNames -join '|') -ne ($ExpectedNames -join '|')) {
+        throw "Document tree order differs. Expected '$($ExpectedNames -join ', ')'; found '$($actualNames -join ', ')'."
+    }
+    if ($ExerciseExpansion) {
+        $expand = $fileRows[0].GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+        $expand.Expand()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+        $first = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition) |
+            Where-Object { $_.Current.Name -eq $ExpectedNames[0] } | Select-Object -First 1
+        $first.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+        $first = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition) |
+            Where-Object { $_.Current.Name -eq $ExpectedNames[0] } | Select-Object -First 1
+        $first.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+    }
+}
+
+function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
+    $ProcessId = $Target.Id
+    $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
+    $condition = [Windows.Automation.AndCondition]::new(
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Markdown, at home on Windows.'))
     $deadline = (Get-Date).AddSeconds(15)
     do {
-        $combo = Wait-AutomationElement $ProcessId 'theme selector' -ComboBox
-        $selection = $combo.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
-        if ($selection.Count -eq 1 -and $selection[0].Current.Name -eq 'Dark') { return }
+        $heading = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+        if ($null -ne $heading) { break }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
-    throw 'The theme selector did not select or restore Dark.'
+    if ($null -eq $heading) {
+        $tree.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { Write-Output ("Tree evidence: " + $_.Current.ControlType.ProgrammaticName + " / " + $_.Current.Name) }
+        throw 'The public sample heading was not available in the document tree.'
+    }
+    $heading.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $heading.SetFocus()
+    Send-TestShortcut $Target 0x0D -NoControl
+    Start-Sleep -Milliseconds 300 # Let the first bring-into-view/layout complete.
+    $reader = Wait-AutomationElement $ProcessId 'ReaderScroll' -AutomationId
+    $scroll = $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+    if (!$scroll.Current.VerticallyScrollable) { throw 'The public sample must scroll to exercise repeated heading navigation.' }
+    $scroll.SetScrollPercent([Windows.Automation.ScrollPattern]::NoScroll, 100)
+    $deadline = (Get-Date).AddSeconds(5)
+    while ($scroll.Current.VerticalScrollPercent -lt 90 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if ($scroll.Current.VerticalScrollPercent -lt 90) { throw 'Could not move the reader away from the selected heading.' }
+    # Activate the same selected heading again, with no selection change.
+    $heading.SetFocus()
+    Send-TestShortcut $Target 0x0D -NoControl
+    $deadline = (Get-Date).AddSeconds(5)
+    while ($scroll.Current.VerticalScrollPercent -ge 10 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if ($scroll.Current.VerticalScrollPercent -ge 10) { throw 'Invoking the already-selected heading did not return to its content.' }
+    Write-Output 'Repeated activation of the same selected heading returned the reader to its content.'
+}
+
+function Assert-InactiveOutlineCollapse([Diagnostics.Process]$Target) {
+    $tree = Wait-AutomationElement $Target.Id 'DocumentTree' -AutomationId
+    $rowCondition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem)
+    $findRow = {
+        param([string]$Name)
+        $deadline = (Get-Date).AddSeconds(5)
+        do {
+            $row = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $rowCondition) |
+                Where-Object { $_.Current.Name -eq $Name } | Select-Object -First 1
+            if ($null -ne $row) { return $row }
+            Start-Sleep -Milliseconds 100
+        } while ((Get-Date) -lt $deadline)
+        throw "Missing document tree row: $Name"
+    }
+    $first = & $findRow 'Windows.md'
+    $first.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Wait-DocumentWindow $Target 'Windows.md — SSMV'
+    $second = & $findRow 'Warm activation 한글.md'
+    $second.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+    $null = Wait-AutomationElement $Target.Id 'Warm activation'
+    $heading = & $findRow 'Warm activation'
+    # Keyboard selection alone must not navigate the reader to another document.
+    $heading.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $Target.Refresh()
+    if ($Target.MainWindowTitle -ne 'Windows.md — SSMV') { throw 'Selecting an inactive heading changed the active document before invocation.' }
+    $second = & $findRow 'Warm activation 한글.md'
+    $second.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+    $first = & $findRow 'Windows.md'
+    if (!$first.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) {
+        throw 'Collapsing an inactive outline did not restore selection to the active document.'
+    }
+    $Target.Refresh()
+    if ($Target.MainWindowTitle -ne 'Windows.md — SSMV') { throw 'Collapsing the inactive outline switched the active document.' }
+    $second = & $findRow 'Warm activation 한글.md'
+    $second.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Wait-DocumentWindow $Target 'Warm activation 한글.md — SSMV'
+    Write-Output 'Collapsing an inactive selected heading preserved the active reader and restored its root selection.'
+}
+
+function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switch]$IncludePopup) {
+    Start-Sleep -Milliseconds 500
+    $Target.Refresh()
+    # GetWindowRect is DPI-virtualized and includes invisible resize borders;
+    # DWM frame bounds provide visible physical pixels for screen captures.
+    $previousDpi = [WindowCapture]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
+    if ($previousDpi -eq [IntPtr]::Zero) { throw 'Could not establish physical-pixel screenshot coordinates.' }
+    try {
+        $rect = New-Object WindowCapture+RECT
+        $measured = if ($IncludePopup) {
+            [WindowCapture]::DwmGetWindowAttribute($Target.MainWindowHandle, 9, [ref]$rect, 16) -eq 0
+        } else { [WindowCapture]::GetWindowRect($Target.MainWindowHandle, [ref]$rect) }
+        if (!$measured) { throw 'Could not measure the screenshot window.' }
+        $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            if ($IncludePopup) {
+                $foregroundProcess = [uint32]0
+                $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+                if ($foregroundProcess -ne $Target.Id) { throw 'Refusing screen capture: the isolated app is not foreground.' }
+                # Copy only the app rectangle; the OS pointer is not painted by CopyFromScreen.
+                $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+            } else {
+                $dc = $graphics.GetHdc()
+                try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
+                finally { $graphics.ReleaseHdc($dc) }
+                if (!$captured) { throw "Could not capture $Name evidence." }
+            }
+            $bitmap.Save((Join-Path $evidence $Name))
+        } finally { $graphics.Dispose(); $bitmap.Dispose() }
+    } finally { $null = [WindowCapture]::SetThreadDpiAwarenessContext($previousDpi) }
+}
+
+# Real keystrokes target only the test-owned foreground process. UIA invocation
+# alone cannot prove that menu accelerators work with all menus closed.
+function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$Shift, [switch]$NoControl) {
+    $Target.Refresh()
+    if ($Target.HasExited) { throw 'Cannot send a shortcut to an exited test process.' }
+    $null = [WindowCapture]::SetForegroundWindow($Target.MainWindowHandle)
+    $deadline = (Get-Date).AddSeconds(5)
+    do {
+        $foregroundProcess = [uint32]0
+        $null = [WindowCapture]::GetWindowThreadProcessId([WindowCapture]::GetForegroundWindow(), [ref]$foregroundProcess)
+        if ($foregroundProcess -eq $Target.Id) {
+            [WindowCapture]::SendShortcut($Key, $Shift.IsPresent, !$NoControl.IsPresent)
+            # SendInput queues events; allow key-up and layout handlers to finish
+            # before the next shortcut. Each action is still sent exactly once.
+            Start-Sleep -Milliseconds 150
+            return
+        }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    throw 'Refusing to send keyboard input: the isolated SSMV window is not foreground.'
+}
+
+function Wait-SavedPreference([string]$Preference, $Expected) {
+    $deadline = (Get-Date).AddSeconds(10)
+    do {
+        $sessionFile = Join-Path $env:SSMV_DATA_DIR 'session.bin'
+        if (Test-Path $sessionFile -PathType Leaf) {
+            $reader = [IO.BinaryReader]::new([IO.File]::OpenRead($sessionFile))
+            try {
+                $null = $reader.ReadBytes(8)
+                $preferences = @{
+                    Theme = $reader.ReadUInt32()
+                    FontSize = $reader.ReadDouble()
+                    Outline = $reader.ReadBoolean()
+                    Sidebar = $reader.ReadBoolean()
+                }
+                if ($preferences[$Preference] -eq $Expected) { return }
+            } finally { $reader.Dispose() }
+        }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+    Write-Host "Preference failure: $Preference expected=$Expected; last saved state=$($preferences | ConvertTo-Json -Compress)"
+    try {
+        $target = $startedProcesses | Where-Object { !$_.HasExited -and $_.MainWindowTitle -eq 'Windows.md — SSMV' } | Select-Object -First 1
+        if ($null -ne $target) { Save-WindowEvidence $target 'window-preference-failure.png' -IncludePopup }
+    } catch { Write-Host "Preference screenshot failed: $_" }
+    throw "Shortcut did not update $Preference to $Expected; last actual value: $($preferences[$Preference])."
 }
 
 function Read-SessionText([IO.BinaryReader]$Reader) {
@@ -127,23 +384,67 @@ using System;
 using System.Runtime.InteropServices;
 public static class WindowCapture {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SystemParametersInfo(uint action, uint parameter, out RECT value, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+    public static void PositionForCapture(IntPtr hwnd) {
+        IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        if (previous == IntPtr.Zero) throw new InvalidOperationException("Could not establish physical window placement.");
+        try {
+            RECT work;
+            if (!SystemParametersInfo(0x0030, 0, out work, 0))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Could not read primary monitor work area.");
+            int width = Math.Min(1000, work.Right - work.Left - 24);
+            int height = Math.Min(720, work.Bottom - work.Top - 24);
+            if (width < 640 || height < 480) throw new InvalidOperationException("CI desktop is too small for the native smoke window.");
+            int x = work.Left + (work.Right - work.Left - width) / 2;
+            int y = work.Top + (work.Bottom - work.Top - height) / 2;
+            if (!SetWindowPos(hwnd, IntPtr.Zero, x, y, width, height, 0x0014))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Could not position the test window.");
+            RECT actual;
+            if (!GetWindowRect(hwnd, out actual) || actual.Left < work.Left || actual.Top < work.Top || actual.Right > work.Right || actual.Bottom > work.Bottom)
+                throw new InvalidOperationException("The test window is not fully inside the desktop work area.");
+        } finally { SetThreadDpiAwarenessContext(previous); }
+    }
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out RECT value, uint size);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public INPUTUNION data; }
+    [StructLayout(LayoutKind.Explicit)] struct INPUTUNION {
+        [FieldOffset(0)] public KEYBDINPUT keyboard;
+        [FieldOffset(0)] public MOUSEINPUT mouse;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT {
+        public ushort key, scan; public uint flags, time; public UIntPtr extra;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT {
+        public int x, y; public uint mouseData, flags, time; public UIntPtr extra;
+    }
+    [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, INPUT[] inputs, int size);
+    static INPUT Keyboard(ushort key, bool up) {
+        return new INPUT { type = 1, data = new INPUTUNION {
+            keyboard = new KEYBDINPUT { key = key, flags = up ? 2u : 0u }
+        }};
+    }
+    public static void SendShortcut(ushort key, bool shift, bool control) {
+        INPUT[] events = !control ? new[] { Keyboard(key, false), Keyboard(key, true) } : shift
+            ? new[] { Keyboard(0x11, false), Keyboard(0x10, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x10, true), Keyboard(0x11, true) }
+            : new[] { Keyboard(0x11, false), Keyboard(key, false), Keyboard(key, true), Keyboard(0x11, true) };
+        if (SendInput((uint)events.Length, events, Marshal.SizeOf(typeof(INPUT))) != events.Length) {
+            int error = Marshal.GetLastWin32Error();
+            // Release modifiers even if Windows accepted only part of the sequence.
+            INPUT[] release = { Keyboard(key, true), Keyboard(0x10, true), Keyboard(0x11, true) };
+            SendInput((uint)release.Length, release, Marshal.SizeOf(typeof(INPUT)));
+            throw new System.ComponentModel.Win32Exception(error, "Shortcut injection failed.");
+        }
+    }
 }
 '@
     $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
     New-Item -ItemType Directory -Force $evidence > $null
-    $rect = New-Object WindowCapture+RECT
-    if ([WindowCapture]::GetWindowRect($process.MainWindowHandle, [ref]$rect)) {
-        $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-        $dc = $graphics.GetHdc()
-        try { $captured = [WindowCapture]::PrintWindow($process.MainWindowHandle, $dc, 2) }
-        finally { $graphics.ReleaseHdc($dc) }
-        if ($captured) { $bitmap.Save((Join-Path $evidence 'window.png')) }
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
     try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes }
     catch {
         # PowerShell 7 may need the installed Windows Desktop Framework assemblies.
@@ -151,7 +452,28 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationTypes.dll')
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
-    Invoke-MoreCommand $process.Id 'Find…'
+    [WindowCapture]::PositionForCapture($process.MainWindowHandle)
+    Save-WindowEvidence $process 'window-startup.png'
+    $freshView = Open-AutomationMenu $process.Id 'menu.view'
+    $null = Wait-AutomationElement $process.Id 'menu.appearance' -AutomationId
+    Save-WindowEvidence $process 'window-view-initial.png' -IncludePopup
+    Close-AutomationMenu $freshView
+    Write-Output 'Fresh View menu opened before tree or keyboard interactions.'
+    Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
+    Save-WindowEvidence $process 'window-expanded.png'
+    Assert-RepeatedHeadingNavigation $process
+    Save-WindowEvidence $process 'window.png'
+    # Verify registration before the Edit menu has ever been opened.
+    Send-TestShortcut $process 0x46
+    $null = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
+    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
+    $editMenu = Open-AutomationMenu $process.Id 'menu.edit'
+    $findCommand = Wait-AutomationElement $process.Id 'action.find' -AutomationId
+    if ([string]::IsNullOrWhiteSpace($findCommand.Current.AcceleratorKey)) {
+        throw 'Find must expose its keyboard shortcut through native accessibility.'
+    }
+    Save-WindowEvidence $process 'window-menu.png' -IncludePopup
+    Invoke-AutomationElement $findCommand
     $findBox = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
     $findBox.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('Hello from SSMV')
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
@@ -160,12 +482,31 @@ public static class WindowCapture {
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
     $null = Wait-AutomationElement $process.Id 'No matches'
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
-    Invoke-MoreCommand $process.Id 'Increase Text Size'
-    $themeSelector = Wait-AutomationElement $process.Id 'theme selector' -ComboBox
-    $themeSelector.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-    $dark = Wait-AutomationElement $process.Id 'Dark'
-    $dark.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Send-TestShortcut $process 0xBB -Shift # Ctrl+Shift+= on the standard keyboard.
+    Wait-SavedPreference 'FontSize' 18
+    Send-TestShortcut $process 0xBD # Ctrl+- uses the regular keyboard, not the keypad.
+    Wait-SavedPreference 'FontSize' 16
+    Send-TestShortcut $process 0xBB -Shift
+    Wait-SavedPreference 'FontSize' 18
+    Send-TestShortcut $process 0x4C -Shift
+    Wait-SavedPreference 'Sidebar' $false
+    Send-TestShortcut $process 0x4C -Shift
+    Wait-SavedPreference 'Sidebar' $true
+    $null = Wait-AutomationElement $process.Id 'DocumentTree' -AutomationId
+    Send-TestShortcut $process 0x4F -Shift
+    Wait-SavedPreference 'Outline' $false
+    Send-TestShortcut $process 0x4F -Shift
+    Wait-SavedPreference 'Outline' $true
+    Assert-DocumentTree $process.Id @('Windows.md')
+    Write-Output 'Real Ctrl+F, Ctrl+Shift+=, Ctrl+Shift+L, and Ctrl+Shift+O shortcuts passed with menus closed.'
+    $null = Open-AppearanceMenu $process.Id
+    $darkOption = Wait-AutomationElement $process.Id 'theme.dark' -AutomationId
+    $darkOption.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle()
+    Wait-SavedPreference 'Theme' 2
     Assert-DarkTheme $process.Id
+    $reader = Wait-AutomationElement $process.Id 'ReaderScroll' -AutomationId
+    $reader.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern).SetScrollPercent(-1, 0)
+    Save-WindowEvidence $process 'window-dark.png'
     Write-Output 'Native Find (match and no match), text-size increase, and Dark theme selection passed.'
 
     $originalProcessId = $process.Id
@@ -175,6 +516,8 @@ public static class WindowCapture {
     if ($forwarder.ExitCode -ne 0) { throw "Warm activation failed with exit code $($forwarder.ExitCode)." }
     Wait-DocumentWindow $process 'Warm activation 한글.md — SSMV'
     if ($process.Id -ne $originalProcessId) { throw 'Warm activation replaced the original process.' }
+    Assert-DocumentTree $process.Id @('Windows.md', 'Warm activation 한글.md') -ExerciseExpansion
+    Assert-InactiveOutlineCollapse $process
     Close-DocumentWindow $process
     Assert-SavedSession
 
@@ -183,9 +526,16 @@ public static class WindowCapture {
     $startedProcesses.Add($restored)
     Wait-DocumentWindow $restored 'Warm activation 한글.md — SSMV'
     Assert-DarkTheme $restored.Id
+    Assert-DocumentTree $restored.Id @('Windows.md', 'Warm activation 한글.md') -ExerciseExpansion
     Close-DocumentWindow $restored
     Assert-SavedSession
     Write-Output 'Cold open, same-process warm activation, two-file session persistence, selected-document and reading-preference restoration, and orderly closes passed.'
+} catch {
+    foreach ($started in $startedProcesses) {
+        $started.Refresh()
+        if ($started.HasExited -and $started.ExitCode -ne 0) { Write-CrashEvidence $started }
+    }
+    throw
 } finally {
     foreach ($started in $startedProcesses) {
         $started.Refresh()

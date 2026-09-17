@@ -6,9 +6,10 @@ The Windows port uses C++20, C++/WinRT and WinUI 3. It is a development build,
 not a published release or a replacement for the macOS app. It uses native text
 controls; there is no embedded browser or background server.
 
-![SSMV Windows development build reading a local Markdown document](../docs/images/ssmv-windows-620f06b.png)
+![SSMV Windows development build reading a local Markdown document](../docs/images/ssmv-windows-native-ui.png)
 
-Captured from the native x64 app at `620f06b` on the Windows CI runner.
+Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows-native-ui-dark.png) ·
+[View menu](../docs/images/ssmv-windows-native-ui-menu.png)
 
 ## Build
 
@@ -33,6 +34,12 @@ required. Builds are unsigned; installation and signing are not configured yet.
 See the [parity checklist](../docs/WINDOWS-PARITY.md) for remaining work and the
 verification boundaries of this development build.
 
+The window uses **File**, **Edit** and **View** menus, with shortcuts shown beside
+commands. **View → Appearance** selects System, Light or Dark. The sidebar uses a
+native document tree with document icons and nested headings. Compact add, remove
+and outline buttons sit beside **Documents**; hover over an icon for its label and
+shortcut. Right-click the remove button for **Remove All Documents…**.
+
 - Open local `.md`, `.markdown` and `.mdown` files through a picker, arguments or
   drops. Forward absolute file paths to the running app. Relative arguments work
   on a cold launch but are rejected when forwarding to an existing instance.
@@ -44,11 +51,22 @@ verification boundaries of this development build.
   blocks; it does not highlight or count individual occurrences. Large tables may
   require their own page controls after navigating to the table.
 - Change text size with Ctrl++/Ctrl+- and reset with Ctrl+0. Selection is per block;
-  **More → Copy Document Text** copies the full document's plain text.
+  **Edit → Copy Document Text** copies the full document's plain text.
 - Reload with Ctrl+R, save the original Markdown bytes with Ctrl+Shift+S, reveal
   a file in Explorer and enter/leave full screen with F11.
-- Import clipboard Markdown from **More**, and restore the shelf, selected document,
+- Import Markdown with **File → Open from Clipboard**, and restore the shelf, selected document,
   reading position, expanded outlines, text size and appearance on restart.
+
+Windows uses Ctrl for common commands that use Command on macOS. The menus show
+the full shortcut list; these are useful starting points:
+
+| Action | Shortcut |
+| --- | --- |
+| Open files | Ctrl+O |
+| Open clipboard Markdown | Ctrl+Shift+V |
+| Find | Ctrl+F |
+| Save a copy | Ctrl+Shift+S |
+| Full screen | F11 |
 
 UTF-8 input is limited to 16 MiB. Clipboard imports are stored under
 `%LOCALAPPDATA%\SSMV\imports` with a 256 MiB total limit. Removing them from the
@@ -81,11 +99,13 @@ ctest --test-dir windows/.build/core -C Release --output-on-failure
 ```
 
 Three portable suites (documents, Markdown and session persistence), x64/ARM64
-builds and the [native x64 smoke test](https://github.com/raeseoklee/ssmv/actions/runs/35182699940)
-pass. The smoke test verifies cold/warm file opening, search results and no matches,
-text-size and Dark theme changes, saved document order, selected-document and
-reading-preference restoration, and orderly shutdown. Local AddressSanitizer and
-UndefinedBehaviorSanitizer tests also pass. ARM64 runtime behavior remains untested.
+builds and the [native x64 smoke test](https://github.com/raeseoklee/ssmv/actions/runs/35187903182)
+pass at `6c0d9c3`. The smoke test verifies opening View immediately after launch,
+expanded-tree order, repeated heading navigation, Ctrl+F search with and without
+matches, text-size increase/decrease, sidebar and outline toggles, Dark appearance,
+and two-document cold/warm opening with selection and preferences restored after
+restart. Light, Dark and menu captures were visually reviewed. ARM64 runtime
+behavior remains untested.
 
 Before release, validate picker cancellation, Explorer/desktop drops, Korean paths,
 keyboard navigation, tables, theme changes, display scaling, Narrator and large-file

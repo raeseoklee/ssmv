@@ -4,15 +4,20 @@
 
 This checklist compares the Windows port with the implemented macOS app, not with
 every feature in the Markdown specification. It includes the current reading and
-session increment after `dab90e4`. **Implemented; interaction checks pending** means code exists, with broader
+session increment and native menu/tree redesign. **Implemented; interaction checks pending** means code exists, with broader
 manual acceptance checks still required. The verified native scope is listed below. The Windows app remains a development build.
+
+The Windows window uses File/Edit/View menus with visible Ctrl-based shortcuts,
+a native document tree and compact add/remove/outline controls beside Documents.
+Appearance is selected under View. This UI change does not add PDF, remote input
+or any other pending feature.
 
 ## Reading and document library
 
 | Capability | Windows status | Acceptance criteria |
 | --- | --- | --- |
 | Local files | Present; native interaction checks pending | Picker, arguments and Explorer/desktop drops accept multiple supported UTF-8 files, Korean paths and spaces; reject directories, invalid UTF-8 and files over 16 MiB. Duplicate opens select the existing entry. |
-| Sidebar and outline | Present; parity checks pending | Collapse the sidebar, toggle the outline and jump to nested headings without changing document order or selection. Preserve heading navigation across document parts. |
+| Sidebar and outline | Native tree implemented; broader checks pending | Collapse the sidebar, toggle the outline and jump to nested headings without changing document order or selection. Preserve heading navigation across document parts. |
 | Remove documents | Present; native interaction checks pending | Remove one entry or confirm removal of all entries; cancellation preserves the list and no action deletes an original file. |
 | Sorting | Partial | Offer added order, name and most recently modified, with stable ties and selection. The baseline offers name ascending/descending only. |
 | Block Markdown | Partial | Compare shared fixtures for headings, paragraphs, nested lists, block quotes, rules and fenced code; preserve ordered-list numbering. |
@@ -54,13 +59,16 @@ Do not copy macOS-only Fn or globe-key labels into Windows menus.
 - [ ] Check external-link handling, private import storage, network limits and third-party licenses before public distribution.
 - [ ] Rerun macOS regression tests after changes to shared build or repository structure.
 
-The three portable suites and x64/ARM64 builds pass. The [native x64 smoke test](https://github.com/raeseoklee/ssmv/actions/runs/35182699940)
-verifies cold/warm opening, section search (match/no match), text-size and Dark theme
-changes, two-file order and selection restoration, reading-preference persistence,
-and orderly shutdown. The public sample screenshot confirms rich text and a wrapped
-three-column table. This does not verify every interaction or ARM64 runtime behavior.
+At `6c0d9c3`, three portable suites, x64/ARM64 builds and the
+[native x64 smoke test](https://github.com/raeseoklee/ssmv/actions/runs/35187903182) pass.
+The native checks cover opening View immediately after launch, expanded-tree order,
+repeated heading navigation, Ctrl+F search (match/no match), text-size increase and
+decrease, sidebar/outline toggles, Dark appearance, two-document cold/warm opening,
+and selection/preference restoration after restart. Light, Dark and menu captures
+were visually reviewed. These checks do not establish complete macOS parity,
+cover every native interaction or verify ARM64 runtime behavior.
 
-Next priorities after verifying the current reading/session work are durable import management
+Next priorities are durable import management
 and URL/CLI delivery, then PDF export and installation integration. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.
