@@ -144,6 +144,17 @@ try {
     } while ((Get-Date) -lt $deadline)
     Assert-True ($target.MainWindowTitle -eq 'Explorer activation 한글 document.md — SSMV') "Explorer activation did not open the expected file: $($target.MainWindowTitle)"
     Assert-True ($target.Path -eq (Join-Path $installRoot 'SSMV.exe')) 'The Explorer verb launched a different application path.'
+    # Runner images also contain central VC runtimes. Confirm the installed app actually
+    # loaded its own redistributed copies, not merely that those files exist on disk.
+    $loadedModules = @($target.Modules)
+    foreach ($runtimeName in @('msvcp140.dll', 'vcruntime140.dll')) {
+        $module = $loadedModules | Where-Object { $_.ModuleName -ieq $runtimeName } | Select-Object -First 1
+        Assert-True ($null -ne $module) "Installed application did not load $runtimeName."
+        $expectedPath = [IO.Path]::GetFullPath((Join-Path $installRoot $runtimeName))
+        $loadedPath = [IO.Path]::GetFullPath($module.FileName)
+        Assert-True ([string]::Equals($loadedPath, $expectedPath, [StringComparison]::OrdinalIgnoreCase)) "Runtime was loaded outside the installation: $loadedPath"
+        Write-Host "App-local runtime loaded: $loadedPath"
+    }
     Write-Host 'Explorer SSMV verb opened the Korean filename with spaces.'
     Run-Installer $installerPath '/S' $false
     # _?= suppresses NSIS's detached temporary copy so the guard exit code is observable.
@@ -155,6 +166,8 @@ try {
     $target = $null
     Write-Host 'Running-application install and uninstall guards passed.'
 
+    # Missing files are a normal partial-install recovery case, not an uninstall error.
+    Remove-Item -LiteralPath (Join-Path $installRoot 'Windows.md')
     Run-Installer $uninstaller '/S' $true
     $deadline = (Get-Date).AddSeconds(30)
     do {

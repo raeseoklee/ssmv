@@ -143,10 +143,28 @@ existing:
     Quit
   ${EndIf}
 new:
+  ; Establish an owned recovery uninstaller before extracting any application file.
+  ; A failed extraction can then be retried through the normal upgrade path.
+  ClearErrors
+  SetOutPath "$INSTDIR"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "So Simple Markdown Viewer"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
+  ${If} ${Errors}
+    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
+    SetErrorLevel 6
+    Quit
+  ${EndIf}
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  ${If} ${Errors}
+    Delete "$INSTDIR\Uninstall.exe"
+    MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
+    SetErrorLevel 6
+    Quit
+  ${EndIf}
   ClearErrors
   SetOverwrite on
   !insertmacro InstallPayload
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
   ${If} ${Errors}
     MessageBox MB_OK|MB_ICONSTOP "$(InstallFailed)" /SD IDOK
     SetErrorLevel 6

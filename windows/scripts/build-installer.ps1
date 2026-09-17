@@ -64,6 +64,7 @@ foreach ($file in $files) {
     # $INSTDIR is intentional NSIS syntax; escape only generated path components.
     $install.Add('  SetOutPath "' + $target.Replace('$INSTDIR', '').Replace('$', '$$').Insert(0, '$INSTDIR') + '"')
     $install.Add('  File ' + (Quote-Nsis $file.FullName))
+    $uninstall.Add('  IfFileExists "$INSTDIR\' + $relative.Replace('$', '$$').Replace('"', '$\"') + '" 0 +5')
     $uninstall.Add('  ClearErrors')
     $uninstall.Add('  Delete "$INSTDIR\' + $relative.Replace('$', '$$').Replace('"', '$\"') + '"')
     $uninstall.Add('  IfErrors 0 +2')
