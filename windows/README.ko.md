@@ -9,7 +9,7 @@ C++20, C++/WinRT, WinUI 3로 개발 중인 Windows 버전입니다. 아직 정�
 ![로컬 문서를 표시하는 Windows 개발 빌드](../docs/images/ssmv-windows-native-ui.png)
 
 `6c0d9c3`의 x64 화면입니다. [다크 모드](../docs/images/ssmv-windows-native-ui-dark.png) ·
-[View 메뉴](../docs/images/ssmv-windows-native-ui-menu.png)
+[메뉴 단축키](../docs/images/ssmv-windows-native-ui-menu.png)
 
 ## 빌드
 
@@ -40,6 +40,7 @@ Visual Studio에서 `SSMV.vcxproj`를 열어도 됩니다. 결과는 저장소 �
 올리면 기능과 단축키가 표시됩니다. 제거 버튼을 우클릭하면 **Remove All Documents…**를
 선택할 수 있습니다.
 
+- 목차나 문서 내부 링크로 이동하면 해당 구간을 잠깐 강조해 위치를 알려줍니다.
 - 파일 선택, 실행 인수, 드롭으로 `.md`, `.markdown`, `.mdown` 문서를 엽니다.
   실행 중인 앱에는 절대 경로를 전달합니다. 상대 경로 인수는 앱을 처음 실행할
   때만 지원하며, 기존 앱으로 전달할 때는 거부합니다.
@@ -63,10 +64,33 @@ macOS에서 Command를 쓰는 일반 명령은 Windows에서 Ctrl을 사용합�
 | 기능 | 단축키 |
 | --- | --- |
 | 파일 열기 | Ctrl+O |
+| Markdown URL 열기 | Ctrl+L |
+| PDF 내보내기 | Ctrl+P |
 | 클립보드 Markdown 열기 | Ctrl+Shift+V |
 | 찾기 | Ctrl+F |
 | 복사본 저장 | Ctrl+Shift+S |
 | 전체 화면 | F11 |
+
+## URL 문서와 PDF 저장
+
+**File → Open URL…**(Ctrl+L)에 원본 HTTPS Markdown 주소나 GitHub의 `blob`
+파일 주소를 입력합니다. UTF-8 문서는 16 MiB까지 받으며 HTTPS 리디렉션은
+최대 5회로 제한합니다. 네트워크 제한 시간을 두고, 인증 정보가 포함된 주소와
+HTML 응답은 거부합니다. 저장된 문서는 오프라인에서도 다시 열 수 있습니다.
+**Reload**는 원격 원본을 새로 받습니다. 상대 링크는 캐시 폴더가 아닌 원격
+주소를 기준으로 해석합니다. 캐시는 `%LOCALAPPDATA%\SSMV\remotes`에
+256 MiB까지 보관하며 목록에서 제거해도 파일은 남습니다.
+
+**File → Export PDF…**(Ctrl+P)에서 선택한 문서 전체를 저장합니다. 화면에
+보이지 않는 구간도 포함하며 저장 창을 열기 전에 내용을 고정합니다.
+**File → Cancel Current Operation**으로 다운로드나 내보내기를 취소합니다.
+PDF 내보내기를 취소해도 기존 대상 파일은 유지합니다.
+
+PDF 저장에는 Windows 기능의 **Microsoft Print to PDF**가 필요합니다.
+밝은 배경에 유니코드 텍스트, 제목, 목록, 코드, 표를 페이지로 나눠 저장합니다.
+웹·이메일 주소는 텍스트로 남기지만 클릭 가능한 PDF 링크와 인라인 강조는
+보존하지 않습니다. 읽기 어려울 만큼 열이 많은 표는 오류를 안내합니다.
+PDF 서식은 아직 macOS와 동일하지 않습니다.
 
 UTF-8 입력은 16 MiB로 제한합니다. 클립보드 문서는
 `%LOCALAPPDATA%\SSMV\imports`에 보관하며 합계 256 MiB까지 받습니다.
@@ -81,9 +105,9 @@ UTF-8 입력은 16 MiB로 제한합니다. 클립보드 문서는
 남습니다. 이 제한이 대용량 문서의 성능을 보장하지는 않으며 연속 스크롤 최적화는
 후속 작업입니다.
 
-PDF, 원격 Markdown URL, 표준 입력·제목을 받는 CLI, 가져온 문서 관리,
+원격 URL을 인수로 받는 CLI, 표준 입력·제목을 받는 CLI, 가져온 문서 관리,
 추가·수정 순서 정렬, 설치 시 파일 연결, 업데이트 안내, 도움말·About은 남아 있습니다.
-웹 링크는 기본 브라우저로 열며 원격 문서를 SSMV 안에서 읽는 기능과는 다릅니다.
+일반 웹 링크는 기본 브라우저로 엽니다.
 두 플랫폼 모두 삽입 이미지의 픽셀을 내려받아 표시하거나 Markdown을 편집하지는
 않습니다. Windows 전체 화면은 현재 앱 내부 컨트롤을 유지하며 macOS처럼 마우스를
 올렸을 때 상단을 다시 표시하는 동작은 후속 작업입니다.

@@ -9,7 +9,7 @@ controls; there is no embedded browser or background server.
 ![SSMV Windows development build reading a local Markdown document](../docs/images/ssmv-windows-native-ui.png)
 
 Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows-native-ui-dark.png) ·
-[View menu](../docs/images/ssmv-windows-native-ui-menu.png)
+[Menu shortcuts](../docs/images/ssmv-windows-native-ui-menu.png)
 
 ## Build
 
@@ -40,6 +40,7 @@ native document tree with document icons and nested headings. Compact add, remov
 and outline buttons sit beside **Documents**; hover over an icon for its label and
 shortcut. Right-click the remove button for **Remove All Documents…**.
 
+- Jump from the outline or an in-document anchor to a briefly highlighted section.
 - Open local `.md`, `.markdown` and `.mdown` files through a picker, arguments or
   drops. Forward absolute file paths to the running app. Relative arguments work
   on a cold launch but are rejected when forwarding to an existing instance.
@@ -63,10 +64,33 @@ the full shortcut list; these are useful starting points:
 | Action | Shortcut |
 | --- | --- |
 | Open files | Ctrl+O |
+| Open Markdown URL | Ctrl+L |
+| Export PDF | Ctrl+P |
 | Open clipboard Markdown | Ctrl+Shift+V |
 | Find | Ctrl+F |
 | Save a copy | Ctrl+Shift+S |
 | Full screen | F11 |
+
+## URL documents and PDF export
+
+Use **File → Open URL…** (Ctrl+L) for a raw HTTPS Markdown URL or a GitHub
+`blob` file URL. Downloads accept UTF-8 text up to 16 MiB, follow at most five
+HTTPS redirects and enforce network timeouts. Credentials and HTML responses are
+rejected. Cached documents reopen offline; **Reload** fetches the source again.
+Relative links resolve against the remote source, never the cache directory.
+The remote cache lives under `%LOCALAPPDATA%\SSMV\remotes` with a 256 MiB limit.
+Removing a document from the sidebar preserves its cached file.
+
+Use **File → Export PDF…** (Ctrl+P) to save the complete selected document,
+including parts outside the visible page. The export captures a snapshot before
+showing the save dialog. **File → Cancel Current Operation** cancels a download
+or export. Cancelling an export preserves an existing destination file.
+
+PDF export requires **Microsoft Print to PDF** in Windows Features. It creates
+light-background pages with Unicode text, headings, lists, code and tables.
+Safe web/email destinations appear as text; clickable PDF links and inline
+emphasis are not retained. Tables too wide for readable cells report an error.
+PDF formatting is not yet identical to macOS.
 
 UTF-8 input is limited to 16 MiB. Clipboard imports are stored under
 `%LOCALAPPDATA%\SSMV\imports` with a 256 MiB total limit. Removing them from the
@@ -80,7 +104,7 @@ part. Tables display 100 body rows and 12 columns at a time, with navigation for
 the remainder. Parsed documents remain in memory. These bounds do not establish
 large-document performance parity; continuous viewport virtualization is pending.
 
-PDF export, remote Markdown URLs, stdin/title CLI delivery, imported-document
+Remote URL CLI arguments, stdin/title CLI delivery, imported-document
 management, added/modified sorting, installer file associations, update guidance
 and Help/About remain incomplete. Web hyperlinks open in the default browser;
 that is different from loading remote Markdown into SSMV. Neither platform fetches

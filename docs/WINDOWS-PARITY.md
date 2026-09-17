@@ -9,8 +9,8 @@ manual acceptance checks still required. The verified native scope is listed bel
 
 The Windows window uses File/Edit/View menus with visible Ctrl-based shortcuts,
 a native document tree and compact add/remove/outline controls beside Documents.
-Appearance is selected under View. This UI change does not add PDF, remote input
-or any other pending feature.
+Appearance is selected under View. URL opening, PDF export and transient navigation highlights are also implemented;
+remaining limitations are tracked below.
 
 ## Reading and document library
 
@@ -22,7 +22,7 @@ or any other pending feature.
 | Sorting | Partial | Offer added order, name and most recently modified, with stable ties and selection. The baseline offers name ascending/descending only. |
 | Block Markdown | Partial | Compare shared fixtures for headings, paragraphs, nested lists, block quotes, rules and fenced code; preserve ordered-list numbering. |
 | Inline Markdown and tables | Implemented; interaction checks pending | Verify emphasis, strong text, strikethrough, inline code, escaped syntax, links and table alignment against macOS fixtures. Links must follow the source-aware navigation policy. |
-| Find, text size and copy | Implemented; interaction checks pending | Current find navigates matching blocks across parts, not individual occurrences, and does not highlight matches. Large tables retain separate page navigation. Text size controls and full-document plain-text copy exist; selection remains per block. Continuous selection and occurrence-level find are gaps. |
+| Find, text size and copy | Implemented; interaction checks pending | Current find navigates matching blocks across parts, not individual occurrences, and briefly highlights the target section. Large tables retain separate page navigation. Text size controls and full-document plain-text copy exist; selection remains per block. Continuous selection and occurrence-level find are gaps. |
 | Reload and save a copy | Implemented; interaction checks pending | Explicitly reload changed files; saving preserves source bytes, including BOM, rather than rendered text. Cancelling a picker changes nothing. |
 | Themes and session recovery | Implemented; interaction checks pending | Restore the selected document, shelf, theme and outline/sidebar preferences after restart; handle missing files and damaged state without silently discarding recoverable data. Per-document page/scroll restoration is implemented but requires native verification. |
 | Reveal file and full screen | Implemented; interaction checks pending | Reveal local sources in Explorer. Use F11 for full screen, with a recoverable way to access controls and exit. In-app controls currently remain visible; macOS-style hover-reveal behavior is still missing. |
@@ -39,9 +39,9 @@ virtualization; matching appearance alone does not establish performance parity.
 | --- | --- | --- |
 | Clipboard Markdown | Implemented; interaction checks pending | Import valid text into durable app-managed storage, preserve it across restart and keep source removal separate from permanent deletion. Enforce the 16 MiB input limit. |
 | Imported-document management | Pending | List retained imports, save copies and explicitly delete retained content. Removing from the sidebar must not delete it. The current clipboard path preserves unlisted imports and limits storage to 256 MiB, but has no management UI. Bound storage and recover after interrupted writes. |
-| HTTPS Markdown | Pending | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
+| HTTPS Markdown | Implemented; verification in progress | Support raw HTTPS and GitHub file URLs; reject credentials and unsupported content, bound downloads/redirects/timeouts, support cancellation, and retain cached documents for offline reopening. Preserve safe relative-link resolution. |
 | LLM/CLI handoff | Partial; native checks pending | File arguments and single-instance forwarding are implemented. Forwarded arguments must be absolute; relative arguments are rejected on warm launch. HTTPS, UTF-8 stdin and optional titles remain pending. Bound and validate the private inbox, recover pending requests and prevent duplicate imports. Document exit codes and PowerShell usage. No MCP server is required. |
-| PDF export | Pending | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
+| PDF export | Partial; verification in progress | Export a snapshot of the selected document with readable pagination, tables, links and Unicode; verify output visually. Cancellation, document switching and output errors must not corrupt or mix documents. |
 | File associations | Pending | A supported install registers `.md`, `.markdown` and `.mdown` for Explorer **Open with** and double-click after user selection. Uninstall removes only SSMV's registrations. |
 | Update guidance | Pending | Choose a Windows distribution channel before implementing checks. Notify without silently replacing the app; do not direct Windows users to Homebrew. The macOS app continues to use its tap and Homebrew upgrade guidance. |
 | Help and About | Pending | Provide product identity, version and Windows shortcuts; keep English default documentation with a separate Korean link. |
@@ -68,7 +68,7 @@ and selection/preference restoration after restart. Light, Dark and menu capture
 were visually reviewed. These checks do not establish complete macOS parity,
 cover every native interaction or verify ARM64 runtime behavior.
 
-Next priorities are durable import management
-and URL/CLI delivery, then PDF export and installation integration. Publish feature
+PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations are not retained.
+Next priorities are durable import management, CLI delivery and installation integration. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.

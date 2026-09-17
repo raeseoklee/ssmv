@@ -581,6 +581,37 @@ public static class WindowCapture {
     Close-DocumentWindow $restored
     Assert-SavedSession
     Write-Output 'Cold open, same-process warm activation, two-file session persistence, selected-document and reading-preference restoration, and orderly closes passed.'
+
+    # Exercise the real async URL path only after the original two-file session checks.
+    $remoteReader = Start-Process -FilePath $executablePath -PassThru
+    $startedProcesses.Add($remoteReader)
+    Wait-DocumentWindow $remoteReader 'Warm activation 한글.md — SSMV'
+    Send-TestShortcut $remoteReader 0x4C
+    $urlInput = Wait-AutomationElement $remoteReader.Id 'URLInput' -AutomationId
+    $urlInput.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('https://github.com/raeseoklee/ssmv/blob/main/README.md')
+    Invoke-AutomationElement (Wait-AutomationElement $remoteReader.Id 'Open')
+    Wait-DocumentWindow $remoteReader 'README.md — SSMV'
+    Assert-DocumentTree $remoteReader.Id @('Windows.md', 'Warm activation 한글.md', 'README.md')
+    $remoteDirectory = Join-Path $env:SSMV_DATA_DIR 'remotes'
+    $cachedDocuments = @(Get-ChildItem -LiteralPath $remoteDirectory -Filter README.md -Recurse -File)
+    if ($cachedDocuments.Count -ne 1 -or $cachedDocuments[0].Length -eq 0) { throw 'URL open did not persist one nonempty README.md cache entry.' }
+    $cachedPath = $cachedDocuments[0].FullName
+    $metadataPath = $cachedPath + '.url'
+    if (!(Test-Path -LiteralPath $metadataPath) -or [IO.File]::ReadAllText($metadataPath) -notmatch 'githubusercontent\.com/.+/README\.md') {
+        throw 'The downloaded document did not preserve its normalized source URL.'
+    }
+    Close-DocumentWindow $remoteReader
+    # A cache-only marker distinguishes restoration from downloading the remote README again.
+    $cacheMarker = 'SSMV cached document restoration 9a7e2c'
+    [IO.File]::WriteAllText($cachedPath, "# $cacheMarker`n`nThis content exists only in the isolated local cache.", [Text.UTF8Encoding]::new($false))
+    $cachedReader = Start-Process -FilePath $executablePath -PassThru
+    $startedProcesses.Add($cachedReader)
+    Wait-DocumentWindow $cachedReader 'README.md — SSMV'
+    $null = Wait-AutomationElement $cachedReader.Id $cacheMarker
+    Assert-DocumentTree $cachedReader.Id @('Windows.md', 'Warm activation 한글.md', 'README.md')
+    Close-DocumentWindow $cachedReader
+    Write-Output 'Ctrl+L downloaded a GitHub document, cached Markdown and source metadata, and restored the selected document from local cache.'
+
 } catch {
     foreach ($started in $startedProcesses) {
         $started.Refresh()

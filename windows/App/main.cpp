@@ -815,10 +815,14 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         load({path});
     }
 
+    bool isRemoteCache(std::filesystem::path const& path) const {
+        auto relative = path.lexically_normal().lexically_relative((dataDirectory / L"remotes").lexically_normal());
+        return !relative.empty() && !relative.is_absolute() && *relative.begin() != L"..";
+    }
+
     std::optional<std::wstring> remoteSource(std::filesystem::path const& path) {
         // Only app-owned remote cache entries may supply link-resolution metadata.
-        auto relative = path.lexically_relative(dataDirectory / L"remotes");
-        if (relative.empty() || relative.is_absolute() || *relative.begin() == L"..") return std::nullopt;
+        if (!isRemoteCache(path)) return std::nullopt;
         return ssmv::remoteDocumentSource(path);
     }
 
@@ -896,6 +900,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                     if (extension == L".md" || extension == L".markdown" || extension == L".mdown") openRemote(address);
                     else co_await Windows::System::Launcher::LaunchUriAsync(Uri(address));
                     co_return;
+                }
+                if (isRemoteCache(library.documents()[*selected].path)) {
+                    error(L"The cached source URL is unavailable. Reopen the original URL to follow relative links."); co_return;
                 }
                 std::error_code comparisonError;
                 if (std::filesystem::equivalent(library.documents()[*selected].path.parent_path(), dataDirectory / L"imports", comparisonError)) {
