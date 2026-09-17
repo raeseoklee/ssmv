@@ -249,8 +249,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (args.Key() == Windows::System::VirtualKey::Enter) { findNext(false); args.Handled(true); }
         });
         findPanel.Children().Append(findBox);
-        findPanel.Children().Append(iconButton(Symbol::Up, L"Previous", L"Previous match (Shift+F3)", [this] { findNext(true); }));
-        findPanel.Children().Append(iconButton(Symbol::Down, L"Next", L"Next match (F3)", [this] { findNext(false); }));
+        findPanel.Children().Append(iconButton(Symbol::Back, L"Previous", L"Previous match (Shift+F3)", [this] { findNext(true); }));
+        findPanel.Children().Append(iconButton(Symbol::Forward, L"Next", L"Next match (F3)", [this] { findNext(false); }));
         findPanel.Children().Append(iconButton(Symbol::Cancel, L"Close search", L"Close search (Esc)", [this] { findPanel.Visibility(Visibility::Collapsed); }));
         findStatus = label(L""); findPanel.Children().Append(findStatus);
         Grid::SetRow(findPanel, 1); root.Children().Append(findPanel);

@@ -141,7 +141,7 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
     view.ItemInvoked([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, TreeViewItemInvokedEventArgs const& args) {
         if (guard.expired() || state->updating) return;
         auto node = args.InvokedItem().try_as<TreeViewNode>();
-        if (!node) node = view.NodeFromItem(args.InvokedItem());
+        if (!node) return; // RootNodes mode invokes TreeViewNode instances.
         auto entry = state->find(node);
         if (!entry) return;
         if (entry->kind == State::Kind::Pager) state->page(entry->document, entry->value);
