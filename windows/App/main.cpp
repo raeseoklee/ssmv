@@ -12,6 +12,7 @@
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Text.h>
 #include <winrt/Windows.UI.h>
+#include <winrt/Windows.UI.Core.h>
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.Xaml.Interop.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
@@ -28,6 +29,7 @@
 #include "ReaderMenu.hpp"
 #include "DocumentTree.hpp"
 #include <winrt/Microsoft.UI.Dispatching.h>
+#include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Microsoft.UI.Windowing.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
 #include <winrt/Windows.Storage.Streams.h>
@@ -356,8 +358,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         status.TextWrapping(TextWrapping::NoWrap); status.TextTrimming(TextTrimming::CharacterEllipsis);
         Grid::SetRow(status, 3);
         root.Children().Append(status);
-        // Native menu tooltips cannot name OEM keys: WinUI fails fast while
-        // formatting them. Keep those aliases on the non-control root instead.
+        // OEM minus has no WinUI accelerator label and fails fast during tooltip
+        // generation, even on the root. Handle that key without an accelerator.
         auto alias = [this](Windows::System::VirtualKey key, Windows::System::VirtualKeyModifiers modifiers, auto action) {
             KeyboardAccelerator binding; binding.Key(key); binding.Modifiers(modifiers);
             binding.Invoked([action](auto const&, auto const& args) { args.Handled(true); action(); });
@@ -365,7 +367,16 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         };
         alias(static_cast<Windows::System::VirtualKey>(187), Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(1); }));
         alias(static_cast<Windows::System::VirtualKey>(187), Windows::System::VirtualKeyModifiers::Control | Windows::System::VirtualKeyModifiers::Shift, guarded([this] { changeSize(1); }));
-        alias(static_cast<Windows::System::VirtualKey>(189), Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(-1); }));
+        root.KeyDown([decrease = guarded([this] { changeSize(-1); })](auto const&, KeyRoutedEventArgs const& args) {
+            using Windows::System::VirtualKey;
+            using Windows::UI::Core::CoreVirtualKeyStates;
+            auto down = [](VirtualKey key) {
+                return (Microsoft::UI::Input::InputKeyboardSource::GetKeyStateForCurrentThread(key) & CoreVirtualKeyStates::Down) != CoreVirtualKeyStates::None;
+            };
+            if (args.Key() == static_cast<VirtualKey>(189) && down(VirtualKey::Control) && !down(VirtualKey::Menu) && !down(VirtualKey::Shift)) {
+                args.Handled(true); decrease();
+            }
+        });
         alias(Windows::System::VirtualKey::Escape, Windows::System::VirtualKeyModifiers::None, guarded([this] { findPanel.Visibility(Visibility::Collapsed); }));
         syncChrome();
         window.Content(root);

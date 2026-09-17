@@ -483,6 +483,10 @@ public static class WindowCapture {
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
     Send-TestShortcut $process 0xBB -Shift # Ctrl+Shift+= on the standard keyboard.
     Wait-SavedPreference 'FontSize' 18
+    Send-TestShortcut $process 0xBD # Ctrl+- uses the regular keyboard, not the keypad.
+    Wait-SavedPreference 'FontSize' 16
+    Send-TestShortcut $process 0xBB -Shift
+    Wait-SavedPreference 'FontSize' 18
     Send-TestShortcut $process 0x4C -Shift
     Wait-SavedPreference 'Sidebar' $false
     Send-TestShortcut $process 0x4C -Shift
