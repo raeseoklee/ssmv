@@ -177,10 +177,10 @@ function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]
 }
 
 function Assert-NavigationHighlight([Diagnostics.Process]$Target, [switch]$Expired) {
-    $block = Wait-AutomationElement $Target.Id 'reader.block.0' -AutomationId
+    $reader = Wait-AutomationElement $Target.Id 'ReaderScroll' -AutomationId
     $deadline = (Get-Date).AddSeconds($(if ($Expired) { 4 } else { 1 }))
     do {
-        $highlighted = $block.Current.HelpText -eq 'Navigation target'
+        $highlighted = $reader.Current.HelpText -eq 'Navigation target: 0'
         if ($highlighted -ne $Expired.IsPresent) { return }
         Start-Sleep -Milliseconds 50
     } while ((Get-Date) -lt $deadline)

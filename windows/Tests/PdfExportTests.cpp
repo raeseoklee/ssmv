@@ -1,6 +1,7 @@
 #include "../App/PdfExport.hpp"
 #include <windows.h>
 #include <winspool.h>
+#include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Data.Pdf.h>
 #include <winrt/Windows.Storage.h>
 #include <chrono>

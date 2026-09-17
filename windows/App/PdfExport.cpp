@@ -1,5 +1,6 @@
 #include "PdfExport.hpp"
 #include <windows.h>
+#include <objbase.h>
 #include <winspool.h>
 #include <algorithm>
 #include <chrono>
@@ -36,7 +37,18 @@ std::wstring unicode(std::string const& source) {
     require(count > 0, "Unable to decode document text for PDF export.");
     std::wstring text(static_cast<std::size_t>(count), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, source.data(), static_cast<int>(source.size()), text.data(), count);
+    for (std::size_t i = 0; (i = text.find(L'\t', i)) != std::wstring::npos; i += 4) text.replace(i, 1, L"    ");
     return text;
+}
+std::string printText(std::string const& source) {
+    std::string result;
+    for (auto const& span : parseInline(source)) {
+        result += span.text;
+        auto kind = classifyLink(span.destination);
+        if ((kind == LinkKind::Web || kind == LinkKind::Email) && span.text != span.destination)
+            result += " (" + span.destination + ")";
+    }
+    return result;
 }
 struct TemporaryFile {
     std::filesystem::path path;
@@ -182,8 +194,7 @@ struct Layout {
         TEXTMETRICW metrics{};
         require(GetTextMetricsW(printer.dc, &metrics) != FALSE, "Unable to read the PDF font metrics.");
         int lineHeight = metrics.tmHeight + points(code ? 3 : 4);
-        auto text = unicode(code ? block.text : plainInlineText(block.text));
-        for (std::size_t i = 0; (i = text.find(L'\t', i)) != std::wstring::npos; i += 4) text.replace(i, 1, L"    ");
+        auto text = unicode(code ? block.text : printText(block.text));
         int indent = 0;
         if (block.kind == BlockKind::UnorderedListItem || block.kind == BlockKind::OrderedListItem) {
             indent = points(12 + static_cast<int>((std::min)(block.indent, std::size_t{16})) * 3);
@@ -208,6 +219,7 @@ struct Layout {
         // Keep unusual wide tables legible rather than silently clipping cells.
         require(columns <= 64, "This table has too many columns to fit in a PDF. Reduce it to at most 64 columns.");
         int width = (right - left) / static_cast<int>(columns), padding = (std::min)(points(4), width / 8);
+        require(width - 2 * padding >= points(24), "This table is too wide for the PDF page. Reduce its number of columns or choose a wider paper size in Microsoft Print to PDF preferences.");
         for (std::size_t rowIndex = 0; rowIndex < block.tableRows.size(); ++rowIndex) {
             Font font(printer.dc, points(columns > 6 ? 8 : 10), rowIndex == 0);
             TEXTMETRICW metrics{}; GetTextMetricsW(printer.dc, &metrics);
@@ -215,7 +227,7 @@ struct Layout {
             std::vector<std::wstring> cells(columns);
             std::vector<std::size_t> offsets(columns, 0);
             for (std::size_t c = 0; c < block.tableRows[rowIndex].size(); ++c)
-                cells[c] = unicode(plainInlineText(block.tableRows[rowIndex][c]));
+                cells[c] = unicode(printText(block.tableRows[rowIndex][c]));
             bool remaining;
             do {
                 ensure(lineHeight + padding);
