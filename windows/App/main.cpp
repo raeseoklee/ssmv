@@ -12,6 +12,7 @@
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Text.h>
 #include <winrt/Windows.UI.h>
+#include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.Xaml.Interop.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.XamlTypeInfo.h>
@@ -24,6 +25,8 @@
 #include "Session.hpp"
 #include "MarkdownView.hpp"
 #include "Activation.hpp"
+#include "ReaderMenu.hpp"
+#include "DocumentTree.hpp"
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Windowing.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
@@ -72,7 +75,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     bool restoring = false;
     bool initialized = false;
     double fontSize = 16;
-    ComboBox theme{nullptr};
+    ssmv::ReaderMenu menus;
+    int themeIndex = 0;
     TextBox findBox{nullptr};
     StackPanel findPanel{nullptr};
     TextBlock findStatus{nullptr};
@@ -82,7 +86,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     Window window{nullptr};
     Grid root{nullptr};
     SplitView split{nullptr};
-    StackPanel shelf{nullptr};
+    std::unique_ptr<ssmv::DocumentTree> documentTree;
+    Button removeButton{nullptr};
     StackPanel content{nullptr};
     ScrollViewer scroll{nullptr};
     TextBlock status{nullptr};
@@ -111,6 +116,30 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         return result;
     }
 
+    void styleIcon(Control const& control, hstring const& name, hstring const& tip) {
+        control.Width(28); control.Height(28); control.Padding({5, 5, 5, 5});
+        control.BorderThickness({0, 0, 0, 0}); control.CornerRadius({4, 4, 4, 4});
+        control.Background(Media::SolidColorBrush(Windows::UI::Color{0, 0, 0, 0}));
+        Automation::AutomationProperties::SetName(control, name);
+        ToolTipService::SetToolTip(control, box_value(tip));
+    }
+    Button iconButton(Symbol symbol, hstring const& name, hstring const& tip, auto action) {
+        auto result = button(name, action);
+        SymbolIcon icon{symbol}; icon.Width(14); icon.Height(14);
+        result.Content(icon); styleIcon(result, name, tip); return result;
+    }
+    void syncChrome() {
+        bool hasDocument = selected && *selected < library.documents().size();
+        if (split && outline) menus.update(themeIndex, split.IsPaneOpen(), outline.IsChecked().Value(), hasDocument);
+        if (removeButton) removeButton.IsEnabled(hasDocument);
+    }
+    void toggleSidebar() { split.IsPaneOpen(!split.IsPaneOpen()); syncChrome(); saveState(); }
+    void setTheme(int value) {
+        themeIndex = value;
+        root.RequestedTheme(value == 1 ? ElementTheme::Light : value == 2 ? ElementTheme::Dark : ElementTheme::Default);
+        syncChrome(); saveState();
+    }
+
     void error(hstring const& message) {
         if (!closed && status) status.Text(message);
     }
@@ -119,6 +148,14 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         Resources().MergedDictionaries().Append(XamlControlsResources());
         window = Window();
         window.Title(L"So Simple Markdown Viewer");
+        window.AppWindow().Resize({1000, 720});
+        HWND nativeWindow = nullptr;
+        check_hresult(window.as<IWindowNative>()->get_WindowHandle(&nativeWindow));
+        auto module = GetModuleHandleW(nullptr);
+        auto bigIcon = LoadImageW(module, MAKEINTRESOURCEW(1), IMAGE_ICON, 32, 32, LR_SHARED);
+        auto smallIcon = LoadImageW(module, MAKEINTRESOURCEW(1), IMAGE_ICON, 16, 16, LR_SHARED);
+        SendMessageW(nativeWindow, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(bigIcon));
+        SendMessageW(nativeWindow, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
         window.Closed([this](auto const&, auto const&) {
             rememberPosition(); saveState(); activation->stop(); closed = true; ++generation;
         });
@@ -160,48 +197,49 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         root.RowDefinitions().Append(bodyRow);
         root.RowDefinitions().Append(statusRow);
 
-        StackPanel toolbar;
-        toolbar.Orientation(Orientation::Horizontal);
-        toolbar.Spacing(8);
-        toolbar.Margin({12, 10, 12, 10});
-        toolbar.Children().Append(button(L"Sidebar", [this] { split.IsPaneOpen(!split.IsPaneOpen()); saveState(); }));
-        toolbar.Children().Append(button(L"Open…", [this] { pick(); }));
-        theme = ComboBox();
-        theme.Items().Append(box_value(L"System theme"));
-        theme.Items().Append(box_value(L"Light"));
-        theme.Items().Append(box_value(L"Dark"));
-        theme.SelectedIndex(static_cast<int>(session.theme));
-        theme.SelectionChanged([this](auto const&, auto const&) {
-            root.RequestedTheme(theme.SelectedIndex() == 1 ? ElementTheme::Light :
-                                theme.SelectedIndex() == 2 ? ElementTheme::Dark : ElementTheme::Default);
-            saveState();
-        });
-        root.RequestedTheme(session.theme == 1 ? ElementTheme::Light : session.theme == 2 ? ElementTheme::Dark : ElementTheme::Default);
-        toolbar.Children().Append(theme);
-        MenuFlyout actions;
-        auto command = [this, actions](hstring const& title, auto action) {
-            MenuFlyoutItem item; item.Text(title);
-            item.Click([this, action](auto const&, auto const&) {
-                try { action(); }
+        themeIndex = static_cast<int>(session.theme);
+        root.RequestedTheme(themeIndex == 1 ? ElementTheme::Light : themeIndex == 2 ? ElementTheme::Dark : ElementTheme::Default);
+        auto guarded = [this](auto action) {
+            return [this, action](auto... args) {
+                try { action(args...); }
                 catch (hresult_error const& e) { error(e.message()); }
                 catch (std::exception const& e) { error(to_hstring(e.what())); }
-            });
-            actions.Items().Append(item);
+            };
         };
-        command(L"Open Clipboard as Markdown", [this] { openClipboard(); });
-        command(L"Save a Copy…", [this] { saveCopy(); });
-        command(L"Reload", [this] { reload(); });
-        command(L"Cancel Loading", [this] { ++generation; pendingLoads.clear(); restoring = false; status.Text(L"Loading canceled."); });
-        command(L"Find…", [this] { showFind(); });
-        command(L"Increase Text Size", [this] { changeSize(1); });
-        command(L"Decrease Text Size", [this] { changeSize(-1); });
-        command(L"Actual Text Size", [this] { changeSize(0); });
-        command(L"Copy Document Text", [this] { copyDocument(); });
-        command(L"Reveal in Explorer", [this] { reveal(); });
-        command(L"Full Screen", [this] { toggleFullscreen(); });
-        DropDownButton more; more.Content(box_value(L"More")); more.Flyout(actions);
-        toolbar.Children().Append(more);
-        root.Children().Append(toolbar);
+        ssmv::MenuActions actions;
+        actions.open = guarded([this] { pick(); });
+        actions.clipboard = guarded([this] { openClipboard(); });
+        actions.saveCopy = guarded([this] { saveCopy(); });
+        actions.reload = guarded([this] { reload(); });
+        actions.cancelLoading = guarded([this] { ++generation; pendingLoads.clear(); restoring = false; error(L"Loading canceled."); });
+        actions.removeSelected = guarded([this] { removeSelected(); });
+        actions.removeAll = guarded([this] { removeAll(); });
+        actions.reveal = guarded([this] { reveal(); });
+        actions.close = guarded([this] { window.Close(); });
+        actions.find = guarded([this] { showFind(); });
+        actions.findNext = guarded([this] { findNext(false); });
+        actions.findPrevious = guarded([this] { findNext(true); });
+        actions.copyDocument = guarded([this] { copyDocument(); });
+        actions.increaseSize = guarded([this] { changeSize(1); });
+        actions.decreaseSize = guarded([this] { changeSize(-1); });
+        actions.resetSize = guarded([this] { changeSize(0); });
+        actions.toggleSidebar = guarded([this] { toggleSidebar(); });
+        actions.toggleOutline = guarded([this] { outline.IsChecked(!outline.IsChecked().Value()); rebuildShelf(); saveState(); syncChrome(); });
+        actions.fullscreen = guarded([this] { toggleFullscreen(); });
+        actions.setTheme = guarded([this](int value) { setTheme(value); });
+        actions.sort = guarded([this](bool ascending) { sort(ascending); });
+        menus = ssmv::makeReaderMenu(std::move(actions));
+        Grid chrome;
+        ColumnDefinition menuColumn; menuColumn.Width({1, GridUnitType::Star});
+        ColumnDefinition iconsColumn; iconsColumn.Width({0, GridUnitType::Auto});
+        chrome.ColumnDefinitions().Append(menuColumn); chrome.ColumnDefinitions().Append(iconsColumn);
+        chrome.Children().Append(menus.bar);
+        StackPanel shortcuts; shortcuts.Orientation(Orientation::Horizontal); shortcuts.Spacing(4);
+        shortcuts.Margin({0, 2, 12, 2});
+        shortcuts.Children().Append(iconButton(Symbol::OpenPane, L"Toggle sidebar", L"Toggle sidebar (Ctrl+Shift+L)", [this] { toggleSidebar(); }));
+        shortcuts.Children().Append(iconButton(Symbol::OpenFile, L"Open documents", L"Open documents (Ctrl+O)", [this] { pick(); }));
+        Grid::SetColumn(shortcuts, 1); chrome.Children().Append(shortcuts);
+        root.Children().Append(chrome);
         findPanel = StackPanel(); findPanel.Orientation(Orientation::Horizontal); findPanel.Spacing(8);
         findPanel.Margin({12, 0, 12, 8}); findPanel.Visibility(Visibility::Collapsed);
         findBox = TextBox(); findBox.Width(260); findBox.PlaceholderText(L"Find in document");
@@ -211,9 +249,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (args.Key() == Windows::System::VirtualKey::Enter) { findNext(false); args.Handled(true); }
         });
         findPanel.Children().Append(findBox);
-        findPanel.Children().Append(button(L"Previous", [this] { findNext(true); }));
-        findPanel.Children().Append(button(L"Next", [this] { findNext(false); }));
-        findPanel.Children().Append(button(L"Close search", [this] { findPanel.Visibility(Visibility::Collapsed); }));
+        findPanel.Children().Append(iconButton(Symbol::Up, L"Previous", L"Previous match (Shift+F3)", [this] { findNext(true); }));
+        findPanel.Children().Append(iconButton(Symbol::Down, L"Next", L"Next match (F3)", [this] { findNext(false); }));
+        findPanel.Children().Append(iconButton(Symbol::Cancel, L"Close search", L"Close search (Esc)", [this] { findPanel.Visibility(Visibility::Collapsed); }));
         findStatus = label(L""); findPanel.Children().Append(findStatus);
         Grid::SetRow(findPanel, 1); root.Children().Append(findPanel);
 
@@ -229,26 +267,47 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         RowDefinition filesRow; filesRow.Height({1, GridUnitType::Star});
         pane.RowDefinitions().Append(headerRow);
         pane.RowDefinitions().Append(filesRow);
-        StackPanel header;
-        header.Orientation(Orientation::Horizontal);
-        header.Spacing(8);
-        header.Margin({12, 8, 12, 8});
-        header.Children().Append(label(L"Documents", 16));
-        header.Children().Append(button(L"+", [this] { pick(); }));
-        header.Children().Append(button(L"−", [this] { removeSelected(); }));
+        Grid header;
+        header.Margin({16, 8, 12, 6});
+        ColumnDefinition titleColumn; titleColumn.Width({1, GridUnitType::Star});
+        ColumnDefinition actionsColumn; actionsColumn.Width({0, GridUnitType::Auto});
+        header.ColumnDefinitions().Append(titleColumn); header.ColumnDefinitions().Append(actionsColumn);
+        auto heading = label(L"Documents", 13);
+        heading.FontWeight(Windows::UI::Text::FontWeights::SemiBold()); heading.Opacity(.7);
+        heading.VerticalAlignment(VerticalAlignment::Center); header.Children().Append(heading);
+        StackPanel shelfActions; shelfActions.Orientation(Orientation::Horizontal); shelfActions.Spacing(2);
+        shelfActions.Children().Append(iconButton(Symbol::Add, L"Add documents", L"Add documents (Ctrl+O)", [this] { pick(); }));
+        removeButton = iconButton(Symbol::Remove, L"Remove document", L"Remove document (Ctrl+W). Right-click for Remove All.", [this] { removeSelected(); });
+        MenuFlyout removeActions;
+        MenuFlyoutItem clear; clear.Text(L"Remove All Documents…");
+        clear.Click([this](auto const&, auto const&) { removeAll(); }); removeActions.Items().Append(clear);
+        removeButton.ContextFlyout(removeActions);
+        shelfActions.Children().Append(removeButton);
         outline = ToggleButton();
-        outline.Content(box_value(L"Outline"));
+        SymbolIcon outlineIcon{Symbol::Bullets}; outlineIcon.Width(14); outlineIcon.Height(14);
+        outline.Content(outlineIcon); styleIcon(outline, L"Document outline", L"Show or hide document outlines (Ctrl+Shift+O)");
         outline.IsChecked(session.outlineEnabled);
-        outline.Click([this](auto const&, auto const&) { rebuildShelf(); saveState(); });
-        header.Children().Append(outline);
+        outline.Click([this](auto const&, auto const&) { rebuildShelf(); saveState(); syncChrome(); });
+        shelfActions.Children().Append(outline);
+        Grid::SetColumn(shelfActions, 1); header.Children().Append(shelfActions);
         pane.Children().Append(header);
-        ScrollViewer shelfScroll;
-        shelf = StackPanel();
-        shelf.Spacing(4);
-        shelf.Margin({8, 0, 8, 12});
-        shelfScroll.Content(shelf);
-        Grid::SetRow(shelfScroll, 1);
-        pane.Children().Append(shelfScroll);
+        documentTree = std::make_unique<ssmv::DocumentTree>();
+        documentTree->view.Margin({6, 0, 6, 8});
+        documentTree->selected = guarded([this](size_t index, std::optional<size_t> block) {
+            if (index >= library.documents().size()) return;
+            rememberPosition(); selected = index;
+            if (block) renderStart = *block / maxRenderedBlocks * maxRenderedBlocks;
+            else restorePage();
+            render();
+            if (block && *block >= renderStart && *block - renderStart < rendered.size()) rendered[*block - renderStart].StartBringIntoView();
+            else restoreScroll();
+            saveState();
+        });
+        documentTree->expanded = guarded([this](std::filesystem::path path, bool expanded) {
+            if (expanded) expandedPaths.insert(path); else expandedPaths.erase(path);
+            saveState();
+        });
+        Grid::SetRow(documentTree->view, 1); pane.Children().Append(documentTree->view);
         MenuFlyout menu;
         auto item = [this, menu](hstring const& name, auto action) {
             MenuFlyoutItem entry;
@@ -278,36 +337,22 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         scroll.Content(content);
         split.Content(scroll);
         status = label(L"Open Markdown files or drop them anywhere in this window.");
-        status.Margin({12, 6, 12, 10});
+        status.Margin({12, 4, 12, 6});
+        status.FontSize(11); status.Opacity(.65);
+        status.TextWrapping(TextWrapping::NoWrap); status.TextTrimming(TextTrimming::CharacterEllipsis);
         Grid::SetRow(status, 3);
         root.Children().Append(status);
-        KeyboardAccelerator openKey;
-        openKey.Key(Windows::System::VirtualKey::O);
-        openKey.Modifiers(Windows::System::VirtualKeyModifiers::Control);
-        openKey.Invoked([this](auto const&, auto const& args) { args.Handled(true); pick(); });
-        root.KeyboardAccelerators().Append(openKey);
-        auto shortcut = [this](Windows::System::VirtualKey key, Windows::System::VirtualKeyModifiers modifiers, auto action) {
-            KeyboardAccelerator keybinding; keybinding.Key(key); keybinding.Modifiers(modifiers);
-            keybinding.Invoked([this, action](auto const&, auto const& args) {
-                args.Handled(true);
-                try { action(); } catch (hresult_error const& e) { error(e.message()); }
-                catch (std::exception const& e) { error(to_hstring(e.what())); }
-            });
-            root.KeyboardAccelerators().Append(keybinding);
+        // Menus own their command accelerators. Keep only keypad aliases and
+        // the transient find bar's Escape handling on the root.
+        auto alias = [this](Windows::System::VirtualKey key, Windows::System::VirtualKeyModifiers modifiers, auto action) {
+            KeyboardAccelerator binding; binding.Key(key); binding.Modifiers(modifiers);
+            binding.Invoked([action](auto const&, auto const& args) { args.Handled(true); action(); });
+            root.KeyboardAccelerators().Append(binding);
         };
-        using Key = Windows::System::VirtualKey;
-        using Mod = Windows::System::VirtualKeyModifiers;
-        shortcut(Key::F, Mod::Control, [this] { showFind(); });
-        shortcut(Key::F3, Mod::None, [this] { findNext(false); });
-        shortcut(Key::F3, Mod::Shift, [this] { findNext(true); });
-        shortcut(Key::R, Mod::Control, [this] { reload(); });
-        shortcut(Key::Number0, Mod::Control, [this] { changeSize(0); });
-        shortcut(Key::Add, Mod::Control, [this] { changeSize(1); });
-        shortcut(static_cast<Key>(187), Mod::Control, [this] { changeSize(1); });
-        shortcut(Key::Subtract, Mod::Control, [this] { changeSize(-1); });
-        shortcut(static_cast<Key>(189), Mod::Control, [this] { changeSize(-1); });
-        shortcut(Key::F11, Mod::None, [this] { toggleFullscreen(); });
-        shortcut(Key::S, Mod::Control | Mod::Shift, [this] { saveCopy(); });
+        alias(Windows::System::VirtualKey::Add, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(1); }));
+        alias(Windows::System::VirtualKey::Subtract, Windows::System::VirtualKeyModifiers::Control, guarded([this] { changeSize(-1); }));
+        alias(Windows::System::VirtualKey::Escape, Windows::System::VirtualKeyModifiers::None, guarded([this] { findPanel.Visibility(Visibility::Collapsed); }));
+        syncChrome();
         window.Content(root);
         window.Activate();
         render();
@@ -415,71 +460,13 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         loading = false;
     }
 
-    void buildOutline(Expander const& expander, size_t index, size_t start) {
-        constexpr size_t pageSize = 200;
-        auto const& headings = library.documents()[index].markdown.headings;
-        StackPanel panel;
-        auto weakExpander = make_weak(expander);
-        if (start > 0) panel.Children().Append(button(L"Previous headings", [this, weakExpander, index, start] {
-            if (auto owner = weakExpander.get()) buildOutline(owner, index, start >= pageSize ? start - pageSize : 0);
-        }));
-        auto end = std::min(headings.size(), start + pageSize);
-        for (size_t position = start; position < end; ++position) {
-            auto const& heading = headings[position];
-            auto jump = button(to_hstring(heading.text), [this, index, target = heading.blockIndex] {
-                auto changed = !selected || *selected != index;
-                rememberPosition(); selected = index;
-                renderStart = (target / maxRenderedBlocks) * maxRenderedBlocks;
-                if (changed) rebuildShelf();
-                render();
-                if (target >= renderStart && target - renderStart < rendered.size())
-                    rendered[target - renderStart].StartBringIntoView();
-            });
-            jump.Margin({double(std::max(0, heading.level - 1) * 12), 0, 0, 0});
-            jump.HorizontalAlignment(HorizontalAlignment::Stretch);
-            jump.HorizontalContentAlignment(HorizontalAlignment::Left);
-            panel.Children().Append(jump);
-        }
-        if (end < headings.size()) panel.Children().Append(button(L"More headings", [this, weakExpander, index, end] {
-            if (auto owner = weakExpander.get()) buildOutline(owner, index, end);
-        }));
-        expander.Content(panel);
-    }
-
     void rebuildShelf() {
-        shelf.Children().Clear();
-        for (size_t index = 0; index < library.documents().size(); ++index) {
-            auto const& document = library.documents()[index];
-            auto title = (selected && *selected == index ? hstring(L"● ") : hstring()) + hstring(document.path.filename().wstring());
-            auto choose = button(title, [this, index] { rememberPosition(); selected = index; restorePage(); rebuildShelf(); render(); restoreScroll(); saveState(); });
-            choose.HorizontalAlignment(HorizontalAlignment::Stretch);
-            choose.HorizontalContentAlignment(HorizontalAlignment::Left);
-            ToolTipService::SetToolTip(choose, box_value(document.path.wstring()));
-            if (outline.IsChecked().Value() && !document.markdown.headings.empty()) {
-                Expander expander;
-                expander.Header(choose);
-                auto path = document.path;
-                expander.Expanding([this, path, index](auto const& sender, auto const&) {
-                    expandedPaths.insert(path);
-                    saveState();
-                    buildOutline(sender.template as<Expander>(), index, 0);
-                });
-                expander.Collapsed([this, path](auto const& sender, auto const&) {
-                    expandedPaths.erase(path);
-                    saveState();
-                    sender.template as<Expander>().Content(nullptr);
-                });
-                expander.HorizontalAlignment(HorizontalAlignment::Stretch);
-                if (expandedPaths.contains(path)) {
-                    buildOutline(expander, index, 0);
-                    expander.IsExpanded(true);
-                }
-                shelf.Children().Append(expander);
-            } else shelf.Children().Append(choose);
-        }
+        documentTree->update(library, selected, outline.IsChecked().Value(), expandedPaths);
+        syncChrome();
     }
 
     void render() {
+        syncChrome();
         ++renderRevision;
         content.Children().Clear();
         rendered.clear();
@@ -513,7 +500,8 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         if (count > maxRenderedBlocks) {
             status.Text(L"Part " + to_hstring(renderStart / maxRenderedBlocks + 1) + L" of " +
                         to_hstring((count + maxRenderedBlocks - 1) / maxRenderedBlocks));
-        } else status.Text(hstring(document.path.wstring()));
+        } else status.Text(hstring(document.path.filename().wstring()));
+        ToolTipService::SetToolTip(status, box_value(document.path.wstring()));
     }
 
     void removeSelected() {
@@ -589,7 +577,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     void saveState() {
         if (!initialized || !sessionWritable || restoring) return;
         try {
-            session.theme = static_cast<uint32_t>(theme.SelectedIndex()); session.fontSize = fontSize;
+            session.theme = static_cast<uint32_t>(themeIndex); session.fontSize = fontSize;
             session.outlineEnabled = outline.IsChecked().Value(); session.sidebarVisible = split.IsPaneOpen();
             session.expandedPaths.clear();
             for (auto const& path : expandedPaths) session.expandedPaths.push_back(pathText(path));

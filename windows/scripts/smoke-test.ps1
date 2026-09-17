@@ -36,11 +36,9 @@ function Close-DocumentWindow([Diagnostics.Process]$Target) {
 }
 
 # UI Automation patterns exercise native controls without sending keyboard input.
-function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$AutomationId, [switch]$ComboBox) {
+function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$AutomationId) {
     $property = if ($AutomationId) { [Windows.Automation.AutomationElement]::AutomationIdProperty } else { [Windows.Automation.AutomationElement]::NameProperty }
-    $identity = if ($ComboBox) {
-        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ComboBox)
-    } else { [Windows.Automation.PropertyCondition]::new($property, $Value) }
+    $identity = [Windows.Automation.PropertyCondition]::new($property, $Value)
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId), $identity)
     $deadline = (Get-Date).AddSeconds(15)
@@ -57,24 +55,90 @@ function Invoke-AutomationElement($Element) {
     $pattern.Invoke()
 }
 
-function Invoke-MoreCommand([int]$ProcessId, [string]$Command) {
-    $more = Wait-AutomationElement $ProcessId 'More'
+function Open-AutomationMenu([int]$ProcessId, [string]$AutomationId) {
+    $menu = Wait-AutomationElement $ProcessId $AutomationId -AutomationId
     $expand = $null
-    if ($more.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+    if ($menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
         $expand.Expand()
-    } else { Invoke-AutomationElement $more }
-    Invoke-AutomationElement (Wait-AutomationElement $ProcessId $Command)
+    } else { Invoke-AutomationElement $menu }
+    return $menu
+}
+
+function Close-AutomationMenu($Menu) {
+    $expand = $null
+    if ($Menu.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)) {
+        $expand.Collapse()
+    } else { Invoke-AutomationElement $Menu }
+}
+
+function Invoke-MenuCommand([int]$ProcessId, [string]$MenuId, [string]$CommandId) {
+    $null = Open-AutomationMenu $ProcessId $MenuId
+    Invoke-AutomationElement (Wait-AutomationElement $ProcessId $CommandId -AutomationId)
+}
+
+function Open-AppearanceMenu([int]$ProcessId) {
+    $menu = Open-AutomationMenu $ProcessId 'menu.view'
+    $null = Open-AutomationMenu $ProcessId 'menu.appearance'
+    return $menu
 }
 
 function Assert-DarkTheme([int]$ProcessId) {
-    $deadline = (Get-Date).AddSeconds(15)
-    do {
-        $combo = Wait-AutomationElement $ProcessId 'theme selector' -ComboBox
-        $selection = $combo.GetCurrentPattern([Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
-        if ($selection.Count -eq 1 -and $selection[0].Current.Name -eq 'Dark') { return }
-        Start-Sleep -Milliseconds 200
-    } while ((Get-Date) -lt $deadline)
-    throw 'The theme selector did not select or restore Dark.'
+    $menu = Open-AppearanceMenu $ProcessId
+    try {
+        $dark = Wait-AutomationElement $ProcessId 'theme.dark' -AutomationId
+        $pattern = $null
+        if ($dark.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+            if ($pattern.Current.ToggleState -eq [Windows.Automation.ToggleState]::On) { return }
+        } elseif ($dark.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$pattern)) {
+            if ($pattern.Current.IsSelected) { return }
+        }
+        throw 'The Appearance menu did not select or restore Dark.'
+    } finally { Close-AutomationMenu $menu }
+}
+
+function Assert-DocumentTree([int]$ProcessId, [string[]]$ExpectedNames, [switch]$ExerciseExpansion) {
+    $tree = Wait-AutomationElement $ProcessId 'DocumentTree' -AutomationId
+    if ($tree.Current.ControlType -ne [Windows.Automation.ControlType]::Tree) {
+        throw 'Documents must expose a native Tree control.'
+    }
+    $condition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem)
+    # Raw descendants can include headings: compare only the expected file identities.
+    $rows = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+    $fileRows = @($rows | Where-Object { $_.Current.Name -in $ExpectedNames })
+    $actualNames = @($fileRows | ForEach-Object { $_.Current.Name })
+    if (($actualNames -join '|') -ne ($ExpectedNames -join '|')) {
+        throw "Document tree order differs. Expected '$($ExpectedNames -join ', ')'; found '$($actualNames -join ', ')'."
+    }
+    if ($ExerciseExpansion) {
+        $expand = $fileRows[0].GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+        $expand.Expand()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+        $first = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition) |
+            Where-Object { $_.Current.Name -eq $ExpectedNames[0] } | Select-Object -First 1
+        $first.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+        $first = $tree.FindAll([Windows.Automation.TreeScope]::Descendants, $condition) |
+            Where-Object { $_.Current.Name -eq $ExpectedNames[0] } | Select-Object -First 1
+        $first.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        Assert-DocumentTree $ProcessId $ExpectedNames
+    }
+}
+
+function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name) {
+    Start-Sleep -Milliseconds 500
+    $Target.Refresh()
+    $rect = New-Object WindowCapture+RECT
+    if (![WindowCapture]::GetWindowRect($Target.MainWindowHandle, [ref]$rect)) { throw 'Could not measure the screenshot window.' }
+    $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $dc = $graphics.GetHdc()
+        try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
+        finally { $graphics.ReleaseHdc($dc) }
+        if (!$captured) { throw "Could not capture $Name evidence." }
+        $bitmap.Save((Join-Path $evidence $Name))
+    } finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
 
 function Read-SessionText([IO.BinaryReader]$Reader) {
@@ -133,17 +197,6 @@ public static class WindowCapture {
 '@
     $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
     New-Item -ItemType Directory -Force $evidence > $null
-    $rect = New-Object WindowCapture+RECT
-    if ([WindowCapture]::GetWindowRect($process.MainWindowHandle, [ref]$rect)) {
-        $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-        $dc = $graphics.GetHdc()
-        try { $captured = [WindowCapture]::PrintWindow($process.MainWindowHandle, $dc, 2) }
-        finally { $graphics.ReleaseHdc($dc) }
-        if ($captured) { $bitmap.Save((Join-Path $evidence 'window.png')) }
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
     try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes }
     catch {
         # PowerShell 7 may need the installed Windows Desktop Framework assemblies.
@@ -151,7 +204,15 @@ public static class WindowCapture {
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationTypes.dll')
         Add-Type -Path (Join-Path $automationAssemblies 'UIAutomationClient.dll')
     }
-    Invoke-MoreCommand $process.Id 'Find…'
+    Assert-DocumentTree $process.Id @('Windows.md') -ExerciseExpansion
+    Save-WindowEvidence $process 'window.png'
+    $editMenu = Open-AutomationMenu $process.Id 'menu.edit'
+    $findCommand = Wait-AutomationElement $process.Id 'action.find' -AutomationId
+    if ([string]::IsNullOrWhiteSpace($findCommand.Current.AcceleratorKey)) {
+        throw 'Find must expose its keyboard shortcut through native accessibility.'
+    }
+    Save-WindowEvidence $process 'window-menu.png'
+    Invoke-AutomationElement $findCommand
     $findBox = Wait-AutomationElement $process.Id 'FindBox' -AutomationId
     $findBox.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('Hello from SSMV')
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
@@ -160,12 +221,11 @@ public static class WindowCapture {
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Next')
     $null = Wait-AutomationElement $process.Id 'No matches'
     Invoke-AutomationElement (Wait-AutomationElement $process.Id 'Close search')
-    Invoke-MoreCommand $process.Id 'Increase Text Size'
-    $themeSelector = Wait-AutomationElement $process.Id 'theme selector' -ComboBox
-    $themeSelector.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-    $dark = Wait-AutomationElement $process.Id 'Dark'
-    $dark.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Invoke-MenuCommand $process.Id 'menu.view' 'action.increaseSize'
+    $null = Open-AppearanceMenu $process.Id
+    Invoke-AutomationElement (Wait-AutomationElement $process.Id 'theme.dark' -AutomationId)
     Assert-DarkTheme $process.Id
+    Save-WindowEvidence $process 'window-dark.png'
     Write-Output 'Native Find (match and no match), text-size increase, and Dark theme selection passed.'
 
     $originalProcessId = $process.Id
@@ -175,6 +235,7 @@ public static class WindowCapture {
     if ($forwarder.ExitCode -ne 0) { throw "Warm activation failed with exit code $($forwarder.ExitCode)." }
     Wait-DocumentWindow $process 'Warm activation 한글.md — SSMV'
     if ($process.Id -ne $originalProcessId) { throw 'Warm activation replaced the original process.' }
+    Assert-DocumentTree $process.Id @('Windows.md', 'Warm activation 한글.md') -ExerciseExpansion
     Close-DocumentWindow $process
     Assert-SavedSession
 
@@ -183,6 +244,7 @@ public static class WindowCapture {
     $startedProcesses.Add($restored)
     Wait-DocumentWindow $restored 'Warm activation 한글.md — SSMV'
     Assert-DarkTheme $restored.Id
+    Assert-DocumentTree $restored.Id @('Windows.md', 'Warm activation 한글.md') -ExerciseExpansion
     Close-DocumentWindow $restored
     Assert-SavedSession
     Write-Output 'Cold open, same-process warm activation, two-file session persistence, selected-document and reading-preference restoration, and orderly closes passed.'

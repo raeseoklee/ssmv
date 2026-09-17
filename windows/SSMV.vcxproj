@@ -65,6 +65,7 @@
     <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.250303.1" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="Resources.rc" />
     <ClCompile Include="App\*.cpp" />
     <ClCompile Include="Core\*.cpp" />
     <ClInclude Include="App\*.hpp" />
