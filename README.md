@@ -11,7 +11,7 @@ SSMV is a **lightweight, native Markdown viewer for macOS and Windows**. Read lo
 | macOS | macOS 13+; Apple Silicon or Intel | Swift and AppKit | Homebrew or Universal app |
 | Windows preview | Windows 10 build 19041+ or Windows 11; x64 or ARM64 | C++ and WinUI 3 | NSIS installer |
 
-Both editions are read-only and use native text controls, without an embedded browser or background server. The Windows preview does not yet match every macOS feature; see the [Windows guide](windows/README.md) and [feature parity checklist](docs/WINDOWS-PARITY.md).
+Both editions are read-only and use native text controls. Mermaid diagrams use an on-demand, local web renderer; ordinary documents do not start it. No background server is required. The Windows preview does not yet match every macOS feature; see the [Windows guide](windows/README.md) and [feature parity checklist](docs/WINDOWS-PARITY.md).
 
 ![SSMV on macOS with multiple documents and an expanded heading outline](docs/images/ssmv-sidebar-9450b1ce.png)
 
@@ -23,6 +23,7 @@ Both editions are read-only and use native text controls, without an embedded br
 - **Read public Markdown URLs.** Open HTTPS Markdown files or supported GitHub file links.
 - **Keep documents together.** Switch files in a collapsible sidebar and navigate by heading.
 - **Read comfortably.** Choose light or dark mode and adjust text size.
+- **Read Mermaid diagrams offline.** Render fenced `mermaid` blocks and include diagrams in PDF exports.
 - **Save a PDF.** Export the document; Windows uses Microsoft Print to PDF.
 
 LLM integrations, shortcuts, rendering limits, and full-screen behavior differ by platform. The macOS edition also provides the Homebrew `ssmv` CLI; see [LLM workflows](docs/LLM-WORKFLOWS.md) and [Windows capabilities](windows/README.md#reading-features). The [large-document measurements](docs/PERFORMANCE.md) cover macOS.
@@ -128,9 +129,25 @@ For a manual installation, invoke the bundled command at `SSMV.app/Contents/MacO
 
 SSMV renders headings, paragraphs, emphasis, strikethrough, lists, block quotes, code blocks, tables, and links. HTTPS Markdown links open in SSMV; other HTTP/HTTPS links open in your default browser. Relative links in local documents resolve beside the source file, while remote links resolve against the downloaded document’s address. Remote and imported text cannot open local-file links or custom URL schemes. Imported text has no local base directory. UTF-8 text, including Korean and emoji, is supported. Files are limited to 16 MiB.
 
-Images, HTML rendering, Mermaid diagrams, mathematical notation, syntax highlighting, interactive checkboxes, and in-document anchor navigation are not supported. Parsing uses Foundation Markdown and does not promise full GitHub rendering compatibility. These same limits apply to PDF export.
+Images, general HTML rendering, mathematical notation outside Mermaid diagrams, syntax highlighting, interactive checkboxes, and in-document anchor navigation are not supported. Parsing uses Foundation Markdown and does not promise full GitHub rendering compatibility. These same limits apply to PDF export.
 
 Very large paragraphs, tables, finding distant text, and PDF export can still take time. PDF export becomes available when text construction finishes. There is no automatic file watching: use **⌘R** to reload changes.
+
+### Mermaid diagrams
+
+Wrap diagram source in a fenced code block marked `mermaid`:
+
+````markdown
+```mermaid
+flowchart TB
+    Reader[Markdown document] --> Viewer[SSMV]
+    Viewer --> PDF[PDF export]
+```
+````
+
+SSMV bundles Mermaid locally, including its diagram modules and math fonts. It loads the renderer only when needed and keeps a bounded image cache. No CDN or diagram upload is required. Windows needs the Microsoft Edge WebView2 Runtime for diagrams.
+
+Invalid diagrams or diagrams exceeding rendering limits remain readable as source. Interactive diagram actions and external resources are disabled. Diagram support follows the bundled Mermaid version; this does not add general HTML or image rendering to Markdown.
 
 ### Keyboard shortcuts
 

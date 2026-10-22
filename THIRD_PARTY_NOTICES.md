@@ -4,13 +4,13 @@
 
 SSMV's source code, scripts, examples, and documentation are provided under the
 [MIT License](LICENSE). The initial implementation was developed with AI
-assistance and reviewed before publication. No external Swift packages or
-vendored library source are included.
+assistance and reviewed before publication. No external Swift packages are included. Mermaid JavaScript and its supporting
+assets are redistributed as described below.
 
 ## Apple platform components
 
 The app links to macOS-provided AppKit, Foundation, and UniformTypeIdentifiers.
-Tests also use PDFKit and Swift Testing. System fonts and toolbar/sidebar
+The on-demand diagram renderer also uses system WebKit. Tests use PDFKit and Swift Testing. System fonts and toolbar/sidebar
 symbols are requested through Apple APIs at runtime; their binaries and symbol
 artwork are not redistributed in this repository. These platform components
 remain subject to Apple's terms, not SSMV's MIT license.
@@ -76,3 +76,24 @@ build and installer payload have different CRT packaging requirements.
 This notice identifies the packaging dependencies and their governing sources.
 It does not certify every future Windows release or replace review of its actual
 payload, retained notices and applicable Microsoft license terms.
+
+
+## Mermaid diagrams
+
+SSMV redistributes the unmodified Mermaid 12.2.0 ESM bundle and its lazy-loaded
+chunks, with local KaTeX styles and fonts. These assets retain their upstream
+licenses, not SSMV's MIT license. See [asset provenance](shared/mermaid/README.md)
+and the [dependency license inventory](shared/mermaid/licenses/inventory.json).
+The complete retained notices are shipped alongside the renderer.
+
+Mermaid, KaTeX and KaTeX fonts use MIT terms. The dependency closure also includes
+ISC, BSD-3-Clause, Apache-2.0 and Unlicense components. DOMPurify permits either
+Apache-2.0 or MPL-2.0; this distribution uses Apache-2.0. ELK/elkjs uses EPL-2.0;
+its license and exact-version source availability notice are retained under
+[licenses/elkjs@0.9.3](shared/mermaid/licenses/elkjs@0.9.3).
+
+The inventory conservatively covers the upstream release's runtime dependency
+closure, including modules that may be removed by upstream bundling. It is not
+a claim that every listed package executes in SSMV. No third-party cloud
+rendering service is used. The Windows diagram host uses Microsoft's WebView2
+Runtime, which remains subject to Microsoft's terms.

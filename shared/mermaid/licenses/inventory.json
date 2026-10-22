@@ -1,0 +1,996 @@
+[
+  {
+    "name": "@antfu/install-pkg",
+    "version": "1.1.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@antfu/install-pkg/-/install-pkg-1.1.0.tgz",
+    "integrity": "sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==",
+    "files": [
+      "@antfu__install-pkg@1.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "@antfu/utils",
+    "version": "9.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@antfu/utils/-/utils-9.2.0.tgz",
+    "integrity": "sha512-Oq1d9BGZakE/FyoEtcNeSwM7MpDO2vUBi11RWBZXf75zPsbUVWmUs03EqkRFrcgbXyKTas0BdZWC1wcuSoqSAw==",
+    "files": [
+      "@antfu__utils@9.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "@braintree/sanitize-url",
+    "version": "7.1.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@braintree/sanitize-url/-/sanitize-url-7.1.2.tgz",
+    "integrity": "sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==",
+    "files": [
+      "@braintree__sanitize-url@7.1.2/LICENSE"
+    ]
+  },
+  {
+    "name": "@chevrotain/cst-dts-gen",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/@chevrotain/cst-dts-gen/-/cst-dts-gen-13.2.0.tgz",
+    "integrity": "sha512-bA9dvWlhAUcHkNwU+8w9yiUxJPlj/Lm3VqS7MD+NbIR/7LmpNLuK/AWNFdCo/T3SK5ND0/UHf3IJvl/Jn/i6yg==",
+    "files": [
+      "@chevrotain__cst-dts-gen@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "@chevrotain/gast",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/@chevrotain/gast/-/gast-13.2.0.tgz",
+    "integrity": "sha512-bCARdAsG+eEbOveSXcOAC7pVxA04I1ionzeMOwIYf5NX7SaS7zgn4Dgug2BSqoL+iyKeMNSorQjsFSHJHsCNwg==",
+    "files": [
+      "@chevrotain__gast@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "@chevrotain/regexp-to-ast",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/@chevrotain/regexp-to-ast/-/regexp-to-ast-13.2.0.tgz",
+    "integrity": "sha512-kxpUkLtiaK09ph+dib+Yvm+3sWSnuwlo25gqfKRgTPNmF6H7uW4gVkMjaRdtnN783S9sM6vUNWh9CsxYX4QwKw==",
+    "files": [
+      "@chevrotain__regexp-to-ast@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "@chevrotain/types",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/@chevrotain/types/-/types-13.2.0.tgz",
+    "integrity": "sha512-7qrYHRlKfWf2AvBfJi5eVOrKAkbxvMFsy/iIHTGIiApNcEecCaVIdR+mIQhyCBsTDJxBz4JWXHMo6krbhR9hVg==",
+    "files": [
+      "@chevrotain__types@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "@chevrotain/utils",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/@chevrotain/utils/-/utils-13.2.0.tgz",
+    "integrity": "sha512-SzKYY68rseOrb9KILVzPsl6SjkQtdWw01SRGB5aCVI5kFcHltQsOYV3JB0Ffst72DgkvHCyDQ0NLwxtmCCf97Q==",
+    "files": [
+      "@chevrotain__utils@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "@iconify/types",
+    "version": "2.0.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@iconify/types/-/types-2.0.0.tgz",
+    "integrity": "sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==",
+    "files": [
+      "@iconify__types@2.0.0/license.txt"
+    ]
+  },
+  {
+    "name": "@iconify/utils",
+    "version": "3.0.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@iconify/utils/-/utils-3.0.2.tgz",
+    "integrity": "sha512-EfJS0rLfVuRuJRn4psJHtK2A9TqVnkxPpHY6lYHiB9+8eSuudsxbwMiavocG45ujOo6FJ+CIRlRnlOGinzkaGQ==",
+    "files": [
+      "@iconify__utils@3.0.2/license.txt"
+    ]
+  },
+  {
+    "name": "@mermaid-js/parser",
+    "version": "2.0.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@mermaid-js/parser/-/parser-2.0.1.tgz",
+    "integrity": "sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==",
+    "files": [
+      "@mermaid-js__parser@2.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "@upsetjs/venn.js",
+    "version": "2.0.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/@upsetjs/venn.js/-/venn.js-2.0.0.tgz",
+    "integrity": "sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==",
+    "files": [
+      "@upsetjs__venn.js@2.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "acorn",
+    "version": "8.15.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/acorn/-/acorn-8.15.0.tgz",
+    "integrity": "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==",
+    "files": [
+      "acorn@8.15.0/LICENSE"
+    ]
+  },
+  {
+    "name": "chevrotain",
+    "version": "13.2.0",
+    "license": "Apache-2.0",
+    "tarball": "https://registry.npmjs.org/chevrotain/-/chevrotain-13.2.0.tgz",
+    "integrity": "sha512-GTouk5YzgBxlTPCaDn5q0q2EJKkrYmnPF+HmF8v0Qo4r3iyPG7HJivkN1wthCXZcm3sIcZFpGTRovLPNdJNRCA==",
+    "files": [
+      "chevrotain@13.2.0/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "commander",
+    "version": "15.0.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/commander/-/commander-15.0.0.tgz",
+    "integrity": "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==",
+    "files": [
+      "commander@15.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "commander",
+    "version": "7.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/commander/-/commander-7.2.0.tgz",
+    "integrity": "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw==",
+    "files": [
+      "commander@7.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "confbox",
+    "version": "0.1.8",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/confbox/-/confbox-0.1.8.tgz",
+    "integrity": "sha512-RMtmw0iFkeR4YV+fUOSucriAQNb9g8zFR52MWCtl+cCZOFRNL6zeB395vPzFhEjjn4fMxXudmELnl/KF/WrK6w==",
+    "files": [
+      "confbox@0.1.8/LICENSE"
+    ]
+  },
+  {
+    "name": "confbox",
+    "version": "0.2.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/confbox/-/confbox-0.2.2.tgz",
+    "integrity": "sha512-1NB+BKqhtNipMsov4xI/NnhCKp9XG9NamYp5PVm9klAT0fsrNPjaFICsCFhNhwZJKNh7zB/3q8qXz0E9oaMNtQ==",
+    "files": [
+      "confbox@0.2.2/LICENSE"
+    ]
+  },
+  {
+    "name": "cose-base",
+    "version": "1.0.3",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/cose-base/-/cose-base-1.0.3.tgz",
+    "integrity": "sha512-s9whTXInMSgAp/NVXVNuVxVKzGH2qck3aQlVHxDCdAEPgtMKwc4Wq6/QKhgdEdgbLSi9rBTAcPoRa6JpiG4ksg==",
+    "files": [
+      "cose-base@1.0.3/LICENSE"
+    ]
+  },
+  {
+    "name": "cose-base",
+    "version": "2.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/cose-base/-/cose-base-2.2.0.tgz",
+    "integrity": "sha512-AzlgcsCbUMymkADOJtQm3wO9S3ltPfYOFD5033keQn9NJzIbtnZj+UdBJe7DYml/8TdbtHJW3j58SOnKhWY/5g==",
+    "files": [
+      "cose-base@2.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "cytoscape",
+    "version": "3.34.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/cytoscape/-/cytoscape-3.34.0.tgz",
+    "integrity": "sha512-62rNSrioXw93uliKFBwjukeQyeWwH2PqDrTac31r2P6464u3AUvTk0xS4LVvT251g7IgkFunrI48ZEZGjywSOg==",
+    "files": [
+      "cytoscape@3.34.0/LICENSE",
+      "cytoscape@3.34.0/license-update.mjs"
+    ]
+  },
+  {
+    "name": "cytoscape-cose-bilkent",
+    "version": "4.1.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/cytoscape-cose-bilkent/-/cytoscape-cose-bilkent-4.1.0.tgz",
+    "integrity": "sha512-wgQlVIUJF13Quxiv5e1gstZ08rnZj2XaLHGoFMYXz7SkNfCDOOteKBE6SYRfA9WxxI/iBc3ajfDoc6hb/MRAHQ==",
+    "files": [
+      "cytoscape-cose-bilkent@4.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "cytoscape-fcose",
+    "version": "2.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/cytoscape-fcose/-/cytoscape-fcose-2.2.0.tgz",
+    "integrity": "sha512-ki1/VuRIHFCzxWNrsshHYPs6L7TvLu3DL+TyIGEsRcvVERmxokbf5Gdk7mFxZnTdiGtnA4cfSmjZJMviqSuZrQ==",
+    "files": [
+      "cytoscape-fcose@2.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3",
+    "version": "7.9.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3/-/d3-7.9.0.tgz",
+    "integrity": "sha512-e1U46jVP+w7Iut8Jt8ri1YsPOvFpg46k+K8TpCb0P+zjCkjkPnV7WzfDJzMHy1LnA+wj5pLT1wjO901gLXeEhA==",
+    "files": [
+      "d3@7.9.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-array",
+    "version": "2.12.1",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/d3-array/-/d3-array-2.12.1.tgz",
+    "integrity": "sha512-B0ErZK/66mHtEsR1TkPEEkwdy+WDesimkM5gpZr5Dsg54BiTA5RXtYW5qTLIAcekaS9xfZrzBLF/OAkB3Qn1YQ==",
+    "files": [
+      "d3-array@2.12.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-array",
+    "version": "3.2.4",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-array/-/d3-array-3.2.4.tgz",
+    "integrity": "sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==",
+    "files": [
+      "d3-array@3.2.4/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-axis",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-axis/-/d3-axis-3.0.0.tgz",
+    "integrity": "sha512-IH5tgjV4jE/GhHkRV0HiVYPDtvfjHQlQfJHs0usq7M30XcSBvOotpmH1IgkcXsO/5gEQZD43B//fc7SRT5S+xw==",
+    "files": [
+      "d3-axis@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-brush",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-brush/-/d3-brush-3.0.0.tgz",
+    "integrity": "sha512-ALnjWlVYkXsVIGlOsuWH1+3udkYFI48Ljihfnh8FZPF2QS9o+PzGLBslO0PjzVoHLZ2KCVgAM8NVkXPJB2aNnQ==",
+    "files": [
+      "d3-brush@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-chord",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-chord/-/d3-chord-3.0.1.tgz",
+    "integrity": "sha512-VE5S6TNa+j8msksl7HwjxMHDM2yNK3XCkusIlpX5kwauBfXuyLAtNg9jCp/iHH61tgI4sb6R/EIMWCqEIdjT/g==",
+    "files": [
+      "d3-chord@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-color",
+    "version": "3.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-color/-/d3-color-3.1.0.tgz",
+    "integrity": "sha512-zg/chbXyeBtMQ1LbD/WSoW2DpC3I0mpmPdW+ynRTj/x2DAWYrIY7qeZIHidozwV24m4iavr15lNwIwLxRmOxhA==",
+    "files": [
+      "d3-color@3.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-contour",
+    "version": "4.0.2",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-contour/-/d3-contour-4.0.2.tgz",
+    "integrity": "sha512-4EzFTRIikzs47RGmdxbeUvLWtGedDUNkTcmzoeyg4sP/dvCexO47AaQL7VKy/gul85TOxw+IBgA8US2xwbToNA==",
+    "files": [
+      "d3-contour@4.0.2/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-delaunay",
+    "version": "6.0.4",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-delaunay/-/d3-delaunay-6.0.4.tgz",
+    "integrity": "sha512-mdjtIZ1XLAM8bm/hx3WwjfHt6Sggek7qH043O8KEjDXN40xi3vx/6pYSVTwLjEgiXQTbvaouWKynLBiUZ6SK6A==",
+    "files": [
+      "d3-delaunay@6.0.4/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-dispatch",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-dispatch/-/d3-dispatch-3.0.1.tgz",
+    "integrity": "sha512-rzUyPU/S7rwUflMyLc1ETDeBj0NRuHKKAcvukozwhshr6g6c5d8zh4c2gQjY2bZ0dXeGLWc1PF174P2tVvKhfg==",
+    "files": [
+      "d3-dispatch@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-drag",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-drag/-/d3-drag-3.0.0.tgz",
+    "integrity": "sha512-pWbUJLdETVA8lQNJecMxoXfH6x+mO2UQo8rSmZ+QqxcbyA3hfeprFgIT//HW2nlHChWeIIMwS2Fq+gEARkhTkg==",
+    "files": [
+      "d3-drag@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-dsv",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-dsv/-/d3-dsv-3.0.1.tgz",
+    "integrity": "sha512-UG6OvdI5afDIFP9w4G0mNq50dSOsXHJaRE8arAS5o9ApWnIElp8GZw1Dun8vP8OyHOZ/QJUKUJwxiiCCnUwm+Q==",
+    "files": [
+      "d3-dsv@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-ease",
+    "version": "3.0.1",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/d3-ease/-/d3-ease-3.0.1.tgz",
+    "integrity": "sha512-wR/XK3D3XcLIZwpbvQwQ5fK+8Ykds1ip7A2Txe0yxncXSdq1L9skcG7blcedkOX+ZcgxGAmLX1FrRGbADwzi0w==",
+    "files": [
+      "d3-ease@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-fetch",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-fetch/-/d3-fetch-3.0.1.tgz",
+    "integrity": "sha512-kpkQIM20n3oLVBKGg6oHrUchHM3xODkTzjMoj7aWQFq5QEM+R6E4WkzT5+tojDY7yjez8KgCBRoj4aEr99Fdqw==",
+    "files": [
+      "d3-fetch@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-force",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-force/-/d3-force-3.0.0.tgz",
+    "integrity": "sha512-zxV/SsA+U4yte8051P4ECydjD/S+qeYtnaIyAs9tgHCqfguma/aAQDjo85A9Z6EKhBirHRJHXIgJUlffT4wdLg==",
+    "files": [
+      "d3-force@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-format",
+    "version": "3.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-format/-/d3-format-3.1.0.tgz",
+    "integrity": "sha512-YyUI6AEuY/Wpt8KWLgZHsIU86atmikuoOmCfommt0LYHiQSPjvX2AcFc38PX0CBpr2RCyZhjex+NS/LPOv6YqA==",
+    "files": [
+      "d3-format@3.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-geo",
+    "version": "3.1.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-geo/-/d3-geo-3.1.1.tgz",
+    "integrity": "sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q==",
+    "files": [
+      "d3-geo@3.1.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-hierarchy",
+    "version": "3.1.2",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-hierarchy/-/d3-hierarchy-3.1.2.tgz",
+    "integrity": "sha512-FX/9frcub54beBdugHjDCdikxThEqjnR93Qt7PvQTOHxyiNCAlvMrHhclk3cD5VeAaq9fxmfRp+CnWw9rEMBuA==",
+    "files": [
+      "d3-hierarchy@3.1.2/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-interpolate",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-interpolate/-/d3-interpolate-3.0.1.tgz",
+    "integrity": "sha512-3bYs1rOD33uo8aqJfKP3JWPAibgw8Zm2+L9vBKEHJ2Rg+viTR7o5Mmv5mZcieN+FRYaAOWX5SJATX6k1PWz72g==",
+    "files": [
+      "d3-interpolate@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-path",
+    "version": "1.0.9",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/d3-path/-/d3-path-1.0.9.tgz",
+    "integrity": "sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg==",
+    "files": [
+      "d3-path@1.0.9/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-path",
+    "version": "3.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-path/-/d3-path-3.1.0.tgz",
+    "integrity": "sha512-p3KP5HCf/bvjBSSKuXid6Zqijx7wIfNW+J/maPs+iwR35at5JCbLUT0LzF1cnjbCHWhqzQTIN2Jpe8pRebIEFQ==",
+    "files": [
+      "d3-path@3.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-polygon",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-polygon/-/d3-polygon-3.0.1.tgz",
+    "integrity": "sha512-3vbA7vXYwfe1SYhED++fPUQlWSYTTGmFmQiany/gdbiWgU/iEyQzyymwL9SkJjFFuCS4902BSzewVGsHHmHtXg==",
+    "files": [
+      "d3-polygon@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-quadtree",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-quadtree/-/d3-quadtree-3.0.1.tgz",
+    "integrity": "sha512-04xDrxQTDTCFwP5H6hRhsRcb9xxv2RzkcsygFzmkSIOJy3PeRJP7sNk3VRIbKXcog561P9oU0/rVH6vDROAgUw==",
+    "files": [
+      "d3-quadtree@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-random",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-random/-/d3-random-3.0.1.tgz",
+    "integrity": "sha512-FXMe9GfxTxqd5D6jFsQ+DJ8BJS4E/fT5mqqdjovykEB2oFbTMDVdg1MGFxfQW+FBOGoB++k8swBrgwSHT1cUXQ==",
+    "files": [
+      "d3-random@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-sankey",
+    "version": "0.12.3",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/d3-sankey/-/d3-sankey-0.12.3.tgz",
+    "integrity": "sha512-nQhsBRmM19Ax5xEIPLMY9ZmJ/cDvd1BG3UVvt5h3WRxKg5zGRbvnteTyWAbzeSvlh3tW7ZEmq4VwR5mB3tutmQ==",
+    "files": [
+      "d3-sankey@0.12.3/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-scale",
+    "version": "4.0.2",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-scale/-/d3-scale-4.0.2.tgz",
+    "integrity": "sha512-GZW464g1SH7ag3Y7hXjf8RoUuAFIqklOAq3MRl4OaWabTFJY9PN/E1YklhXLh+OQ3fM9yS2nOkCoS+WLZ6kvxQ==",
+    "files": [
+      "d3-scale@4.0.2/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-scale-chromatic",
+    "version": "3.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-scale-chromatic/-/d3-scale-chromatic-3.1.0.tgz",
+    "integrity": "sha512-A3s5PWiZ9YCXFye1o246KoscMWqf8BsD9eRiJ3He7C9OBaxKhAd5TFCdEx/7VbKtxxTsu//1mMJFrEt572cEyQ==",
+    "files": [
+      "d3-scale-chromatic@3.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-selection",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-selection/-/d3-selection-3.0.0.tgz",
+    "integrity": "sha512-fmTRWbNMmsmWq6xJV8D19U/gw/bwrHfNXxrIN+HfZgnzqTHp9jOmKMhsTUjXOJnZOdZY9Q28y4yebKzqDKlxlQ==",
+    "files": [
+      "d3-selection@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-shape",
+    "version": "1.3.7",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/d3-shape/-/d3-shape-1.3.7.tgz",
+    "integrity": "sha512-EUkvKjqPFUAZyOlhY5gzCxCeI0Aep04LwIRpsZ/mLFelJiUfnK56jo5JMDSE7yyP2kLSb6LtF+S5chMk7uqPqw==",
+    "files": [
+      "d3-shape@1.3.7/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-shape",
+    "version": "3.2.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-shape/-/d3-shape-3.2.0.tgz",
+    "integrity": "sha512-SaLBuwGm3MOViRq2ABk3eLoxwZELpH6zhl3FbAoJ7Vm1gofKx6El1Ib5z23NUEhF9AsGl7y+dzLe5Cw2AArGTA==",
+    "files": [
+      "d3-shape@3.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-time",
+    "version": "3.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-time/-/d3-time-3.1.0.tgz",
+    "integrity": "sha512-VqKjzBLejbSMT4IgbmVgDjpkYrNWUYJnbCGo874u7MMKIWsILRX+OpX/gTk8MqjpT1A/c6HY2dCA77ZN0lkQ2Q==",
+    "files": [
+      "d3-time@3.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-time-format",
+    "version": "4.1.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-time-format/-/d3-time-format-4.1.0.tgz",
+    "integrity": "sha512-dJxPBlzC7NugB2PDLwo9Q8JiTR3M3e4/XANkreKSUxF8vvXKqm1Yfq4Q5dl8budlunRVlUUaDUgFt7eA8D6NLg==",
+    "files": [
+      "d3-time-format@4.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-timer",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-timer/-/d3-timer-3.0.1.tgz",
+    "integrity": "sha512-ndfJ/JxxMd3nw31uyKoY2naivF+r29V+Lc0svZxe1JvvIRmi8hUsrMvdOwgS1o6uBHmiz91geQ0ylPP0aj1VUA==",
+    "files": [
+      "d3-timer@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-transition",
+    "version": "3.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-transition/-/d3-transition-3.0.1.tgz",
+    "integrity": "sha512-ApKvfjsSR6tg06xrL434C0WydLr7JewBB3V+/39RMHsaXTOG0zmt/OAXeng5M5LBm0ojmxJrpomQVZ1aPvBL4w==",
+    "files": [
+      "d3-transition@3.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "d3-zoom",
+    "version": "3.0.0",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/d3-zoom/-/d3-zoom-3.0.0.tgz",
+    "integrity": "sha512-b8AmV3kfQaqWAuacbPuNbL6vahnOJflOhexLzMMNLga62+/nh0JzvJ0aO/5a5MVgUFGS7Hu1P9P03o3fJkDCyw==",
+    "files": [
+      "d3-zoom@3.0.0/LICENSE"
+    ]
+  },
+  {
+    "name": "dagre-d3-es",
+    "version": "7.0.14",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/dagre-d3-es/-/dagre-d3-es-7.0.14.tgz",
+    "integrity": "sha512-P4rFMVq9ESWqmOgK+dlXvOtLwYg0i7u0HBGJER0LZDJT2VHIPAMZ/riPxqJceWMStH5+E61QxFra9kIS3AqdMg==",
+    "files": [
+      "dagre-d3-es@7.0.14/LICENSE.md"
+    ]
+  },
+  {
+    "name": "dayjs",
+    "version": "1.11.21",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz",
+    "integrity": "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==",
+    "files": [
+      "dayjs@1.11.21/LICENSE"
+    ]
+  },
+  {
+    "name": "debug",
+    "version": "4.4.3",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+    "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+    "files": [
+      "debug@4.4.3/LICENSE"
+    ]
+  },
+  {
+    "name": "delaunator",
+    "version": "5.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/delaunator/-/delaunator-5.0.1.tgz",
+    "integrity": "sha512-8nvh+XBe96aCESrGOqMp/84b13H9cdKbG5P2ejQCh4d4sK9RL4371qou9drQjMhvnPmhWl5hnmqbEE0fXr9Xnw==",
+    "files": [
+      "delaunator@5.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "dompurify",
+    "version": "3.4.12",
+    "license": "(MPL-2.0 OR Apache-2.0)",
+    "tarball": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.12.tgz",
+    "integrity": "sha512-zQvGet8Z2sWbQhCmfFz/T5QWH2oBmjnqK3qvOjaqaNLrLEF912WamU+ohnTp0TCep/MFVHpdJuCZEdFOdTnEFg==",
+    "files": [
+      "dompurify@3.4.12/LICENSE",
+      "dompurify@3.4.12/src/license_header",
+      "dompurify@3.4.12/LICENSE-MPL"
+    ]
+  },
+  {
+    "name": "elkjs",
+    "version": "0.9.3",
+    "license": "EPL-2.0",
+    "tarball": "https://registry.npmjs.org/elkjs/-/elkjs-0.9.3.tgz",
+    "integrity": "sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ==",
+    "files": [
+      "elkjs@0.9.3/LICENSE.md"
+    ]
+  },
+  {
+    "name": "es-toolkit",
+    "version": "1.45.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/es-toolkit/-/es-toolkit-1.45.1.tgz",
+    "integrity": "sha512-/jhoOj/Fx+A+IIyDNOvO3TItGmlMKhtX8ISAHKE90c4b/k1tqaqEZ+uUqfpU8DMnW5cgNJv606zS55jGvza0Xw==",
+    "files": [
+      "es-toolkit@1.45.1/LICENSE"
+    ]
+  },
+  {
+    "name": "exsolve",
+    "version": "1.0.7",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/exsolve/-/exsolve-1.0.7.tgz",
+    "integrity": "sha512-VO5fQUzZtI6C+vx4w/4BWJpg3s/5l+6pRQEHzFRM8WFi4XffSP1Z+4qi7GbjWbvRQEbdIco5mIMq+zX4rPuLrw==",
+    "files": [
+      "exsolve@1.0.7/LICENSE"
+    ]
+  },
+  {
+    "name": "globals",
+    "version": "15.15.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/globals/-/globals-15.15.0.tgz",
+    "integrity": "sha512-7ACyT3wmyp3I61S4fG682L0VA2RGD9otkqGJIwNUMF1SWUombIIk+af1unuDYgMm082aHYwD+mzJvv9Iu8dsgg==",
+    "files": [
+      "globals@15.15.0/license"
+    ]
+  },
+  {
+    "name": "hachure-fill",
+    "version": "0.5.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/hachure-fill/-/hachure-fill-0.5.2.tgz",
+    "integrity": "sha512-3GKBOn+m2LX9iq+JC1064cSFprJY4jL1jCXTcpnfER5HYE2l/4EfWSGzkPa/ZDBmYI0ZOEj5VHV/eKnPGkHuOg==",
+    "files": [
+      "hachure-fill@0.5.2/LICENSE"
+    ]
+  },
+  {
+    "name": "iconv-lite",
+    "version": "0.6.3",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.6.3.tgz",
+    "integrity": "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==",
+    "files": [
+      "iconv-lite@0.6.3/LICENSE"
+    ]
+  },
+  {
+    "name": "internmap",
+    "version": "1.0.1",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/internmap/-/internmap-1.0.1.tgz",
+    "integrity": "sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw==",
+    "files": [
+      "internmap@1.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "internmap",
+    "version": "2.0.3",
+    "license": "ISC",
+    "tarball": "https://registry.npmjs.org/internmap/-/internmap-2.0.3.tgz",
+    "integrity": "sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==",
+    "files": [
+      "internmap@2.0.3/LICENSE"
+    ]
+  },
+  {
+    "name": "katex",
+    "version": "0.18.11",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/katex/-/katex-0.18.11.tgz",
+    "integrity": "sha512-yvyz/2VMKqoho/35Hat5w37wIEdWJ5ElVMidTAlWrxr5uW4aBGsEpveTmKh18/zw08v/7lGswCPon4OhqmqrTA==",
+    "files": [
+      "katex@0.18.11/LICENSE"
+    ]
+  },
+  {
+    "name": "khroma",
+    "version": "2.1.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/khroma/-/khroma-2.1.0.tgz",
+    "integrity": "sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw==",
+    "files": [
+      "khroma@2.1.0/license"
+    ],
+    "licenseEvidence": "Package license file; npm metadata omits the SPDX field."
+  },
+  {
+    "name": "kolorist",
+    "version": "1.8.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/kolorist/-/kolorist-1.8.0.tgz",
+    "integrity": "sha512-Y+60/zizpJ3HRH8DCss+q95yr6145JXZo46OTpFvDZWLfRCE4qChOyk1b26nMaNpfHHgxagk9dXT5OP0Tfe+dQ==",
+    "files": [
+      "kolorist@1.8.0/LICENSE"
+    ]
+  },
+  {
+    "name": "layout-base",
+    "version": "1.0.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/layout-base/-/layout-base-1.0.2.tgz",
+    "integrity": "sha512-8h2oVEZNktL4BH2JCOI90iD1yXwL6iNW7KcCKT2QZgQJR2vbqDsldCTPRU9NifTCqHZci57XvQQ15YTu+sTYPg==",
+    "files": [
+      "layout-base@1.0.2/LICENSE"
+    ]
+  },
+  {
+    "name": "layout-base",
+    "version": "2.0.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/layout-base/-/layout-base-2.0.1.tgz",
+    "integrity": "sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg==",
+    "files": [
+      "layout-base@2.0.1/LICENSE"
+    ]
+  },
+  {
+    "name": "local-pkg",
+    "version": "1.1.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/local-pkg/-/local-pkg-1.1.2.tgz",
+    "integrity": "sha512-arhlxbFRmoQHl33a0Zkle/YWlmNwoyt6QNZEIJcqNbdrsix5Lvc4HyyI3EnwxTYlZYc32EbYrQ8SzEZ7dqgg9A==",
+    "files": [
+      "local-pkg@1.1.2/LICENSE"
+    ]
+  },
+  {
+    "name": "lodash-es",
+    "version": "4.18.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/lodash-es/-/lodash-es-4.18.1.tgz",
+    "integrity": "sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==",
+    "files": [
+      "lodash-es@4.18.1/LICENSE"
+    ]
+  },
+  {
+    "name": "marked",
+    "version": "16.3.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/marked/-/marked-16.3.0.tgz",
+    "integrity": "sha512-K3UxuKu6l6bmA5FUwYho8CfJBlsUWAooKtdGgMcERSpF7gcBUrCGsLH7wDaaNOzwq18JzSUDyoEb/YsrqMac3w==",
+    "files": [
+      "marked@16.3.0/LICENSE.md"
+    ]
+  },
+  {
+    "name": "mermaid",
+    "version": "12.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/mermaid/-/mermaid-12.2.0.tgz",
+    "integrity": "sha512-w7nr/SFrLO7BaVTs3dQTvYSV6nYSBj0Yy9DjBhsIJtAcHqRzXSq4Pg32ujHZ/AdWsAMNEvvhbm5dt9E2tOiHzw==",
+    "files": [
+      "mermaid@12.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "mlly",
+    "version": "1.8.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/mlly/-/mlly-1.8.0.tgz",
+    "integrity": "sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g==",
+    "files": [
+      "mlly@1.8.0/LICENSE"
+    ]
+  },
+  {
+    "name": "ms",
+    "version": "2.1.3",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+    "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+    "files": [
+      "ms@2.1.3/license.md"
+    ]
+  },
+  {
+    "name": "package-manager-detector",
+    "version": "1.3.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/package-manager-detector/-/package-manager-detector-1.3.0.tgz",
+    "integrity": "sha512-ZsEbbZORsyHuO00lY1kV3/t72yp6Ysay6Pd17ZAlNGuGwmWDLCJxFpRs0IzfXfj1o4icJOkUEioexFHzyPurSQ==",
+    "files": [
+      "package-manager-detector@1.3.0/LICENSE"
+    ]
+  },
+  {
+    "name": "path-data-parser",
+    "version": "0.1.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/path-data-parser/-/path-data-parser-0.1.0.tgz",
+    "integrity": "sha512-NOnmBpt5Y2RWbuv0LMzsayp3lVylAHLPUTut412ZA3l+C4uw4ZVkQbjShYCQ8TCpUMdPapr4YjUqLYD6v68j+w==",
+    "files": [
+      "path-data-parser@0.1.0/LICENSE"
+    ]
+  },
+  {
+    "name": "pathe",
+    "version": "2.0.3",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/pathe/-/pathe-2.0.3.tgz",
+    "integrity": "sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==",
+    "files": [
+      "pathe@2.0.3/LICENSE"
+    ]
+  },
+  {
+    "name": "pkg-types",
+    "version": "1.3.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/pkg-types/-/pkg-types-1.3.1.tgz",
+    "integrity": "sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==",
+    "files": [
+      "pkg-types@1.3.1/LICENSE"
+    ]
+  },
+  {
+    "name": "pkg-types",
+    "version": "2.3.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/pkg-types/-/pkg-types-2.3.0.tgz",
+    "integrity": "sha512-SIqCzDRg0s9npO5XQ3tNZioRY1uK06lA41ynBC1YmFTmnY6FjUjVt6s4LoADmwoig1qqD0oK8h1p/8mlMx8Oig==",
+    "files": [
+      "pkg-types@2.3.0/LICENSE"
+    ]
+  },
+  {
+    "name": "points-on-curve",
+    "version": "0.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/points-on-curve/-/points-on-curve-0.2.0.tgz",
+    "integrity": "sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==",
+    "files": [
+      "points-on-curve@0.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "points-on-path",
+    "version": "0.2.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/points-on-path/-/points-on-path-0.2.1.tgz",
+    "integrity": "sha512-25ClnWWuw7JbWZcgqY/gJ4FQWadKxGWk+3kR/7kD0tCaDtPPMj7oHu2ToLaVhfpnHrZzYby2w6tUA0eOIuUg8g==",
+    "files": [
+      "points-on-path@0.2.1/LICENSE"
+    ]
+  },
+  {
+    "name": "quansync",
+    "version": "0.2.11",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/quansync/-/quansync-0.2.11.tgz",
+    "integrity": "sha512-AifT7QEbW9Nri4tAwR5M/uzpBuqfZf+zwaEM/QkzEjj7NBuFD2rBuy0K3dE+8wltbezDV7JMA0WfnCPYRSYbXA==",
+    "files": [
+      "quansync@0.2.11/LICENSE.md"
+    ]
+  },
+  {
+    "name": "robust-predicates",
+    "version": "3.0.2",
+    "license": "Unlicense",
+    "tarball": "https://registry.npmjs.org/robust-predicates/-/robust-predicates-3.0.2.tgz",
+    "integrity": "sha512-IXgzBWvWQwE6PrDI05OvmXUIruQTcoMDzRsOd5CDvHCVLcLHMTSYvOK5Cm46kWqlV3yAbuSpBZdJ5oP5OUoStg==",
+    "files": [
+      "robust-predicates@3.0.2/LICENSE"
+    ]
+  },
+  {
+    "name": "roughjs",
+    "version": "4.6.6",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/roughjs/-/roughjs-4.6.6.tgz",
+    "integrity": "sha512-ZUz/69+SYpFN/g/lUlo2FXcIjRkSu3nDarreVdGGndHEBJ6cXPdKguS8JGxwj5HA5xIbVKSmLgr5b3AWxtRfvQ==",
+    "files": [
+      "roughjs@4.6.6/LICENSE"
+    ]
+  },
+  {
+    "name": "rw",
+    "version": "1.3.3",
+    "license": "BSD-3-Clause",
+    "tarball": "https://registry.npmjs.org/rw/-/rw-1.3.3.tgz",
+    "integrity": "sha512-PdhdWy89SiZogBLaw42zdeqtRJ//zFd2PgQavcICDUgJT5oW10QCRKbJ6bg4r0/UY2M6BWd5tkxuGFRvCkgfHQ==",
+    "files": [
+      "rw@1.3.3/LICENSE"
+    ]
+  },
+  {
+    "name": "safer-buffer",
+    "version": "2.1.2",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
+    "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+    "files": [
+      "safer-buffer@2.1.2/LICENSE"
+    ]
+  },
+  {
+    "name": "stylis",
+    "version": "4.3.6",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/stylis/-/stylis-4.3.6.tgz",
+    "integrity": "sha512-yQ3rwFWRfwNUY7H5vpU0wfdkNSnvnJinhF9830Swlaxl03zsOjCfmX0ugac+3LtK0lYSgwL/KXc8oYL3mG4YFQ==",
+    "files": [
+      "stylis@4.3.6/LICENSE"
+    ]
+  },
+  {
+    "name": "tinyexec",
+    "version": "1.2.4",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/tinyexec/-/tinyexec-1.2.4.tgz",
+    "integrity": "sha512-SHf/r48b7vOrjve9PxJo3MN5v5yuyjHvdUcrQffT3WXMUfnGmHDVbC4k3sHJaJTgZCwpUplIaAo5ANtMyp3YHg==",
+    "files": [
+      "tinyexec@1.2.4/LICENSE"
+    ]
+  },
+  {
+    "name": "ts-dedent",
+    "version": "2.2.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/ts-dedent/-/ts-dedent-2.2.0.tgz",
+    "integrity": "sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==",
+    "files": [
+      "ts-dedent@2.2.0/LICENSE"
+    ]
+  },
+  {
+    "name": "ufo",
+    "version": "1.6.1",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/ufo/-/ufo-1.6.1.tgz",
+    "integrity": "sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==",
+    "files": [
+      "ufo@1.6.1/LICENSE"
+    ]
+  },
+  {
+    "name": "uuid",
+    "version": "14.0.0",
+    "license": "MIT",
+    "tarball": "https://registry.npmjs.org/uuid/-/uuid-14.0.0.tgz",
+    "integrity": "sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==",
+    "files": [
+      "uuid@14.0.0/LICENSE.md"
+    ]
+  }
+]
