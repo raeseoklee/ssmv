@@ -14,7 +14,7 @@ public enum MarkdownRenderer {
   /// Delivers bounded batches without retaining an additional complete rendered document.
   public static func renderIncrementally(
     _ markdown: AttributedString, size: CGFloat,
-    diagram: ((String) async -> NSImage?)? = nil,
+    diagram: (@MainActor (String) async -> NSImage?)? = nil,
     append: (NSAttributedString) -> Void
   ) async throws {
     let state = RenderingState(size: size)
