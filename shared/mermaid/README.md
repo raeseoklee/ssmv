@@ -39,3 +39,12 @@ and license must remain available. KaTeX and its fonts use MIT terms, with
 On upgrades, recheck the release lockfile, all retained notices and the actual
 asset payload before publication. Do not strip the license comments embedded
 in upstream JavaScript or replace these assets with an unpinned CDN URL.
+
+## Resource limits
+
+Each diagram is limited to 64 KiB of source, 500 edges, and a bounded output image.
+Configuration directives/frontmatter are not accepted; themes and security settings
+come from the app. A reading page or PDF preparation attempts at most 24 diagrams;
+macOS limits decoded attachments to 24 MiB and Windows to 64 MiB. Timed-out,
+invalid, or over-budget diagrams retain their source instead of blocking reading.
+The web renderer is temporary on macOS and closes after 15 idle seconds on Windows.

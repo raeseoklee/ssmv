@@ -894,14 +894,19 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 status.Text(L"Exporting PDF…");
                 ssmv::ui::PdfDiagrams diagrams;
                 uint64_t diagramBytes = 0;
+                size_t diagramAttempts = 0;
+                auto diagramDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
                 for (size_t index = 0; index < snapshot.blocks.size(); ++index) {
                     auto const& block = snapshot.blocks[index];
                     if (closed || cancellation->load()) throw ssmv::ui::PdfExportCancelled{};
                     if (block.kind != ssmv::BlockKind::Code || block.language != "mermaid") continue;
+                    if (diagramAttempts++ >= 24 || std::chrono::steady_clock::now() >= diagramDeadline) break;
                     if (!mermaid) mermaid = std::make_unique<ssmv::ui::Mermaid>(root);
                     auto result = std::make_shared<ssmv::ui::Diagram>();
                     try {
-                        co_await mermaid->render(block.text, false, result, [this, cancellation] { return closed || cancellation->load(); });
+                        co_await mermaid->render(block.text, false, result, [this, cancellation, diagramDeadline] {
+                            return closed || cancellation->load() || std::chrono::steady_clock::now() >= diagramDeadline;
+                        });
                         if (diagramBytes + result->decodedBytes <= 64 * 1024 * 1024) {
                             diagramBytes += result->decodedBytes; diagrams.emplace(index, std::move(result->png));
                         }
