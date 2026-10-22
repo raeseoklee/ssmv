@@ -30,6 +30,7 @@
 #include "DocumentTree.hpp"
 #include "RemoteDocument.hpp"
 #include "PdfExport.hpp"
+#include "Mermaid.hpp"
 #include <atomic>
 #include <chrono>
 #include <winrt/Microsoft.UI.Dispatching.h>
@@ -112,6 +113,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     std::vector<FrameworkElement> rendered;
     size_t renderStart = 0;
     uint64_t renderRevision = 0;
+    std::unique_ptr<ssmv::ui::Mermaid> mermaid;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
     std::shared_ptr<std::atomic_bool> remoteCancellation, pdfCancellation;
@@ -195,7 +197,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             using Microsoft::UI::Windowing::TitleBarTheme;
             window.AppWindow().TitleBar().PreferredTheme(dark ? TitleBarTheme::Dark : TitleBarTheme::Light);
         };
-        root.ActualThemeChanged([updateBackground](auto const&, auto const&) { updateBackground(); });
+        root.ActualThemeChanged([this, updateBackground](auto const&, auto const&) { updateBackground(); if (initialized && content) render(); });
         updateBackground();
         root.DragOver([](auto const&, DragEventArgs const& args) {
             if (args.DataView().Contains(StandardDataFormats::StorageItems())) {
@@ -507,6 +509,17 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         syncChrome();
     }
 
+    fire_and_forget renderDiagram(ssmv::Block block, Border target, uint64_t revision) {
+        auto lifetime = get_strong();
+        try {
+            if (!mermaid) mermaid = std::make_unique<ssmv::ui::Mermaid>(root);
+            auto result = std::make_shared<ssmv::ui::Diagram>();
+            co_await mermaid->render(block.text, root.ActualTheme() == ElementTheme::Dark, result);
+            if (closed || revision != renderRevision) co_return;
+            co_await ssmv::ui::setDiagramImage(target, *result);
+        } catch (...) { /* Keep the selectable source on render failure. */ }
+    }
+
     void render() {
         syncChrome();
         clearNavigationHighlight();
@@ -539,6 +552,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             Automation::AutomationProperties::SetAutomationId(wrapper, L"reader.block." + to_hstring(index));
             rendered.push_back(wrapper);
             content.Children().Append(wrapper);
+            if (block.kind == ssmv::BlockKind::Code && block.language == "mermaid") renderDiagram(block, wrapper, renderRevision);
         }
         scroll.ChangeView(nullptr, 0.0, nullptr);
         if (end < count) content.Children().Append(button(L"Continue reading", [this, end] {
@@ -874,8 +888,18 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (file && !closed && !cancellation->load()) {
                 auto destination = std::filesystem::path(file.Path().c_str());
                 status.Text(L"Exporting PDF…");
+                ssmv::ui::PdfDiagrams diagrams;
+                for (size_t index = 0; index < snapshot.blocks.size(); ++index) {
+                    auto const& block = snapshot.blocks[index];
+                    if (closed || cancellation->load()) throw ssmv::ui::PdfExportCancelled{};
+                    if (block.kind != ssmv::BlockKind::Code || block.language != "mermaid") continue;
+                    if (!mermaid) mermaid = std::make_unique<ssmv::ui::Mermaid>(root);
+                    auto result = std::make_shared<ssmv::ui::Diagram>();
+                    try { co_await mermaid->render(block.text, false, result); diagrams.emplace(index, std::move(result->png)); }
+                    catch (...) { /* Export source for unsupported or invalid diagrams. */ }
+                }
                 co_await resume_background();
-                ssmv::ui::exportPdf(snapshot, name, destination, *cancellation);
+                ssmv::ui::exportPdf(snapshot, name, destination, *cancellation, diagrams);
                 saved = true;
             }
         } catch (hresult_error const& e) { failure = e.message(); }

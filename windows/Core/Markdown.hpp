@@ -33,6 +33,7 @@ struct Block {
     // Table cells retain inline source; the first row is the header.
     std::vector<std::vector<std::string>> tableRows = {};
     std::vector<TableAlignment> alignments = {};
+    std::string language = {}; // First fenced-code info token; never interpreted as HTML.
 };
 struct Heading { std::string text; int level; std::size_t blockIndex; };
 struct MarkdownDocument { std::vector<Block> blocks; std::vector<Heading> headings; };

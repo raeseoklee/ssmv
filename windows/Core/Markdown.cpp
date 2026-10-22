@@ -204,7 +204,7 @@ std::string plainInlineText(std::string_view source) {
 
 MarkdownDocument parseMarkdown(std::string_view source) {
     MarkdownDocument result;
-    std::string paragraph, code;
+    std::string paragraph, code, language;
     std::size_t paragraphLine = 0, codeLine = 0, lineNumber = 0, fenceLength = 0;
     char fence = 0;
     bool tableActive = false;
@@ -225,6 +225,7 @@ MarkdownDocument parseMarkdown(std::string_view source) {
         if (fence) {
             if (blockIndent && run(line, fence) >= fenceLength && trim(line.substr(run(line, fence))).empty()) {
                 result.blocks.push_back({BlockKind::Code, std::move(code), 0, codeLine});
+                result.blocks.back().language = language;
                 code.clear(); fence = 0;
             } else { code.append(raw); code.push_back('\n'); }
             continue;
@@ -232,7 +233,10 @@ MarkdownDocument parseMarkdown(std::string_view source) {
         if (blockIndent && !line.empty() && (line.front() == '`' || line.front() == '~') && run(line, line.front()) >= 3) {
             const auto length = run(line, line.front());
             if (line.front() != '`' || line.substr(length).find('`') == std::string_view::npos) {
-                flushParagraph(); fence = line.front(); fenceLength = length; codeLine = lineNumber; continue;
+                flushParagraph(); fence = line.front(); fenceLength = length; codeLine = lineNumber;
+                auto info = trim(line.substr(length));
+                language = std::string(info.substr(0, info.find_first_of(" \t")));
+                continue;
             }
         }
         if (line.empty()) { flushParagraph(); tableActive = false; continue; }
@@ -289,7 +293,10 @@ MarkdownDocument parseMarkdown(std::string_view source) {
         paragraph.append(raw);
     }
     flushParagraph();
-    if (fence) result.blocks.push_back({BlockKind::Code, std::move(code), 0, codeLine});
+    if (fence) {
+        result.blocks.push_back({BlockKind::Code, std::move(code), 0, codeLine});
+        result.blocks.back().language = language;
+    }
     return result;
 }
 }

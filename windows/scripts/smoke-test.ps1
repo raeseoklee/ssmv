@@ -641,6 +641,37 @@ public static class WindowCapture {
     Close-DocumentWindow $cachedReader
     Write-Output 'Ctrl+L downloaded a GitHub document, cached Markdown and source metadata, restored the selected document from local cache, and refreshed its displayed content without duplicating or reordering the shelf.'
 
+
+    # Public fixture: exercise lazy offline Mermaid rendering through the native Image.
+    $diagramDocument = Join-Path $testDirectory 'Mermaid.md'
+    [IO.File]::WriteAllText($diagramDocument, @'
+# Mermaid smoke
+
+```mermaid
+flowchart TB
+    N["노마디안 (BtoC)<br/>사용자에게 서비스 제공"]
+    A["AOS<br/>에이전트 실행"]
+    O["OG<br/>워크플로우 실행"]
+    N <--> A
+    A <--> O
+```
+
+```mermaid
+this is deliberately invalid diagram source
+```
+'@, [Text.UTF8Encoding]::new($false))
+    $diagramReader = Start-Process -FilePath $executablePath -ArgumentList ('"' + $diagramDocument + '"') -PassThru
+    $startedProcesses.Add($diagramReader)
+    Wait-DocumentWindow $diagramReader 'Mermaid.md — SSMV'
+    $diagramImage = Wait-AutomationElement $diagramReader.Id 'reader.mermaid' -AutomationId
+    if ($diagramImage.Current.BoundingRectangle.Width -lt 30 -or $diagramImage.Current.BoundingRectangle.Height -lt 30) {
+        throw 'Mermaid produced an empty native image.'
+    }
+    $null = Wait-AutomationElement $diagramReader.Id 'this is deliberately invalid diagram source'
+    Save-WindowEvidence $diagramReader 'window-mermaid.png'
+    Close-DocumentWindow $diagramReader
+    Write-Output 'Offline Korean Mermaid flowchart became a native image; malformed diagram retained selectable source.'
+
 } catch {
     foreach ($started in $startedProcesses) {
         $started.Refresh()

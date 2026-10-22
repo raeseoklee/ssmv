@@ -1,6 +1,9 @@
 #include "PdfExport.hpp"
 #include <windows.h>
 #include <objbase.h>
+#include <shlwapi.h>
+#include <gdiplus.h>
+#include <memory>
 #include <winspool.h>
 #include <algorithm>
 #include <chrono>
@@ -13,6 +16,8 @@
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winspool.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "gdiplus.lib")
 
 namespace ssmv::ui {
 namespace {
@@ -187,6 +192,22 @@ struct Layout {
         if (!text.empty()) require(DrawTextW(printer.dc, text.c_str(), static_cast<int>(text.size()), &rect, flags) > 0,
                                    "Unable to draw document text in the PDF.");
     }
+    void diagram(std::vector<uint8_t> const& png) {
+        Gdiplus::GdiplusStartupInput input; ULONG_PTR token = 0;
+        require(Gdiplus::GdiplusStartup(&token, &input, nullptr) == Gdiplus::Ok, "Unable to initialize diagram export.");
+        struct Shutdown { ULONG_PTR token; ~Shutdown() { Gdiplus::GdiplusShutdown(token); } } shutdown{token};
+        auto stream = SHCreateMemStream(png.data(), static_cast<UINT>(png.size()));
+        require(stream != nullptr, "Unable to read diagram image.");
+        struct Release { IStream* stream; ~Release() { stream->Release(); } } release{stream};
+        Gdiplus::Bitmap image(stream);
+        require(image.GetLastStatus() == Gdiplus::Ok && image.GetWidth() && image.GetHeight(), "Invalid diagram image.");
+        double scale = std::min(static_cast<double>(right-left)/image.GetWidth(), static_cast<double>(bottom-top)/image.GetHeight());
+        int width = static_cast<int>(image.GetWidth()*scale), height = static_cast<int>(image.GetHeight()*scale);
+        ensure(height);
+        Gdiplus::Graphics graphics(printer.dc);
+        require(graphics.DrawImage(&image, left, y, width, height) == Gdiplus::Ok, "Unable to draw diagram in PDF.");
+        space(height + points(12));
+    }
     void paragraph(Block const& block) {
         bool heading = block.kind == BlockKind::Heading, code = block.kind == BlockKind::Code;
         int size = heading ? (block.level == 1 ? 24 : block.level == 2 ? 19 : 15) : code ? 10 : 11;
@@ -270,7 +291,7 @@ bool completePdf(std::filesystem::path const& path) {
 }
 }
 PdfExportResult exportPdf(MarkdownDocument const& snapshot, std::wstring const& title,
-                          std::filesystem::path const& destination, std::atomic_bool const& cancelled) {
+                          std::filesystem::path const& destination, std::atomic_bool const& cancelled, PdfDiagrams const& diagrams) {
     checkCancelled(cancelled);
     require(!destination.empty(), "Choose a file name for the PDF export.");
     TemporaryFile temporary(destination);
@@ -291,9 +312,11 @@ PdfExportResult exportPdf(MarkdownDocument const& snapshot, std::wstring const& 
     printer.job = static_cast<DWORD>(job); printer.inDocument = true;
     Layout layout(printer, cancelled);
     layout.startPage();
-    for (auto const& block : snapshot.blocks) {
+    for (size_t index = 0; index < snapshot.blocks.size(); ++index) {
+        auto const& block = snapshot.blocks[index];
         checkCancelled(cancelled);
-        if (block.kind == BlockKind::Table) layout.table(block);
+        if (auto found = diagrams.find(index); found != diagrams.end()) layout.diagram(found->second);
+        else if (block.kind == BlockKind::Table) layout.table(block);
         else if (block.kind == BlockKind::Rule) {
             layout.ensure(layout.points(18));
             MoveToEx(printer.dc, layout.left, layout.y + layout.points(6), nullptr);

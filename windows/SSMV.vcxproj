@@ -23,7 +23,7 @@
     <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
     <AppxPackage>false</AppxPackage>
     <UseWinUI>true</UseWinUI>
-    <!-- WinUI metadata references WebView2 types even though SSMV never creates a WebView. -->
+    <!-- WebView2 is initialized only for offline Mermaid rendering. -->
     <WebView2UseWinRT>true</WebView2UseWinRT>
     <CppWinRTOptimized>true</CppWinRTOptimized>
   </PropertyGroup>
@@ -71,5 +71,9 @@
     <ClInclude Include="App\*.hpp" />
     <ClInclude Include="Core\*.hpp" />
   </ItemGroup>
+  <Target Name="CopyMermaid" AfterTargets="Build">
+    <ItemGroup><MermaidAssets Include="$(MSBuildThisFileDirectory)..\shared\mermaid\**\*" /></ItemGroup>
+    <Copy SourceFiles="@(MermaidAssets)" DestinationFiles="@(MermaidAssets->'$(OutDir)mermaid\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -57,6 +57,13 @@ int wmain(int argc, wchar_t** argv) {
         page = nullptr; pdf = nullptr; file = nullptr;
         std::cout << "PASS: Windows PDF parser loaded " << result.pages << " pages including Unicode and tables\n";
 
+        // Exercise native PNG drawing independently of the browser/diagram parser.
+        const std::vector<uint8_t> diagramPng = {137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,80,0,0,0,40,8,2,0,0,0,230,2,234,86,0,0,0,75,73,68,65,84,120,156,237,207,1,9,0,32,16,192,64,35,153,204,136,102,51,134,176,63,88,128,221,218,231,142,106,125,63,0,6,6,6,6,6,6,30,19,112,61,224,122,192,245,128,235,1,215,3,174,7,92,15,184,30,112,61,224,122,192,245,128,235,1,215,3,174,7,92,239,1,78,78,254,241,130,234,48,219,0,0,0,0,73,69,78,68,174,66,96,130};
+        auto diagramDocument = parseMarkdown("```mermaid\nflowchart TB\n A-->B\n```\n");
+        auto diagramResult = ui::exportPdf(diagramDocument, L"Mermaid PDF", folder / L"diagram.pdf", cancelled, {{0, diagramPng}});
+        expect(diagramResult.pages == 1 && read(folder / L"diagram.pdf").starts_with("%PDF-"), "Diagram image exports as a PDF page.");
+        std::cout << "PASS: diagram PNG exported through native printer\n";
+
         // Cancel a large job while it is rendering, not only before it starts.
         { std::ofstream sentinel(output, std::ios::binary); sentinel << "keep on cancellation"; }
         auto huge = document;

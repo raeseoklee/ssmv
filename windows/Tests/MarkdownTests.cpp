@@ -76,6 +76,10 @@ int main() {
         check(longSpans.size() == 1 && longSpans[0].text == formattedLabel && !longSpans[0].bold, "Span count budget falls back to inert source");
         check(classifyLink(std::string(MaxInlineLinkBytes + 1, 'a')) == LinkKind::Unsafe, "Link length ceiling");
         check(std::chrono::steady_clock::now() - longStart < std::chrono::seconds(10), "Long label and metadata amplification bounded");
+        auto mermaid = parseMarkdown("```mermaid extra\nflowchart TB\n A-->B\n```\n\n```cpp\nint x;\n```\n");
+        check(mermaid.blocks.size() == 2 && mermaid.blocks[0].language == "mermaid" && mermaid.blocks[1].language == "cpp", "Fence info language preserved without leaking across blocks");
+        check(mermaid.blocks[0].text == "flowchart TB\n A-->B\n", "Diagram source whitespace preserved");
+        check(parseMarkdown("~~~mermaid\nA-->B").blocks[0].language == "mermaid", "Unclosed diagram fence retains language");
         std::cout << "Markdown tests passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }
