@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <chrono>
 #include <stdexcept>
+#include <fstream>
 #include <winrt/Microsoft.Web.WebView2.Core.h>
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
@@ -21,6 +22,11 @@ using namespace Windows::Storage::Streams;
 using namespace std::chrono_literals;
 namespace ssmv::ui {
 namespace {
+void trace(std::string const& message) {
+    wchar_t path[32768]{};
+    auto length = GetEnvironmentVariableW(L"SSMV_MERMAID_LOG", path, 32768);
+    if (length && length < 32768) { std::ofstream log(std::filesystem::path(path), std::ios::app); log << message << '\n'; }
+}
 using Deadline = std::chrono::steady_clock::time_point;
 template<class Async>
 IAsyncAction awaitBounded(Async operation, Deadline deadline, std::function<bool()> stopped) {
@@ -81,8 +87,10 @@ IAsyncAction Mermaid::render(std::string source, bool dark, std::shared_ptr<Diag
         browser_.VerticalAlignment(VerticalAlignment::Top);
         layer_ = Canvas(); layer_.Width(0); layer_.Height(0); layer_.IsHitTestVisible(false);
         layer_.Children().Append(browser_); host_.Children().Append(layer_);
+        trace("Initializing WebView2");
         auto initialization = browser_.EnsureCoreWebView2Async();
         co_await awaitBounded(initialization, deadline, cancelled); initialization.GetResults();
+        trace("WebView2 ready");
         auto core = browser_.CoreWebView2();
         wchar_t executable[32768]{}; GetModuleFileNameW(nullptr, executable, 32768);
         auto folder = std::filesystem::path(executable).parent_path() / L"mermaid";
@@ -107,6 +115,7 @@ IAsyncAction Mermaid::render(std::string source, bool dark, std::shared_ptr<Diag
         if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Diagram module did not load.");
         co_await resume_after(30ms); co_await ui;
     }
+    trace("Offline module ready");
     browser_.Width(2048); browser_.Height(4096); browser_.UpdateLayout();
     auto request = ++request_;
     auto quoted = JsonValue::CreateStringValue(to_hstring(source)).Stringify();
@@ -116,6 +125,7 @@ IAsyncAction Mermaid::render(std::string source, bool dark, std::shared_ptr<Diag
         if (std::chrono::steady_clock::now() > deadline) throw std::runtime_error("Diagram rendering timed out.");
         auto raw = co_await execute(browser_, L"window.ssmvResult", deadline, cancelled);
         if (raw != L"null") {
+            trace("Diagram result received");
             auto result = JsonObject::Parse(raw);
             if (result.HasKey(L"error")) throw std::runtime_error("Unable to render diagram.");
             output->width = result.GetNamedNumber(L"width"); output->height = result.GetNamedNumber(L"height");
@@ -125,6 +135,7 @@ IAsyncAction Mermaid::render(std::string source, bool dark, std::shared_ptr<Diag
             InMemoryRandomAccessStream capture;
             auto preview = browser_.CoreWebView2().CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat::Png, capture);
             co_await awaitBounded(preview, deadline, cancelled); preview.GetResults();
+            trace("Native capture completed");
             if (capture.Size() > 32 * 1024 * 1024) throw std::runtime_error("Diagram image is too large.");
             capture.Seek(0); DataReader reader(capture);
             auto length = static_cast<uint32_t>(capture.Size());
@@ -146,6 +157,10 @@ IAsyncAction Mermaid::render(std::string source, bool dark, std::shared_ptr<Diag
         co_await resume_after(30ms); co_await ui;
     }
     } catch (...) {
+        try { throw; }
+        catch (hresult_error const& error) { trace("WinRT failure: " + to_string(error.message())); }
+        catch (std::exception const& error) { trace(std::string("Render failure: ") + error.what()); }
+        catch (...) { trace("Unknown render failure"); }
         // Closing the failed browser aborts its pending runtime work; the next request starts clean.
         releaseBrowser();
         throw;
@@ -160,5 +175,6 @@ IAsyncAction setDiagramImage(Border target, Diagram diagram) {
     Automation::AutomationProperties::SetAutomationId(image, L"reader.mermaid");
     Automation::AutomationProperties::SetName(image, L"Mermaid diagram");
     target.Child(image);
+    trace("Native image displayed");
 }
 }

@@ -145,7 +145,7 @@ final class PDFExportJob {
 
 /// This private mode has no windows, menus, or Launch Services registration.
 @MainActor
-func runPDFExportHelper(_ arguments: [String]) -> Int32 {
+func runPDFExportHelper(_ arguments: [String]) async -> Int32 {
   guard arguments.count == 7 else { return 2 }
   let baseURL = arguments[3].isEmpty ? nil : URL(string: arguments[3])
   if !arguments[3].isEmpty {
@@ -160,9 +160,13 @@ func runPDFExportHelper(_ arguments: [String]) -> Int32 {
     report("Reading document…")
     let source = try MarkdownDocument.read(URL(fileURLWithPath: arguments[2]))
     let document = try MarkdownDocument.parse(source, baseURL: baseURL)
+    let rendered = NSMutableAttributedString()
+    try await MarkdownRenderer.renderIncrementally(document, size: 12, diagram: { source in
+      await MermaidRenderer.shared.image(source, dark: false, width: 511)
+    }) { rendered.append($0) }
     try PDFExporter.export(
       document, title: arguments[5],
-      to: URL(fileURLWithPath: arguments[4]), progress: report)
+      to: URL(fileURLWithPath: arguments[4]), preparedText: rendered, progress: report)
     return 0
   } catch { return 1 }
 }

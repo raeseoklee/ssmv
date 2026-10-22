@@ -72,7 +72,7 @@ struct DocumentInputTests {
     #expect((table.item(atRow: 0) as? SidebarController.Item)?.url == second.sidebarKey)
   }
 
-  @Test func pdfHelperAcceptsRemoteAndAbsentBaseButRejectsActionSchemes() throws {
+  @Test func pdfHelperAcceptsRemoteAndAbsentBaseButRejectsActionSchemes() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -84,11 +84,11 @@ struct DocumentInputTests {
         "SSMV", "--export-pdf", input.path, base, output.path, "Result",
         directory.appendingPathComponent("progress").path,
       ]
-      #expect(runPDFExportHelper(args) == 0)
+      #expect(await runPDFExportHelper(args) == 0)
       #expect(try #require(PDFDocument(url: output)).pageCount == 1)
     }
     #expect(
-      runPDFExportHelper([
+      await runPDFExportHelper([
         "SSMV", "--export-pdf", input.path, "ssmv://do", "/tmp/not-written.pdf", "Result",
         "/tmp/no-progress",
       ]) == 2)

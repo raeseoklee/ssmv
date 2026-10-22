@@ -10,12 +10,14 @@ if (Get-Process -Name SSMV -ErrorAction SilentlyContinue) {
 $testDirectory = Join-Path ([IO.Path]::GetTempPath()) ('ssmv-smoke-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $testDirectory > $null
 $previousDataDirectory = $env:SSMV_DATA_DIR
+$previousMermaidLog = $env:SSMV_MERMAID_LOG
 $env:SSMV_DATA_DIR = Join-Path $testDirectory 'state'
 $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
 $startedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
 $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
 New-Item -ItemType Directory -Force $evidence > $null
+$env:SSMV_MERMAID_LOG = Join-Path $evidence "mermaid.log"
 
 function Write-CrashEvidence([Diagnostics.Process]$Target) {
     $Target.Refresh()
@@ -57,7 +59,7 @@ function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$Automa
     $identity = [Windows.Automation.PropertyCondition]::new($property, $Value)
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId), $identity)
-    $deadline = (Get-Date).AddSeconds(15)
+    $deadline = (Get-Date).AddSeconds($(if ($Value -eq "reader.mermaid") { 30 } else { 15 }))
     do {
         $target = $startedProcesses | Where-Object { $_.Id -eq $ProcessId } | Select-Object -First 1
         if ($null -ne $target) {
@@ -222,7 +224,7 @@ function Assert-RepeatedHeadingNavigation([Diagnostics.Process]$Target) {
     $condition = [Windows.Automation.AndCondition]::new(
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Markdown, at home on Windows.'))
-    $deadline = (Get-Date).AddSeconds(15)
+    $deadline = (Get-Date).AddSeconds($(if ($Value -eq "reader.mermaid") { 30 } else { 15 }))
     do {
         $heading = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
         if ($null -ne $heading) { break }
@@ -503,6 +505,7 @@ public static class WindowCapture {
 '@
     $evidence = Join-Path $repositoryRoot 'dist/windows/smoke'
     New-Item -ItemType Directory -Force $evidence > $null
+$env:SSMV_MERMAID_LOG = Join-Path $evidence "mermaid.log"
     try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes }
     catch {
         # PowerShell 7 may need the installed Windows Desktop Framework assemblies.
@@ -693,6 +696,7 @@ this is deliberately invalid diagram source
 
 
 } catch {
+    if (Test-Path $env:SSMV_MERMAID_LOG) { Get-Content $env:SSMV_MERMAID_LOG | Write-Host }
     foreach ($started in $startedProcesses) {
         $started.Refresh()
         if ($started.HasExited -and $started.ExitCode -ne 0) { Write-CrashEvidence $started }
@@ -705,5 +709,6 @@ this is deliberately invalid diagram source
         $started.Dispose()
     }
     $env:SSMV_DATA_DIR = $previousDataDirectory
+    $env:SSMV_MERMAID_LOG = $previousMermaidLog
     Remove-Item -LiteralPath $testDirectory -Recurse -Force
 }

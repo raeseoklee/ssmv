@@ -120,3 +120,48 @@ import Testing
   #expect(cell?.startingRow == 1200)
   #expect(last?.alignment == .right)
 }
+
+@Test @MainActor func mermaidUsesExplicitFenceLanguageAndFallsBack() async throws {
+  let source = "# Before\n\n~~~mermaid\nflowchart TB\n A[한글] --> B\n~~~\n\n```text\nflowchart TB\n```\n\n# After"
+  let parsed = try MarkdownDocument.parse(source)
+  var sources: [String] = []
+  let result = NSMutableAttributedString()
+  try await MarkdownRenderer.renderIncrementally(parsed, size: 16, diagram: { code in
+    sources.append(code)
+    return NSImage(size: NSSize(width: 100, height: 50))
+  }) { result.append($0) }
+  #expect(sources.count == 1)
+  #expect(sources.first?.contains("한글") == true)
+  #expect(result.containsAttachments)
+  result.enumerateAttribute(.attachment, in: NSRange(location: 0, length: result.length)) { value, range, _ in
+    if value != nil { #expect(result.attribute(.backgroundColor, at: range.location, effectiveRange: nil) == nil) }
+  }
+  #expect(result.string.contains("flowchart TB")) // ordinary code remains text
+  #expect(result.string.contains("After"))
+  let fallback = NSMutableAttributedString()
+  try await MarkdownRenderer.renderIncrementally(parsed, size: 16, diagram: { _ in nil }) {
+    fallback.append($0)
+  }
+  #expect(fallback.string == MarkdownRenderer.render(parsed, size: 16).string)
+}
+
+@Test @MainActor func plainMarkdownNeverInvokesDiagramRenderer() async throws {
+  let parsed = try MarkdownDocument.parse("# Title\n\nPlain **bold** text and `mermaid`.\n\n```swift\nprint(1)\n```")
+  var calls = 0
+  try await MarkdownRenderer.renderIncrementally(parsed, size: 16, diagram: { _ in calls += 1; return nil }) { _ in }
+  #expect(calls == 0)
+}
+
+@Test @MainActor func mermaidFailuresAreBoundedAndPrecedingTextStreamsFirst() async throws {
+  let source = "Before\n\n" + Array(repeating: "```mermaid\ninvalid\n```", count: 100).joined(separator: "\n\n")
+  let parsed = try MarkdownDocument.parse(source)
+  let result = NSMutableAttributedString()
+  var calls = 0
+  try await MarkdownRenderer.renderIncrementally(parsed, size: 16, diagram: { _ in
+    #expect(result.string.hasPrefix("Before"))
+    calls += 1
+    return nil
+  }) { result.append($0) }
+  #expect(calls == 24)
+  #expect(result.string == MarkdownRenderer.render(parsed, size: 16).string)
+}

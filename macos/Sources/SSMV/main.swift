@@ -329,6 +329,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
   private var renderTask: Task<Void, Never>?
+  private var appearanceObservation: NSKeyValueObservation?
   private var renderGeneration = 0
   private var isRendering = false
   private var displayedID: UUID?
@@ -343,6 +344,12 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
     )
     super.init(window: window)
+    appearanceObservation = textView.observe(\.effectiveAppearance) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        guard let self, self.textView.textStorage?.containsAttachments == true else { return }
+        self.render(restoring: self.textView.enclosingScrollView?.contentView.bounds.origin)
+      }
+    }
     window.onDrop = { [weak self] urls in self?.addDocuments(urls) }
     window.registerForDraggedTypes([.fileURL])
     window.title = "SSMV"
@@ -701,11 +708,15 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     renderGeneration += 1
     let request = renderGeneration
     let size = fontSize
+    let dark = textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    let diagramWidth = max(100, textView.bounds.width - 82)
     isRendering = true
     renderTask = Task { [weak self] in
       var started = false
       do {
-        try await MarkdownRenderer.renderIncrementally(parsed, size: size) { [weak self] chunk in
+        try await MarkdownRenderer.renderIncrementally(parsed, size: size, diagram: { source in
+          await MermaidRenderer.shared.image(source, dark: dark, width: diagramWidth)
+        }) { [weak self] chunk in
           guard let self, self.renderGeneration == request else { return }
           autoreleasepool {
             if !started {
@@ -923,7 +934,9 @@ if CommandLine.arguments.dropFirst().first == "--register-documents" {
 let app = NSApplication.shared
 if CommandLine.arguments.dropFirst().first == "--export-pdf" {
   app.setActivationPolicy(.prohibited)
-  exit(runPDFExportHelper(CommandLine.arguments))
+  Task { exit(await runPDFExportHelper(CommandLine.arguments)) }
+  app.run()
+  exit(1)
 }
 let delegate = AppDelegate()
 app.delegate = delegate

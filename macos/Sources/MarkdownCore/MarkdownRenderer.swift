@@ -14,9 +14,13 @@ public enum MarkdownRenderer {
   /// Delivers bounded batches without retaining an additional complete rendered document.
   public static func renderIncrementally(
     _ markdown: AttributedString, size: CGFloat,
+    diagram: ((String) async -> NSImage?)? = nil,
     append: (NSAttributedString) -> Void
   ) async throws {
     let state = RenderingState(size: size)
+    var attemptedDiagrams = Set<Int>()
+    var diagramBytes = 0
+    let diagramDeadline = ContinuousClock.now.advanced(by: .seconds(20))
     var runs = markdown.runs.makeIterator()
     var finished = false
     var pending: NSAttributedString?
@@ -24,7 +28,7 @@ public enum MarkdownRenderer {
     var offset = 0
     while !finished {
       try Task.checkCancellation()
-      autoreleasepool {
+      do {
         var chunk = NSMutableAttributedString()
         let start = ContinuousClock.now
         var count = 0
@@ -34,7 +38,28 @@ public enum MarkdownRenderer {
               finished = true
               break
             }
-            state.append(run, from: markdown, to: chunk)
+            if let diagram {
+              for component in run.presentationIntent?.components ?? [] {
+                guard case .codeBlock(let language) = component.kind,
+                  language?.split(whereSeparator: { $0.isWhitespace }).first?.lowercased() == "mermaid",
+                  !attemptedDiagrams.contains(component.identity), attemptedDiagrams.count < 24,
+                  diagramBytes < 24 * 1_024 * 1_024, ContinuousClock.now < diagramDeadline else { continue }
+                attemptedDiagrams.insert(component.identity)
+                // Make preceding native content visible before a potentially slow diagram.
+                if chunk.length > 0 { append(chunk); chunk = NSMutableAttributedString() }
+                try Task.checkCancellation()
+                if let image = await diagram(String(markdown.characters[run.range])) {
+                  let cost = image.representations.reduce(0) { $0 + max(0, $1.pixelsWide) * max(0, $1.pixelsHigh) * 4 }
+                  if diagramBytes + cost <= 24 * 1_024 * 1_024 {
+                    diagramBytes += cost
+                    state.diagrams[component.identity] = image
+                  }
+                }
+                try Task.checkCancellation()
+              }
+            }
+            autoreleasepool { state.append(run, from: markdown, to: chunk) }
+            state.diagrams.removeAll(keepingCapacity: true)
             // Ordinary runs append directly. Only oversized batches need a
             // retained remainder, avoiding a copy and substring for every run.
             if chunk.length > 16_384 {
@@ -68,6 +93,7 @@ public enum MarkdownRenderer {
 
   private final class RenderingState {
     let size: CGFloat
+    var diagrams: [Int: NSImage] = [:]
     var previousHeadingIdentity: Int?
     var headingOrdinal = -1
     var previousBlock: Int?
@@ -202,6 +228,11 @@ public enum MarkdownRenderer {
           convertedFonts[key] = font
         }
       }
+      if block.flatMap({ diagrams[$0] }) != nil {
+        background = nil
+        paragraph.paragraphSpacing = 12
+        paragraph.lineSpacing = 5
+      }
       let paragraphStyle: NSParagraphStyle
       if !startsBlock, let previous = previousAttributes?[.paragraphStyle] as? NSParagraphStyle {
         paragraphStyle = previous
@@ -229,7 +260,15 @@ public enum MarkdownRenderer {
       var text = String(markdown.characters[run.range])
       if !inCode { text = text.replacingOccurrences(of: "\u{2028}", with: "\n") }
       if startsBlock { text = prefix + text }
-      result.append(NSAttributedString(string: text, attributes: attributes))
+      if let image = block.flatMap({ diagrams[$0] }) {
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let rendered = NSMutableAttributedString(attachment: attachment)
+        rendered.addAttributes(attributes, range: NSRange(location: 0, length: rendered.length))
+        result.append(rendered)
+      } else {
+        result.append(NSAttributedString(string: text, attributes: attributes))
+      }
       previousBlock = block
       previousAttributes = attributes
     }

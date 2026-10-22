@@ -5,6 +5,11 @@ public enum PDFExporter {
   static func printableText(_ document: AttributedString) -> NSAttributedString {
     let text = NSMutableAttributedString(
       attributedString: MarkdownRenderer.render(document, size: 12))
+    return sanitizedText(text)
+  }
+
+  private static func sanitizedText(_ source: NSAttributedString) -> NSAttributedString {
+    let text = NSMutableAttributedString(attributedString: source)
     text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) {
       value, range, _ in
       guard let value else { return }
@@ -17,7 +22,7 @@ public enum PDFExporter {
   }
 
   public static func export(
-    _ document: AttributedString, title: String, to url: URL, progress: (String) -> Void = { _ in }
+    _ document: AttributedString, title: String, to url: URL, preparedText: NSAttributedString? = nil, progress: (String) -> Void = { _ in }
   ) throws {
     // Publish only a completed PDF so a failed export preserves an existing destination.
     let temporaryURL = url.deletingLastPathComponent()
@@ -41,7 +46,7 @@ public enum PDFExporter {
 
       let width = info.paperSize.width - info.leftMargin - info.rightMargin
       progress("Formatting document…")
-      let text = printableText(document)
+      let text = preparedText.map(sanitizedText) ?? printableText(document)
       progress("Laying out pages…")
       let view = printView(text, width: width, appearance: appearance)
       progress("Writing PDF…")
