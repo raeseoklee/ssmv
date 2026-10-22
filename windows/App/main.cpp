@@ -114,6 +114,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     size_t renderStart = 0;
     uint64_t renderRevision = 0;
     std::unique_ptr<ssmv::ui::Mermaid> mermaid;
+    uint64_t renderedDiagramBytes = 0;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
     std::shared_ptr<std::atomic_bool> remoteCancellation, pdfCancellation;
@@ -514,8 +515,9 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         try {
             if (!mermaid) mermaid = std::make_unique<ssmv::ui::Mermaid>(root);
             auto result = std::make_shared<ssmv::ui::Diagram>();
-            co_await mermaid->render(block.text, root.ActualTheme() == ElementTheme::Dark, result);
-            if (closed || revision != renderRevision) co_return;
+            co_await mermaid->render(block.text, root.ActualTheme() == ElementTheme::Dark, result, [this, revision] { return closed || revision != renderRevision; });
+            if (closed || revision != renderRevision || renderedDiagramBytes + result->decodedBytes > 64 * 1024 * 1024) co_return;
+            renderedDiagramBytes += result->decodedBytes;
             co_await ssmv::ui::setDiagramImage(target, *result);
         } catch (...) { /* Keep the selectable source on render failure. */ }
     }
@@ -524,6 +526,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         syncChrome();
         clearNavigationHighlight();
         ++renderRevision;
+        renderedDiagramBytes = 0;
         content.Children().Clear();
         rendered.clear();
         if (!selected || *selected >= library.documents().size()) {
@@ -542,6 +545,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             render();
         }));
         auto end = std::min(count, renderStart + maxRenderedBlocks);
+        size_t diagramAttempts = 0;
         for (size_t index = renderStart; index < end; ++index) {
             auto const& block = document.markdown.blocks[index];
             auto element = ssmv::renderBlock(block, fontSize, [this](std::string destination) { navigateLink(std::move(destination)); });
@@ -552,7 +556,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             Automation::AutomationProperties::SetAutomationId(wrapper, L"reader.block." + to_hstring(index));
             rendered.push_back(wrapper);
             content.Children().Append(wrapper);
-            if (block.kind == ssmv::BlockKind::Code && block.language == "mermaid") renderDiagram(block, wrapper, renderRevision);
+            if (block.kind == ssmv::BlockKind::Code && block.language == "mermaid" && diagramAttempts++ < 24) renderDiagram(block, wrapper, renderRevision);
         }
         scroll.ChangeView(nullptr, 0.0, nullptr);
         if (end < count) content.Children().Append(button(L"Continue reading", [this, end] {
@@ -889,13 +893,19 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
                 auto destination = std::filesystem::path(file.Path().c_str());
                 status.Text(L"Exporting PDF…");
                 ssmv::ui::PdfDiagrams diagrams;
+                uint64_t diagramBytes = 0;
                 for (size_t index = 0; index < snapshot.blocks.size(); ++index) {
                     auto const& block = snapshot.blocks[index];
                     if (closed || cancellation->load()) throw ssmv::ui::PdfExportCancelled{};
                     if (block.kind != ssmv::BlockKind::Code || block.language != "mermaid") continue;
                     if (!mermaid) mermaid = std::make_unique<ssmv::ui::Mermaid>(root);
                     auto result = std::make_shared<ssmv::ui::Diagram>();
-                    try { co_await mermaid->render(block.text, false, result); diagrams.emplace(index, std::move(result->png)); }
+                    try {
+                        co_await mermaid->render(block.text, false, result, [this, cancellation] { return closed || cancellation->load(); });
+                        if (diagramBytes + result->decodedBytes <= 64 * 1024 * 1024) {
+                            diagramBytes += result->decodedBytes; diagrams.emplace(index, std::move(result->png));
+                        }
+                    }
                     catch (...) { /* Export source for unsupported or invalid diagrams. */ }
                 }
                 co_await resume_background();

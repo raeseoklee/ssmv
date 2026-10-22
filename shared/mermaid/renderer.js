@@ -15,19 +15,26 @@ window.ssmvRender = async function (source, dark = false) {
   host.replaceChildren();
   document.body.style.background = dark ? '#1e1e1e' : '#ffffff';
   try {
+    if (source.includes('$$')) {
+      await Promise.race([Promise.all([...document.fonts].map(font => font.load())),
+        new Promise(resolve => setTimeout(resolve, 2000))]);
+    }
     mermaid.initialize({
       startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
       maxTextSize: 65536, maxEdges: 500, theme: dark ? 'dark' : 'default',
+      legacyMathML: true,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       // Native capture preserves HTML line breaks and KaTeX labels without
       // SVG-to-canvas restrictions. CSP blocks all external resources.
       htmlLabels: true, flowchart: { htmlLabels: true, useMaxWidth: false, wrappingWidth: 420 },
     });
     const { svg } = await mermaid.render('ssmv-diagram', source);
-    const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
-    if (parsed.querySelector('parsererror')) throw new Error('Invalid diagram output.');
-    const root = parsed.documentElement;
-    if (root.localName !== 'svg') throw new Error('Invalid diagram output.');
+    // Mermaid HTML labels contain HTML void elements such as <br>; parse in
+    // an inert template rather than an XML parser that rejects those labels.
+    const template = document.createElement('template');
+    template.innerHTML = svg;
+    const root = template.content.querySelector('svg');
+    if (!root) throw new Error('Invalid diagram output.');
     // Defense in depth beyond strict Mermaid sanitization and the page CSP.
     root.querySelectorAll('script, iframe, object, embed, image').forEach(el => el.remove());
     for (const el of [root, ...root.querySelectorAll('*')]) {
@@ -45,8 +52,13 @@ window.ssmvRender = async function (source, dark = false) {
     root.setAttribute('width', String(width));
     root.setAttribute('height', String(height));
     host.append(document.importNode(root, true));
-    await document.fonts.ready;
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 2000))]);
+    // Offscreen web views may throttle animation frames; the native host also
+    // waits for layout before capture, so never depend on a visible browser.
+    await new Promise(resolve => {
+      setTimeout(resolve, 100);
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
     return { width: width + 16, height: height + 16 };
   } catch (error) {
     host.replaceChildren();

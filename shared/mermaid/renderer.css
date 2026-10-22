@@ -2,3 +2,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 #diagram { padding: 8px; width: max-content; }
 #diagram > svg { display: block; max-width: none !important; }
+
+/* WebKit offsets positioned HTML inside SVG foreignObject from the SVG origin.
+   Native MathML needs no positioned KaTeX wrapper. */
+.katex:has(> math) { position: static; }

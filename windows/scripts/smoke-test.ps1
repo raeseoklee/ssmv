@@ -667,10 +667,30 @@ this is deliberately invalid diagram source
     if ($diagramImage.Current.BoundingRectangle.Width -lt 30 -or $diagramImage.Current.BoundingRectangle.Height -lt 30) {
         throw 'Mermaid produced an empty native image.'
     }
-    $null = Wait-AutomationElement $diagramReader.Id 'this is deliberately invalid diagram source'
+    $null = Wait-AutomationElement $diagramReader.Id "this is deliberately invalid diagram source`n"
     Save-WindowEvidence $diagramReader 'window-mermaid.png'
     Close-DocumentWindow $diagramReader
     Write-Output 'Offline Korean Mermaid flowchart became a native image; malformed diagram retained selectable source.'
+    foreach ($fixture in @(
+        @{ Name = 'Mindmap'; Source = "mindmap`n  root((SSMV))`n    Markdown`n    Diagrams" },
+        @{ Name = 'Math'; Source = 'flowchart LR' + "`n" + ' A["$$x^2 + y^2$$"] --> B["Result"]' },
+        @{ Name = 'Architecture'; Source = "architecture-beta`n group api(cloud)[API]`n service db(database)[Database] in api`n service server(server)[Server] in api`n db:L -- R:server" }
+    )) {
+        $fixturePath = Join-Path $testDirectory ($fixture.Name + '.md')
+        $fixtureMarkdown = '# ' + $fixture.Name + "`n`n" + '```mermaid' + "`n" + $fixture.Source + "`n" + '```' + "`n"
+        [IO.File]::WriteAllText($fixturePath, $fixtureMarkdown, [Text.UTF8Encoding]::new($false))
+        $fixtureReader = Start-Process -FilePath $executablePath -ArgumentList ('"' + $fixturePath + '"') -PassThru
+        $startedProcesses.Add($fixtureReader)
+        Wait-DocumentWindow $fixtureReader ($fixture.Name + '.md — SSMV')
+        $fixtureImage = Wait-AutomationElement $fixtureReader.Id 'reader.mermaid' -AutomationId
+        if ($fixtureImage.Current.BoundingRectangle.Width -lt 20 -or $fixtureImage.Current.BoundingRectangle.Height -lt 20) {
+            throw ($fixture.Name + ' did not render a visible native image.')
+        }
+        Save-WindowEvidence $fixtureReader ('window-mermaid-' + $fixture.Name.ToLowerInvariant() + '.png')
+        Close-DocumentWindow $fixtureReader
+    }
+    Write-Output 'Mindmap, KaTeX math, and architecture diagram modules loaded from offline packaged resources.'
+
 
 } catch {
     foreach ($started in $startedProcesses) {
