@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 — 2026-11-03
+
+- Render Mermaid diagrams offline on macOS and Windows, including flowcharts, mindmaps, architecture diagrams, and math labels.
+- Load diagram modules only when needed, release idle renderers, and bound image caches and rendering work. Invalid or oversized diagrams remain readable as source.
+- Match diagrams to light and dark appearance and include light diagrams in PDF exports.
+- Bundle the complete renderer and third-party license notices; no external diagram service is required.
+
 ## 0.5.1 — 2026-09-17
 
 - Handle Markdown file drops at the window level, covering the reader, sidebar, and empty areas. Prevent read-only child views from intercepting drops.

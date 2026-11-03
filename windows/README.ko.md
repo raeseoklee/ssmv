@@ -13,10 +13,10 @@ C++20, C++/WinRT, WinUI 3로 개발한 Windows 미리 보기 버전입니다.
 
 ## 설치와 탐색기에서 열기
 
-Windows 미리 보기 설치 프로그램은 기존 [v0.5.1 릴리스](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1)에 연결합니다.
+Windows 미리 보기 설치 프로그램은 기존 [v0.6.0 릴리스](https://github.com/raeseoklee/ssmv/releases/tag/v0.6.0)에 연결합니다.
 
-- [x64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
-- [ARM64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
+- [x64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-x64-setup.exe)
+- [ARM64 설치 프로그램](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-ARM64-setup.exe)
 
 Windows 10 빌드 19041 이상과 Windows 11을 지원합니다. 아키텍처는
 **설정 → 시스템 → 정보 → 시스템 종류**에서 확인하세요. 서명하지 않은 설치
@@ -190,7 +190,7 @@ ARM64에서는 해당 설치 프로그램을 지정하세요. Windows 워크플�
 검사를 추가하는 옵션입니다.
 
 Windows 미리 보기 설치 파일을 게시할 때는 Windows 워크플로를 수동 실행하며
-`release_tag`를 `v0.5.1`로 지정하고 `installer_run`은 비워 두세요. 코어 테스트,
+`release_tag`를 `v0.6.0`로 지정하고 `installer_run`은 비워 두세요. 코어 테스트,
 앱 빌드, Windows 11 설치 검사가 모두 성공해야 게시합니다. 기존 설치 파일을
 재검사하는 `installer_run` 모드에서는 게시할 수 없습니다. 버전이 붙은 Windows
 설치 파일만 기존 릴리스에 추가하며 태그와 macOS 파일은 바꾸지 않습니다.

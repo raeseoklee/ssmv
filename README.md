@@ -32,10 +32,10 @@ LLM integrations, shortcuts, rendering limits, and full-screen behavior differ b
 
 ### Windows preview
 
-Download an installer from [v0.5.1](https://github.com/raeseoklee/ssmv/releases/tag/v0.5.1):
+Download an installer from [v0.6.0](https://github.com/raeseoklee/ssmv/releases/tag/v0.6.0):
 
-- [Windows x64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-x64-setup.exe)
-- [Windows ARM64](https://github.com/raeseoklee/ssmv/releases/download/v0.5.1/SSMV-0.5.1-windows-ARM64-setup.exe)
+- [Windows x64](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-x64-setup.exe)
+- [Windows ARM64](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-ARM64-setup.exe)
 
 Setup installs for the current user and registers Markdown files for **Open with SSMV**. On Windows 11, use **Show more options** if needed. The installers are unsigned. See the [Windows installation instructions](windows/README.md#install-and-open-from-explorer).
 
@@ -48,7 +48,7 @@ open -a SSMV
 
 Or download the Universal app for Apple Silicon and Intel from [GitHub Releases](https://github.com/raeseoklee/ssmv/releases). Unzip it and move `SSMV.app` to Applications.
 
-**Release signing:** Version 0.5.1 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
+**Release signing:** Version 0.6.0 is ad-hoc signed, not Developer ID signed or notarized by Apple. The Homebrew cask verifies the archive checksum and bundle signature, then removes quarantine from SSMV.app so it can launch. This bypasses Gatekeeper’s first-launch check for this app; it does not add Apple notarization. A manually downloaded copy may still be blocked. Review [Apple’s guidance for opening apps from unidentified developers](https://support.apple.com/en-gb/102445) before deciding whether to open it. You can also [build from source](#build-from-source).
 
 Open SSMV once after Homebrew installation to register it for Finder’s **Open With** menu.
 If an older installation is missing from that menu, refresh the tap and reinstall:
