@@ -6,3 +6,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 /* WebKit offsets positioned HTML inside SVG foreignObject from the SVG origin.
    Native MathML needs no positioned KaTeX wrapper. */
 .katex:has(> math) { position: static; }
+
+/* Mermaid's C4 relationship labels retain a light-theme color in dark mode. */
+.dark #diagram svg[aria-roledescription="c4"] text[fill="#444444"] { fill: #ddd; }

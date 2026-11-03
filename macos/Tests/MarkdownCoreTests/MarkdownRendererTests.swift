@@ -134,7 +134,12 @@ import Testing
   #expect(sources.first?.contains("한글") == true)
   #expect(result.containsAttachments)
   result.enumerateAttribute(.attachment, in: NSRange(location: 0, length: result.length)) { value, range, _ in
-    if value != nil { #expect(result.attribute(.backgroundColor, at: range.location, effectiveRange: nil) == nil) }
+    if value != nil {
+      #expect(result.attribute(.backgroundColor, at: range.location, effectiveRange: nil) == nil)
+      #expect(result.attribute(.diagramSource, at: range.location, effectiveRange: nil) as? String == sources.first)
+      #expect((result.attribute(.link, at: range.location, effectiveRange: nil) as? URL)?.absoluteString == "ssmv-diagram://open")
+      #expect(result.attribute(.toolTip, at: range.location, effectiveRange: nil) != nil)
+    }
   }
   #expect(result.string.contains("flowchart TB")) // ordinary code remains text
   #expect(result.string.contains("After"))

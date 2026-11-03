@@ -1,5 +1,9 @@
 import AppKit
 
+extension NSAttributedString.Key {
+  public static let diagramSource = NSAttributedString.Key("SSMVDiagramSource")
+}
+
 @MainActor
 public enum MarkdownRenderer {
   public static func render(_ markdown: AttributedString, size: CGFloat) -> NSAttributedString {
@@ -264,6 +268,9 @@ public enum MarkdownRenderer {
         let attachment = NSTextAttachment()
         attachment.image = image
         let rendered = NSMutableAttributedString(attachment: attachment)
+        attributes[.diagramSource] = String(markdown.characters[run.range])
+        attributes[.link] = URL(string: "ssmv-diagram://open")!
+        attributes[.toolTip] = "Open diagram — zoom, full screen, and search"
         rendered.addAttributes(attributes, range: NSRange(location: 0, length: rendered.length))
         result.append(rendered)
       } else {

@@ -8,8 +8,11 @@ public enum PDFExporter {
     return sanitizedText(text)
   }
 
-  private static func sanitizedText(_ source: NSAttributedString) -> NSAttributedString {
+  static func sanitizedText(_ source: NSAttributedString) -> NSAttributedString {
     let text = NSMutableAttributedString(attributedString: source)
+    let wholeDocument = NSRange(location: 0, length: text.length)
+    text.removeAttribute(.diagramSource, range: wholeDocument)
+    text.removeAttribute(.toolTip, range: wholeDocument)
     text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) {
       value, range, _ in
       guard let value else { return }

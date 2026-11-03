@@ -17,7 +17,7 @@ Markdown document. Rendered diagrams use a bounded image cache.
 
 The full distribution preserves the upstream diagram families, including
 mindmaps and architecture diagrams. The host disables external resources and
-interactive actions. Invalid or oversized diagrams fall back to their source.
+diagram-defined interactive actions. Invalid or oversized diagrams fall back to their source.
 macOS uses system WebKit; Windows uses the installed WebView2 Runtime.
 
 ## Redistribution
@@ -48,3 +48,23 @@ come from the app. A reading page or PDF preparation attempts at most 24 diagram
 macOS limits decoded attachments to 24 MiB and Windows to 64 MiB. Timed-out,
 invalid, or over-budget diagrams retain their source instead of blocking reading.
 The web renderer is temporary on macOS and closes after 15 idle seconds on Windows.
+
+## Interactive diagram view
+
+`viewer.html` reuses the isolated renderer for an on-demand SVG view. It supports
+5–400% zoom, drag-to-pan, fit, actual size, and case-insensitive label search.
+Each matching HTML or SVG label counts once; next/previous results wrap around.
+The snapshot page remains unchanged, and no viewer is needed for normal reading.
+
+Hosts call `ssmvOpenDiagram(source, dark)` after the module is ready. The page
+sends only `{ action: "fullscreen" }` and `{ action: "close" }` through the native
+`ssmvViewer` (WebKit) or WebView2 message bridge. Hosts own the native window and
+call `ssmvSetFullscreen(boolean)` after transitions. Native menus can call
+`ssmvViewerCommand` with `find`, `zoom-in`, `zoom-out`, `actual-size`, or `fit`.
+`ssmvFocusSearch()` focuses the search field.
+
+Cmd/Ctrl+F opens search; Enter/Shift+Enter, F3/Shift+F3, and Cmd/Ctrl+G navigate
+matching labels. Plus/minus zoom, 0 fits, and 1 restores actual size. Ctrl/Cmd+wheel
+zooms around the pointer. Escape clears/exits search first, then leaves full screen
+or closes the diagram. Full screen uses the native host (F11 or Ctrl+Cmd+F).
+Document-defined links, callbacks, scripts, and external resources stay blocked.

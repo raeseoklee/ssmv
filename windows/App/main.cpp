@@ -31,6 +31,7 @@
 #include "RemoteDocument.hpp"
 #include "PdfExport.hpp"
 #include "Mermaid.hpp"
+#include "DiagramViewer.hpp"
 #include <atomic>
 #include <chrono>
 #include <winrt/Microsoft.UI.Dispatching.h>
@@ -114,6 +115,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     size_t renderStart = 0;
     uint64_t renderRevision = 0;
     std::unique_ptr<ssmv::ui::Mermaid> mermaid;
+    std::shared_ptr<ssmv::ui::DiagramViewer> diagramViewer;
     uint64_t renderedDiagramBytes = 0;
     std::deque<std::vector<std::filesystem::path>> pendingLoads;
     bool loading = false;
@@ -175,6 +177,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         window.Closed([this](auto const&, auto const&) {
             rememberPosition(); saveState(); activation->stop(); closed = true; ++generation;
             cancelTransfers(); clearNavigationHighlight();
+            if (diagramViewer) diagramViewer->close();
         });
         wchar_t location[32768]{};
         auto length = GetEnvironmentVariableW(L"SSMV_DATA_DIR", location, 32768);
@@ -519,6 +522,22 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (closed || revision != renderRevision || renderedDiagramBytes + result->decodedBytes > 64 * 1024 * 1024) co_return;
             renderedDiagramBytes += result->decodedBytes;
             co_await ssmv::ui::setDiagramImage(target, *result);
+            if (closed || revision != renderRevision) co_return;
+            auto image = target.Child();
+            auto openDiagram = button(L"Open diagram", [this, source = block.text] {
+                if (diagramViewer) diagramViewer->close();
+                diagramViewer = ssmv::ui::DiagramViewer::open(source, root.ActualTheme() == ElementTheme::Dark);
+            });
+            openDiagram.Padding({0, 0, 0, 0});
+            openDiagram.BorderThickness({0, 0, 0, 0});
+            openDiagram.Background(Media::SolidColorBrush(Windows::UI::Color{0, 0, 0, 0}));
+            openDiagram.HorizontalAlignment(HorizontalAlignment::Left);
+            Automation::AutomationProperties::SetAutomationId(openDiagram, L"reader.openDiagram");
+            Automation::AutomationProperties::SetName(openDiagram, L"Open diagram");
+            ToolTipService::SetToolTip(openDiagram, box_value(L"Open diagram — zoom, search, and full screen"));
+            target.Child(nullptr);
+            openDiagram.Content(image);
+            target.Child(openDiagram);
         } catch (...) { /* Keep the selectable source on render failure. */ }
     }
 

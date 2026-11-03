@@ -1,6 +1,7 @@
 // Run this function in the bundled renderer page after ssmvRender is ready.
 async function testMermaidRenderer() {
   const fixtures = {
+    c4: 'C4Context\n Person(reader, "Reader", "Reads documents")\n System(viewer, "SSMV", "Viewer")\n Rel(reader, viewer, "Reads documents")',
     flowchart: 'flowchart TB\n A["사용자<br/>자동화 서비스"] <--> B["에이전트 실행"]',
     sequence: 'sequenceDiagram\n Alice->>Bob: Hello',
     mindmap: 'mindmap\n  root((SSMV))\n    macOS\n    Windows',
@@ -17,6 +18,7 @@ async function testMermaidRenderer() {
     for (const dark of [false, true]) {
       const result = await window.ssmvRender(source, dark);
       if (!(result.width > 16 && result.height > 16) || !document.querySelector('#diagram svg')) throw new Error(name);
+      if (name === 'c4' && dark && [...document.querySelectorAll('#diagram text[fill="#444444"]')].some(el => getComputedStyle(el).fill !== 'rgb(221, 221, 221)')) throw new Error('C4 dark label contrast');
       if (name === 'math' && !document.querySelector('#diagram .katex')) throw new Error('Missing math');
       if (document.querySelector('#diagram script, #diagram iframe, #diagram image')) throw new Error('Unsafe output');
       results.push({name, dark, ...result});

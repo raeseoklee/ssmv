@@ -92,6 +92,7 @@ shortcut. Right-click the remove button for **Remove All Documents…**.
   remove entries. Clearing the list requires confirmation and never deletes sources.
 - Read headings, lists, quotes, code, emphasis, strikethrough, links and aligned
   tables with native text controls. This remains a Markdown subset.
+- Open rendered Mermaid diagrams in a dedicated viewer for zoom, pan, Fit, full screen, and label search with Ctrl+F. Diagrams stay offline; the viewer releases its web renderer when closed. See [diagram examples](../Examples/Diagrams.md).
 - Find matching **sections** with Ctrl+F and F3/Shift+F3. Search navigates between
   blocks; it does not highlight or count individual occurrences. Large tables may
   require their own page controls after navigating to the table.

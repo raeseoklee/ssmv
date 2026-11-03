@@ -81,3 +81,18 @@ private func exportFixture(_ source: String, name: String) throws -> PDFDocument
   #expect(usedHeight > 10_000_000)
   #expect(view.frame.height >= usedHeight)
 }
+
+@Test @MainActor func pdfRemovesInteractiveDiagramMetadata() async throws {
+  let document = try MarkdownDocument.parse("```mermaid\nflowchart TB\n A --> B\n```")
+  let prepared = NSMutableAttributedString()
+  try await MarkdownRenderer.renderIncrementally(document, size: 12, diagram: { _ in
+    NSImage(size: NSSize(width: 120, height: 60))
+  }) { prepared.append($0) }
+  let printed = PDFExporter.sanitizedText(prepared)
+  #expect(printed.containsAttachments)
+  printed.enumerateAttributes(in: NSRange(location: 0, length: printed.length)) { attributes, _, _ in
+    #expect(attributes[.diagramSource] == nil)
+    #expect(attributes[.toolTip] == nil)
+    #expect(attributes[.link] == nil)
+  }
+}

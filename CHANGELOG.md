@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Open Mermaid diagrams in a separate viewer with zoom, pan, fit-to-window, and native full screen on macOS and Windows.
+- Search diagram labels, highlight matches, and move between results while keeping document search available in the reader.
+- Keep interactive web views limited to open diagram windows and release them on close.
+
 ## 0.6.0 — 2026-11-03
 
 - Render Mermaid diagrams offline on macOS and Windows, including flowcharts, mindmaps, architecture diagrams, and math labels.

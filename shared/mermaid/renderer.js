@@ -13,6 +13,7 @@ window.ssmvRender = async function (source, dark = false) {
   active = true;
   const host = document.getElementById('diagram');
   host.replaceChildren();
+  document.documentElement.classList.toggle('dark', dark);
   document.body.style.background = dark ? '#1e1e1e' : '#ffffff';
   try {
     if (source.includes('$$')) {

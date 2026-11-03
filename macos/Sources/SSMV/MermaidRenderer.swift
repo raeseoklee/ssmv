@@ -95,7 +95,7 @@ final class MermaidRenderer: NSObject, WKNavigationDelegate {
 
 /// Serves only packaged renderer assets; custom origin permits ESM without file-origin exceptions.
 @MainActor
-private final class MermaidResourceHandler: NSObject, WKURLSchemeHandler {
+final class MermaidResourceHandler: NSObject, WKURLSchemeHandler {
   let root: URL
   init(root: URL) { self.root = root.resolvingSymlinksInPath() }
   func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {

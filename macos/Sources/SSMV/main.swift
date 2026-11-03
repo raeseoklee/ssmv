@@ -326,6 +326,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private var source: String?
   private var pendingHeading: (documentID: UUID, id: Int)?
   var exportJob: PDFExportJob?
+  private var diagramViewer: MermaidViewerWindow?
   private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
   private var renderTask: Task<Void, Never>?
@@ -873,11 +874,31 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     render()
   }
 
+  private func openDiagram(at charIndex: Int) {
+    guard let storage = textView.textStorage, charIndex >= 0, charIndex < storage.length,
+      let source = storage.attribute(.diagramSource, at: charIndex, effectiveRange: nil) as? String else { return }
+    diagramViewer?.close()
+    let viewer = MermaidViewerWindow(source: source, appearance: window?.effectiveAppearance)
+    diagramViewer = viewer
+    viewer.onClose = { [weak self, weak viewer] in
+      if self?.diagramViewer === viewer { self?.diagramViewer = nil }
+    }
+    viewer.showWindow(nil)
+    viewer.window?.makeKeyAndOrderFront(nil)
+  }
+
+  func textView(_ textView: NSTextView, clickedOn cell: any NSTextAttachmentCellProtocol,
+    in cellFrame: NSRect, at charIndex: Int) {
+    openDiagram(at: charIndex)
+  }
+
   func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
     guard let url = (link as? URL) ?? (link as? String).flatMap(URL.init(string:)) else {
       return true
     }
-    if url.isFileURL && ["md", "markdown", "mdown"].contains(url.pathExtension.lowercased()) {
+    if url.absoluteString == "ssmv-diagram://open" {
+      openDiagram(at: charIndex)
+    } else if url.isFileURL && ["md", "markdown", "mdown"].contains(url.pathExtension.lowercased()) {
       guard case .localFile = currentRecord?.source else { return true }
       appDelegate?.open(url)
     } else if url.scheme == "https",
@@ -915,6 +936,8 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   func windowWillClose(_ notification: Notification) {
     sidebar.cancelAll()
+    diagramViewer?.close()
+    diagramViewer = nil
     isClosing = true
     exportJob?.cancelExport()
     loadTask?.cancel()

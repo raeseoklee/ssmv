@@ -147,7 +147,9 @@ flowchart TB
 
 SSMV bundles Mermaid locally, including its diagram modules and math fonts. It loads the renderer only when needed and keeps a bounded image cache. No CDN or diagram upload is required. Windows needs the Microsoft Edge WebView2 Runtime for diagrams.
 
-Invalid diagrams or diagrams exceeding rendering limits remain readable as source. Interactive diagram actions and external resources are disabled. Diagram support follows the bundled Mermaid version; this does not add general HTML or image rendering to Markdown.
+Open a rendered diagram in its dedicated viewer to zoom, pan, fit it to the window, or enter full screen. Search inside the viewer with **⌘F** on macOS or **Ctrl+F** on Windows, then move between matching labels. Document search remains available separately with the same shortcut in the reader.
+
+Invalid diagrams or diagrams exceeding rendering limits remain readable as source. Diagram-defined links, scripts, and external resources are disabled. Diagram support follows the bundled Mermaid version; this does not add general HTML or image rendering to Markdown.
 
 ### Keyboard shortcuts
 

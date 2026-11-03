@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagram — SSMV</title>
+<link rel="stylesheet" href="katex.min.css">
+<link rel="stylesheet" href="renderer.css">
+<link rel="stylesheet" href="viewer.css">
+<script type="module" src="viewer.js"></script>
+</head>
+<body>
+<header aria-label="Diagram controls">
+  <div class="tools" role="group" aria-label="Zoom">
+    <button id="zoom-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+    <button id="actual-size" title="Actual size (1)" aria-label="Actual size"><span id="zoom-value">100%</span></button>
+    <button id="zoom-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+    <button id="fit" title="Fit diagram (0)">Fit</button>
+  </div>
+  <div class="tools search" role="search">
+    <input id="query" type="search" maxlength="512" placeholder="Find in diagram" aria-label="Find in diagram" autocomplete="off" spellcheck="false">
+    <span id="matches" role="status" aria-live="polite"></span>
+    <button id="previous" aria-label="Previous matching label" title="Previous match (Shift+Enter)" disabled>↑</button>
+    <button id="next" aria-label="Next matching label" title="Next match (Enter)" disabled>↓</button>
+  </div>
+  <div class="tools">
+    <button id="fullscreen" title="Full screen" aria-label="Enter full screen">⛶</button>
+    <button id="close" title="Close diagram (Esc)" aria-label="Close diagram">×</button>
+  </div>
+</header>
+<main id="viewport" tabindex="0" aria-label="Diagram. Drag to pan. Use plus and minus to zoom.">
+  <div id="surface"><div id="stage"><div id="diagram" aria-label="Mermaid diagram"></div><div id="highlights" aria-hidden="true"></div></div></div>
+</main>
+<p id="message" role="status">Loading diagram…</p>
+</body>
+</html>

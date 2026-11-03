@@ -98,6 +98,21 @@ function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$Automa
     throw "Native UI control was not available: '$Value' (process $ProcessId)."
 }
 
+# WebView2 accessibility descendants may belong to its renderer process. Scope
+# to the test-owned native viewer window instead of filtering child process IDs.
+function Wait-DiagramControl($Viewer, [string]$Name) {
+    $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $Name)
+    $deadline = (Get-Date).AddSeconds(25)
+    do {
+        $controls = $Viewer.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+        foreach ($control in $controls) {
+            if ($control.Current.IsEnabled -and !$control.Current.IsOffscreen) { return $control }
+        }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    throw "Diagram viewer control was not available: '$Name'."
+}
+
 function Invoke-AutomationElement($Element) {
     $pattern = $Element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
     $pattern.Invoke()
@@ -307,9 +322,10 @@ function Assert-InactiveOutlineCollapse([Diagnostics.Process]$Target) {
     Write-Output 'Collapsing an inactive selected heading preserved the active reader and restored its root selection.'
 }
 
-function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switch]$IncludePopup) {
+function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switch]$IncludePopup, [IntPtr]$WindowHandle = [IntPtr]::Zero) {
     Start-Sleep -Milliseconds 500
     $Target.Refresh()
+    if ($WindowHandle -eq [IntPtr]::Zero) { $WindowHandle = $Target.MainWindowHandle }
     # GetWindowRect is DPI-virtualized and includes invisible resize borders;
     # DWM frame bounds provide visible physical pixels for screen captures.
     $previousDpi = [WindowCapture]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
@@ -317,8 +333,8 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switc
     try {
         $rect = New-Object WindowCapture+RECT
         $measured = if ($IncludePopup) {
-            [WindowCapture]::DwmGetWindowAttribute($Target.MainWindowHandle, 9, [ref]$rect, 16) -eq 0
-        } else { [WindowCapture]::GetWindowRect($Target.MainWindowHandle, [ref]$rect) }
+            [WindowCapture]::DwmGetWindowAttribute($WindowHandle, 9, [ref]$rect, 16) -eq 0
+        } else { [WindowCapture]::GetWindowRect($WindowHandle, [ref]$rect) }
         if (!$measured) { throw 'Could not measure the screenshot window.' }
         $bitmap = [System.Drawing.Bitmap]::new(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
         $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
@@ -331,7 +347,7 @@ function Save-WindowEvidence([Diagnostics.Process]$Target, [string]$Name, [switc
                 $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
             } else {
                 $dc = $graphics.GetHdc()
-                try { $captured = [WindowCapture]::PrintWindow($Target.MainWindowHandle, $dc, 2) }
+                try { $captured = [WindowCapture]::PrintWindow($WindowHandle, $dc, 2) }
                 finally { $graphics.ReleaseHdc($dc) }
                 if (!$captured) { throw "Could not capture $Name evidence." }
             }
@@ -672,9 +688,32 @@ this is deliberately invalid diagram source
     }
     $null = Wait-AutomationElement $diagramReader.Id "this is deliberately invalid diagram source`n"
     Save-WindowEvidence $diagramReader 'window-mermaid.png'
+    Invoke-AutomationElement (Wait-AutomationElement $diagramReader.Id 'reader.openDiagram' -AutomationId)
+    $viewer = Wait-AutomationElement $diagramReader.Id 'Diagram — SSMV'
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Zoom in')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Zoom out')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Actual size')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Fit')
+    $diagramSearch = Wait-DiagramControl $viewer 'Find in diagram'
+    $diagramSearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('에이전트')
+    $null = Wait-DiagramControl $viewer 'Matching label 1 of 1'
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Next matching label')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Previous matching label')
+    Save-WindowEvidence $diagramReader 'window-diagram-viewer.png' -WindowHandle ([IntPtr]::new($viewer.Current.NativeWindowHandle))
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Enter full screen')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Exit full screen')
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Close diagram')
+    # Opening again proves browser teardown does not leave a stale viewer.
+    Invoke-AutomationElement (Wait-AutomationElement $diagramReader.Id 'reader.openDiagram' -AutomationId)
+    $viewer = Wait-AutomationElement $diagramReader.Id 'Diagram — SSMV'
+    $null = Wait-DiagramControl $viewer 'Zoom in'
+    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Close diagram')
+    Wait-DocumentWindow $diagramReader 'Mermaid.md — SSMV'
     Close-DocumentWindow $diagramReader
+    Write-Output 'Diagram window opened, zoomed, fitted, searched Korean labels, entered/exited full screen, closed and reopened.'
     Write-Output 'Offline Korean Mermaid flowchart became a native image; malformed diagram retained selectable source.'
     foreach ($fixture in @(
+        @{ Name = 'C4'; Source = 'C4Context' + "`n" + ' Person(user, "Reader", "Reads documents")' + "`n" + ' System(viewer, "SSMV", "Markdown viewer")' + "`n" + ' Rel(user, viewer, "Opens")' },
         @{ Name = 'Mindmap'; Source = "mindmap`n  root((SSMV))`n    Markdown`n    Diagrams" },
         @{ Name = 'Math'; Source = 'flowchart LR' + "`n" + ' A["$$x^2 + y^2$$"] --> B["Result"]' },
         @{ Name = 'Architecture'; Source = "architecture-beta`n group api(cloud)[API]`n service db(database)[Database] in api`n service server(server)[Server] in api`n db:L -- R:server" }
