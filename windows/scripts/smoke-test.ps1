@@ -690,6 +690,8 @@ this is deliberately invalid diagram source
     & "$PSScriptRoot/test-diagram-viewer.ps1" -Port $viewerPort -Reopen
     Wait-DocumentWindow $diagramReader 'Mermaid.md — SSMV'
     Close-DocumentWindow $diagramReader
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArgs
+    $env:WEBVIEW2_USER_DATA_FOLDER = $previousBrowserData
     Write-Output 'Diagram window opened, zoomed, fitted, searched Korean labels, entered/exited full screen, closed and reopened.'
     Write-Output 'Offline Korean Mermaid flowchart became a native image; malformed diagram retained selectable source.'
     foreach ($fixture in @(
@@ -731,5 +733,14 @@ this is deliberately invalid diagram source
     $env:SSMV_MERMAID_LOG = $previousMermaidLog
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArgs
     $env:WEBVIEW2_USER_DATA_FOLDER = $previousBrowserData
-    Remove-Item -LiteralPath $testDirectory -Recurse -Force
+    # Edge may release BrowserMetrics and profile databases shortly after the
+    # app exits. Retry only removal of this run's private temp directory.
+    $cleanupDeadline = (Get-Date).AddSeconds(30)
+    while (Test-Path -LiteralPath $testDirectory) {
+        try { Remove-Item -LiteralPath $testDirectory -Recurse -Force -ErrorAction Stop }
+        catch {
+            if ((Get-Date) -ge $cleanupDeadline) { throw }
+            Start-Sleep -Milliseconds 300
+        }
+    }
 }
