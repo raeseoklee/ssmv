@@ -20,7 +20,7 @@ struct MermaidPreviewJobTests {
       let (root, helper) = try fixture("echo $$ > \"${0%/*}/pid\"\ntrap '' TERM\nexec /bin/sleep 30\n")
       defer { try? FileManager.default.removeItem(at: root) }
       let job = MermaidPreviewJob(executable: helper, directory: root, timeout: cancel ? .seconds(5) : .milliseconds(250))
-      let task = Task { await job.image("private contents", dark: false, width: 600) }
+      let task = Task { @MainActor in await job.image("private contents", dark: false, width: 600) == nil }
       let pidFile = root.appendingPathComponent("pid")
       let until = ContinuousClock.now.advanced(by: .seconds(2))
       while !FileManager.default.fileExists(atPath: pidFile.path), ContinuousClock.now < until {
@@ -32,7 +32,7 @@ struct MermaidPreviewJobTests {
       #expect(names == ["helper", "pid"])  // no document or output file visible even during execution
       if cancel { task.cancel() }
       let start = ContinuousClock.now
-      #expect(await task.value == nil)
+      #expect(await task.value)
       while kill(pid, 0) == 0, start.duration(to: .now) < .seconds(2) { try await Task.sleep(for: .milliseconds(10)) }
       #expect(kill(pid, 0) == -1 && errno == ESRCH)
       #expect(start.duration(to: .now) < .seconds(2))
