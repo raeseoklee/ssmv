@@ -47,15 +47,19 @@ std::shared_ptr<DiagramViewer> DiagramViewer::open(std::string source, bool dark
 
 DiagramViewer::~DiagramViewer() { try { close(); } catch (...) {} }
 void DiagramViewer::dispose() {
+    if (closed_) return;
     closed_ = true;
     if (browser_) { auto browser = browser_; browser_ = nullptr; browser.Close(); }
-    if (window_) window_.Content(nullptr);
+    // The Closed event may arrive after WinUI has destroyed the native window.
+    // Drop references; do not write to the closed XAML tree.
     status_ = nullptr;
+    window_ = nullptr;
 }
 void DiagramViewer::close() {
-    if (!closed_ && window_) window_.Close();
+    if (closed_) return;
+    auto window = window_;
+    if (window) window.Close();
     dispose();
-    window_ = nullptr;
 }
 void DiagramViewer::toggleFullscreen() {
     if (closed_ || !window_) return;
