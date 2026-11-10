@@ -149,7 +149,7 @@ SSMV bundles Mermaid locally, including its diagram modules and math fonts. It l
 
 Open a rendered diagram in its dedicated viewer to zoom, pan, fit it to the window, or enter full screen. Search inside the viewer with **⌘F** on macOS or **Ctrl+F** on Windows, then move between matching labels. Document search remains available separately with the same shortcut in the reader.
 
-Invalid diagrams or diagrams exceeding rendering limits remain readable as source. Diagram-defined links, scripts, and external resources are disabled. Diagram support follows the bundled Mermaid version; this does not add general HTML or image rendering to Markdown.
+On macOS, text appears first. Each diagram stays readable as source until its preview is ready, so a slow renderer does not block scrolling or switching documents. Invalid diagrams or diagrams exceeding rendering limits remain readable as source. Diagram-defined links, scripts, and external resources are disabled. Diagram support follows the bundled Mermaid version; this does not add general HTML or image rendering to Markdown.
 
 ### Keyboard shortcuts
 

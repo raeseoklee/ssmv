@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- On macOS, show the complete document before generating Mermaid previews. Isolate preview rendering so WebKit startup cannot freeze the reader.
+
 - Open Mermaid diagrams in a separate viewer with zoom, pan, fit-to-window, and native full screen on macOS and Windows.
 - Search diagram labels, highlight matches, and move between results while keeping document search available in the reader.
 - Keep interactive web views limited to open diagram windows and release them on close.

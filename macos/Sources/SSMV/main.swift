@@ -330,6 +330,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private(set) var isClosing = false
   private var loadTask: Task<Void, Never>?
   private var renderTask: Task<Void, Never>?
+  private var renderingDark: Bool?
   private var appearanceObservation: NSKeyValueObservation?
   private var renderGeneration = 0
   private var isRendering = false
@@ -347,7 +348,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     super.init(window: window)
     appearanceObservation = textView.observe(\.effectiveAppearance) { [weak self] _, _ in
       Task { @MainActor [weak self] in
-        guard let self, self.textView.textStorage?.containsAttachments == true else { return }
+        guard let self, let previous = self.renderingDark,
+          previous != (self.textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua),
+          self.parsed != nil else { return }
         self.render(restoring: self.textView.enclosingScrollView?.contentView.bounds.origin)
       }
     }
@@ -710,14 +713,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     let request = renderGeneration
     let size = fontSize
     let dark = textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    renderingDark = dark
     let diagramWidth = max(100, textView.bounds.width - 82)
     isRendering = true
     renderTask = Task { [weak self] in
       var started = false
       do {
-        try await MarkdownRenderer.renderIncrementally(parsed, size: size, diagram: { source in
-          await MermaidRenderer.shared.image(source, dark: dark, width: diagramWidth)
-        }) { [weak self] chunk in
+        let diagramRanges = try await MarkdownRenderer.renderIncrementally(parsed, size: size, deferDiagrams: true) { [weak self] chunk in
           guard let self, self.renderGeneration == request else { return }
           autoreleasepool {
             if !started {
@@ -746,6 +748,11 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
         }
         self.scrollRestoration.clear()
         self.revealPendingHeading()
+        if let storage = self.textView.textStorage {
+          try await MarkdownRenderer.resolveDeferredDiagrams(in: storage, ranges: diagramRanges) { source in
+            await MermaidPreviewJob.shared.image(source, dark: dark, width: diagramWidth)
+          }
+        }
       } catch is CancellationError {
         // A newer render or document owns the view now.
       } catch {
@@ -955,6 +962,12 @@ if CommandLine.arguments.dropFirst().first == "--register-documents" {
 }
 
 let app = NSApplication.shared
+if CommandLine.arguments.dropFirst().first == "--render-mermaid-preview" {
+  app.setActivationPolicy(.prohibited)
+  Task { exit(await runMermaidPreviewHelper(CommandLine.arguments)) }
+  app.run()
+  exit(1)
+}
 if CommandLine.arguments.dropFirst().first == "--export-pdf" {
   app.setActivationPolicy(.prohibited)
   Task { exit(await runPDFExportHelper(CommandLine.arguments)) }

@@ -1,6 +1,7 @@
 import AppKit
 
 extension NSAttributedString.Key {
+  fileprivate static let pendingDiagram = NSAttributedString.Key("SSMVPendingDiagram")
   public static let diagramSource = NSAttributedString.Key("SSMVDiagramSource")
 }
 
@@ -16,12 +17,35 @@ public enum MarkdownRenderer {
   }
 
   /// Delivers bounded batches without retaining an additional complete rendered document.
+  @discardableResult
   public static func renderIncrementally(
     _ markdown: AttributedString, size: CGFloat,
+    deferDiagrams: Bool = false,
     diagram: (@MainActor (String) async -> NSImage?)? = nil,
     append: (NSAttributedString) -> Void
-  ) async throws {
+  ) async throws -> [NSRange] {
     let state = RenderingState(size: size)
+    state.deferDiagrams = deferDiagrams
+    var ranges: [NSRange] = []
+    var delivered = 0
+    func deliver(_ chunk: NSAttributedString) {
+      if deferDiagrams {
+        if state.markedDiagrams > 0 {
+          chunk.enumerateAttribute(.pendingDiagram, in: NSRange(location: 0, length: chunk.length)) {
+            value, local, _ in
+            guard value != nil else { return }
+            let range = NSRange(location: delivered + local.location, length: local.length)
+            if let last = ranges.last, NSMaxRange(last) == range.location {
+              ranges[ranges.count - 1].length += range.length
+            } else {
+              ranges.append(range)
+            }
+          }
+        }
+        delivered += chunk.length
+      }
+      append(chunk)
+    }
     var attemptedDiagrams = Set<Int>()
     var diagramBytes = 0
     let diagramDeadline = ContinuousClock.now.advanced(by: .seconds(20))
@@ -50,7 +74,7 @@ public enum MarkdownRenderer {
                   diagramBytes < 24 * 1_024 * 1_024, ContinuousClock.now < diagramDeadline else { continue }
                 attemptedDiagrams.insert(component.identity)
                 // Make preceding native content visible before a potentially slow diagram.
-                if chunk.length > 0 { append(chunk); chunk = NSMutableAttributedString() }
+                if chunk.length > 0 { deliver(chunk); chunk = NSMutableAttributedString() }
                 try Task.checkCancellation()
                 if let image = await diagram(String(markdown.characters[run.range])) {
                   let cost = image.representations.reduce(0) { $0 + max(0, $1.pixelsWide) * max(0, $1.pixelsHigh) * 4 }
@@ -87,16 +111,60 @@ public enum MarkdownRenderer {
           count += 1
           if chunk.length >= 16_384 { break }
         }
-        if chunk.length > 0 { append(chunk) }
+        if chunk.length > 0 { deliver(chunk) }
       }
       // A short suspension lets AppKit process input and draw between batches.
       if !finished { try await Task.sleep(for: .milliseconds(1)) }
     }
     try Task.checkCancellation()
+    return ranges
+  }
+
+  /// Upgrade only the marked code blocks after the entire document is readable.
+  /// Prioritize the first visible text in document order and account for shorter attachments.
+  public static func resolveDeferredDiagrams(
+    in storage: NSMutableAttributedString, ranges: [NSRange],
+    image: @MainActor (String) async -> NSImage?
+  ) async throws {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(20))
+    var bytes = 0
+    var shift = 0
+    for original in ranges {
+      let range = NSRange(location: original.location + shift, length: original.length)
+      try Task.checkCancellation()
+      guard ContinuousClock.now < deadline, bytes < 24 * 1_024 * 1_024 else { break }
+      guard range.length > 0, range.location >= 0, NSMaxRange(range) <= storage.length,
+        let marker = storage.attribute(.pendingDiagram, at: range.location, effectiveRange: nil) as? Int
+      else { return }
+      let source = (storage.string as NSString).substring(with: range)
+      guard let rendered = await image(source) else { continue }
+      // Switching documents can replace the entire text storage during the await.
+      try Task.checkCancellation()
+      guard NSMaxRange(range) <= storage.length,
+        storage.attribute(.pendingDiagram, at: range.location, effectiveRange: nil) as? Int == marker
+      else { return }
+      let cost = rendered.representations.reduce(0) { $0 + $1.pixelsWide * $1.pixelsHigh * 4 }
+      guard cost <= 24 * 1_024 * 1_024 - bytes else { continue }
+      bytes += cost
+      var attributes = storage.attributes(at: range.location, effectiveRange: nil)
+      attributes.removeValue(forKey: .pendingDiagram)
+      attributes.removeValue(forKey: .backgroundColor)
+      let attachment = NSTextAttachment()
+      attachment.image = rendered
+      let replacement = NSMutableAttributedString(attachment: attachment)
+      attributes[.diagramSource] = source
+      attributes[.link] = URL(string: "ssmv-diagram://open")!
+      attributes[.toolTip] = "Open diagram — zoom, full screen, and search"
+      replacement.addAttributes(attributes, range: NSRange(location: 0, length: replacement.length))
+      storage.replaceCharacters(in: range, with: replacement)
+      shift += replacement.length - range.length
+    }
   }
 
   private final class RenderingState {
     let size: CGFloat
+    var deferDiagrams = false
+    var markedDiagrams = 0
     var diagrams: [Int: NSImage] = [:]
     var previousHeadingIdentity: Int?
     var headingOrdinal = -1
@@ -274,7 +342,18 @@ public enum MarkdownRenderer {
         rendered.addAttributes(attributes, range: NSRange(location: 0, length: rendered.length))
         result.append(rendered)
       } else {
-        result.append(NSAttributedString(string: text, attributes: attributes))
+        var contentAttributes = attributes
+        if deferDiagrams, markedDiagrams < 24, text.utf8.count <= 65_536,
+          let code = components.first(where: {
+            if case .codeBlock(let language) = $0.kind {
+              return language?.split(whereSeparator: { $0.isWhitespace }).first?.lowercased() == "mermaid"
+            }
+            return false
+          }) {
+          contentAttributes[.pendingDiagram] = code.identity
+          markedDiagrams += 1
+        }
+        result.append(NSAttributedString(string: text, attributes: contentAttributes))
       }
       previousBlock = block
       previousAttributes = attributes

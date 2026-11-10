@@ -170,3 +170,52 @@ import Testing
   #expect(calls == 24)
   #expect(result.string == MarkdownRenderer.render(parsed, size: 16).string)
 }
+
+@Test @MainActor func documentIsReadableBeforeDeferredPreviewsAndKeepsFailedSources() async throws {
+  let source = """
+    ```mermaid
+    flowchart LR
+    A-->B
+    ```
+
+    Between diagrams.
+
+    ```mermaid
+    invalid diagram
+    ```
+
+    End of document.
+    """
+  let parsed = try MarkdownDocument.parse(source)
+  let storage = NSMutableAttributedString()
+  let ranges = try await MarkdownRenderer.renderIncrementally(parsed, size: 16, deferDiagrams: true) {
+    storage.append($0)
+  }
+  #expect(storage.string.hasSuffix("End of document."))
+  #expect(!storage.containsAttachments)
+  var requested: [String] = []
+  try await MarkdownRenderer.resolveDeferredDiagrams(in: storage, ranges: ranges) { source in
+    requested.append(source)
+    return source.contains("A-->B") ? NSImage(size: NSSize(width: 10, height: 10)) : nil
+  }
+  #expect(requested.count == 2)
+  #expect(storage.containsAttachments)
+  #expect(!storage.string.contains("A-->B"))
+  #expect(storage.string.contains("Between diagrams."))
+  #expect(storage.string.contains("invalid diagram"))
+  #expect(storage.string.hasSuffix("End of document."))
+}
+
+@Test @MainActor func switchingDocumentsDiscardsPendingDiagramReplacement() async throws {
+  let parsed = try MarkdownDocument.parse("```mermaid\nflowchart LR\nA-->B\n```")
+  let storage = NSMutableAttributedString()
+  let ranges = try await MarkdownRenderer.renderIncrementally(parsed, size: 16, deferDiagrams: true) {
+    storage.append($0)
+  }
+  try await MarkdownRenderer.resolveDeferredDiagrams(in: storage, ranges: ranges) { _ in
+    storage.setAttributedString(NSAttributedString(string: "New document"))
+    return NSImage(size: NSSize(width: 10, height: 10))
+  }
+  #expect(storage.string == "New document")
+  #expect(!storage.containsAttachments)
+}
