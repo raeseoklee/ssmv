@@ -338,23 +338,50 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
             if (expanded) expandedPaths.insert(path); else expandedPaths.erase(path);
             saveState();
         });
+        documentTree->categoryExpanded = [this](ssmv::CategoryID id, bool expanded) {
+            for (auto& c : session.categories) if (c.id == id) { c.expanded = expanded; saveState(); break; }
+        };
+        documentTree->moved = guarded([this](ssmv::DocumentTree::Target target, ssmv::CategoryID parent) {
+            if (target.document && *target.document < library.documents().size())
+                moveSidebarItem(pathText(library.documents()[*target.document].path), 0, parent);
+            else if (target.category) moveSidebarItem({}, target.category, parent);
+        });
         Grid::SetRow(documentTree->view, 1); pane.Children().Append(documentTree->view);
         MenuFlyout menu;
-        auto item = [this, menu](hstring const& name, auto action) {
-            MenuFlyoutItem entry;
-            entry.Text(name);
-            entry.Click([this, action](auto const&, auto const&) {
-                try { action(); }
-                catch (std::exception const& e) { error(to_hstring(e.what())); }
-                catch (hresult_error const& e) { error(e.message()); }
-            });
-            menu.Items().Append(entry);
-        };
-        item(L"Sort by name (A–Z)", [this] { sort(true); });
-        item(L"Sort by name (Z–A)", [this] { sort(false); });
-        menu.Items().Append(MenuFlyoutSeparator());
-        item(L"Remove selected", [this] { removeSelected(); });
-        item(L"Remove all…", [this] { removeAll(); });
+        menu.Opening([this, weakMenu = make_weak(menu)](auto const&, auto const&) {
+            auto menu = weakMenu.get(); if (!menu) return;
+            menu.Items().Clear();
+            auto target = documentTree->takeContext();
+            auto item = [this, menu](hstring const& name, auto action) {
+                MenuFlyoutItem entry; entry.Text(name);
+                entry.Click([this, action](auto const&, auto const&) {
+                    try { action(); }
+                    catch (std::exception const& e) { error(to_hstring(e.what())); }
+                    catch (hresult_error const& e) { error(e.message()); }
+                });
+                menu.Items().Append(entry);
+            };
+            std::string path;
+            if (target.document && *target.document < library.documents().size()) path = pathText(library.documents()[*target.document].path);
+            auto parent = target.category;
+            if (!path.empty()) for (auto const& d : session.documents) if (d.path == path) { parent = d.category; break; }
+            item(target.category ? L"New subcategory…" : L"New category…", [this, parent] { editCategory(parent, false); });
+            if (target.category) {
+                item(L"Rename category…", [this, id = target.category] { editCategory(id, true); });
+                item(L"Move category to…", [this, id = target.category] { chooseCategory({}, id); });
+                item(L"Delete category…", [this, id = target.category] { deleteCategory(id); });
+            } else if (!path.empty() && !session.categories.empty()) {
+                item(L"Move document to…", [this, path] { chooseCategory(path, 0); });
+            }
+            menu.Items().Append(MenuFlyoutSeparator());
+            item(L"Sort by name (A–Z)", [this] { sort(true); });
+            item(L"Sort by name (Z–A)", [this] { sort(false); });
+            if (!target.category) {
+                menu.Items().Append(MenuFlyoutSeparator());
+                item(L"Remove selected", [this] { removeSelected(); });
+                item(L"Remove all…", [this] { removeAll(); });
+            }
+        });
         pane.ContextFlyout(menu);
         split.Pane(pane);
 
@@ -509,7 +536,7 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
     }
 
     void rebuildShelf() {
-        documentTree->update(library, selected, outline.IsChecked().Value(), expandedPaths);
+        documentTree->update(library, selected, outline.IsChecked().Value(), expandedPaths, session);
         syncChrome();
     }
 
@@ -626,6 +653,85 @@ struct App : ApplicationT<App, Markup::IXamlMetadataProvider> {
         if (pdfCancellation) pdfCancellation->store(true);
     }
 
+    // Categories exist only in the sidebar session. Paths never enter filesystem move APIs.
+    void expandCategoryAncestors(ssmv::CategoryID id) {
+        while (id) {
+            auto it = std::find_if(session.categories.begin(), session.categories.end(), [&](auto const& c) { return c.id == id; });
+            if (it == session.categories.end()) break;
+            it->expanded = true; id = it->parent;
+        }
+    }
+    void moveSidebarItem(std::string const& path, ssmv::CategoryID id, ssmv::CategoryID parent) {
+        if (id) session.moveCategory(id, parent);
+        else session.moveDocument(path, parent);
+        expandCategoryAncestors(parent); rebuildShelf(); saveState();
+    }
+    ContentDialog categoryDialog(hstring const& title, hstring const& action) {
+        ContentDialog dialog; dialog.XamlRoot(root.XamlRoot()); dialog.RequestedTheme(root.RequestedTheme());
+        dialog.Title(box_value(title)); dialog.PrimaryButtonText(action); dialog.CloseButtonText(L"Cancel");
+        dialog.DefaultButton(ContentDialogButton::Primary); return dialog;
+    }
+    fire_and_forget editCategory(ssmv::CategoryID id, bool rename) {
+        auto lifetime = get_strong(); if (dialogOpen) co_return;
+        dialogOpen = true;
+        try {
+            auto dialog = categoryDialog(rename ? L"Rename category" : L"New category", rename ? L"Rename" : L"Create");
+            TextBox input; Automation::AutomationProperties::SetAutomationId(input, L"category.name"); input.PlaceholderText(L"Category name"); input.MaxLength(320);
+            if (rename) for (auto const& c : session.categories) if (c.id == id) { input.Text(to_hstring(c.name)); input.SelectAll(); break; }
+            dialog.Content(input);
+            if ((co_await dialog.ShowAsync()) == ContentDialogResult::Primary && !closed) {
+                auto name = to_string(input.Text());
+                if (rename) session.renameCategory(id, name);
+                else { session.createCategory(id, name); expandCategoryAncestors(id); }
+                rebuildShelf(); saveState();
+            }
+        } catch (hresult_error const& e) { error(e.message()); }
+        catch (std::exception const& e) { error(to_hstring(e.what())); }
+        dialogOpen = false;
+    }
+    fire_and_forget chooseCategory(std::string path, ssmv::CategoryID id) {
+        auto lifetime = get_strong(); if (dialogOpen) co_return;
+        dialogOpen = true;
+        try {
+            auto dialog = categoryDialog(id ? L"Move category to" : L"Move document to", L"Move");
+            ComboBox picker; Automation::AutomationProperties::SetAutomationId(picker, L"category.destination"); picker.HorizontalAlignment(HorizontalAlignment::Stretch);
+            std::vector<ssmv::CategoryID> ids{0}; picker.Items().Append(box_value(L"Documents (top level)"));
+            ssmv::CategoryID current = 0;
+            if (id) { for (auto const& c : session.categories) if (c.id == id) { current = c.parent; break; } }
+            else { for (auto const& d : session.documents) if (d.path == path) { current = d.category; break; } }
+            for (auto const& c : session.categories) {
+                if (!session.canParent(id, c.id)) continue;
+                auto label = c.name; auto parent = c.parent;
+                while (parent) {
+                    auto it = std::find_if(session.categories.begin(), session.categories.end(), [&](auto const& candidate) { return candidate.id == parent; });
+                    if (it == session.categories.end()) break;
+                    label = it->name + " / " + label; parent = it->parent;
+                }
+                picker.Items().Append(box_value(to_hstring(label))); ids.push_back(c.id);
+            }
+            auto initial = std::find(ids.begin(), ids.end(), current);
+            picker.SelectedIndex(initial == ids.end() ? 0 : static_cast<int>(initial - ids.begin()));
+            dialog.Content(picker);
+            if ((co_await dialog.ShowAsync()) == ContentDialogResult::Primary && !closed && picker.SelectedIndex() >= 0)
+                moveSidebarItem(path, id, ids.at(static_cast<size_t>(picker.SelectedIndex())));
+        } catch (hresult_error const& e) { error(e.message()); }
+        catch (std::exception const& e) { error(to_hstring(e.what())); }
+        dialogOpen = false;
+    }
+    fire_and_forget deleteCategory(ssmv::CategoryID id) {
+        auto lifetime = get_strong(); if (dialogOpen) co_return;
+        dialogOpen = true;
+        try {
+            auto dialog = categoryDialog(L"Delete category?", L"Delete");
+            dialog.DefaultButton(ContentDialogButton::Close);
+            dialog.Content(box_value(L"Documents and subcategories move up one level. Files stay on disk."));
+            if ((co_await dialog.ShowAsync()) == ContentDialogResult::Primary && !closed) {
+                session.removeCategory(id); rebuildShelf(); saveState();
+            }
+        } catch (hresult_error const& e) { error(e.message()); }
+        catch (std::exception const& e) { error(to_hstring(e.what())); }
+        dialogOpen = false;
+    }
     void removeSelected() {
         if (!selected) return;
         lastQuery = L""; ++searchGeneration;

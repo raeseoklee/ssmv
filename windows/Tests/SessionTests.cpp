@@ -36,6 +36,29 @@ int main() {
         check(parseSession(bytes) == session, "Unicode, newline, insertion order and reading positions must roundtrip");
         check(parseSession(serializeSession(Session{})) == Session{}, "Empty session must roundtrip");
         for (std::size_t length = 0; length < bytes.size(); ++length) rejects([&] { parseSession(std::string_view(bytes).substr(0, length)); });
+        auto grouped = parseSession(bytes); // Existing v1 bytes migrate without changing any document identity.
+        auto work = grouped.createCategory(0, "업무");
+        auto nested = grouped.createCategory(work, "Notes");
+        auto leaf = grouped.createCategory(nested, "Drafts");
+        grouped.moveDocument(grouped.documents[0].path, nested);
+        grouped.moveDocument(grouped.documents[1].path, leaf);
+        grouped.categories[0].expanded = false;
+        auto groupedBytes = serializeSession(grouped);
+        check(groupedBytes.starts_with("SSMVSES2") && parseSession(groupedBytes) == grouped, "Nested membership and collapse state persist");
+        for (std::size_t length = bytes.size(); length < groupedBytes.size(); ++length)
+            rejects([&] { parseSession(std::string_view(groupedBytes).substr(0, length)); });
+        rejects([&] { grouped.moveCategory(work, leaf); });
+        rejects([&] { grouped.moveDocument(grouped.documents[0].path, 555); });
+        rejects([&] { grouped.createCategory(0, "  "); });
+        grouped.renameCategory(nested, "작업");
+        grouped.removeCategory(nested);
+        check(grouped.documents[0].category == work && grouped.categories[1].parent == work &&
+              grouped.documents[1].category == leaf, "Deleting a category promotes direct children only");
+        grouped.moveCategory(leaf, 0); grouped.moveDocument(grouped.documents[0].path, 0);
+        grouped.removeCategory(work); grouped.removeCategory(leaf);
+        check(serializeSession(grouped) == bytes, "Clearing categories restores original session including positions and selection");
+        auto cyclic = parseSession(groupedBytes); cyclic.categories.front().parent = leaf;
+        rejects([&] { serializeSession(cyclic); });
         auto changed = bytes; changed[7] = '2'; rejects([&] { parseSession(changed); });
         rejects([&] { parseSession(bytes + "trailing"); });
         rejects([&] { parseSession(std::string(MaxSessionBytes + 1, 'x')); });

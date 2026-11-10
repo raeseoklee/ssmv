@@ -1,12 +1,14 @@
 #include "Session.hpp"
 #include "Documents.hpp"
 #include <atomic>
+#include <algorithm>
 #include <bit>
 #include <chrono>
 #include <cmath>
 #include <fstream>
 #include <stdexcept>
 #include <unordered_set>
+#include <unordered_map>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -21,12 +23,31 @@ namespace ssmv {
 namespace {
 constexpr std::string_view Magic = "SSMVSES1";
 [[noreturn]] void invalid() { throw std::runtime_error("The saved session is invalid or unsupported; it has not been overwritten."); }
+bool validName(std::string const& name) {
+    return !name.empty() && name.size() <= 640 && validUTF8(name) &&
+        std::count_if(name.begin(), name.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; }) <= 160 &&
+        name.find_first_not_of(" \t\r\n") != std::string::npos &&
+        std::none_of(name.begin(), name.end(), [](unsigned char c) { return c < 32 || c == 127; });
+}
 void validate(const Session& value) {
+    if (value.categories.size() > MaxCategories) invalid();
+    std::unordered_map<CategoryID, CategoryID> parents;
+    for (auto const& c : value.categories) {
+        if (!c.id || !parents.emplace(c.id, c.parent).second || !validName(c.name)) invalid();
+    }
+    for (auto const& c : value.categories) {
+        auto parent = c.parent;
+        for (std::size_t depth = 0; parent; ++depth) {
+            auto it = parents.find(parent);
+            if (it == parents.end() || parent == c.id || depth >= parents.size()) invalid();
+            parent = it->second;
+        }
+    }
     if (value.documents.size() > MaxSessionDocuments || value.expandedPaths.size() > MaxSessionDocuments || value.theme > 2 ||
         !std::isfinite(value.fontSize) || value.fontSize < 8 || value.fontSize > 72) invalid();
     std::unordered_set<std::string> paths;
     for (const auto& item : value.documents) {
-        if (item.path.empty() || item.path.size() > 32768 || !validUTF8(item.path) || !paths.insert(item.path).second ||
+        if ((item.category && !parents.contains(item.category)) || item.path.empty() || item.path.size() > 32768 || !validUTF8(item.path) || !paths.insert(item.path).second ||
             !std::isfinite(item.scrollOffset) || item.scrollOffset < 0 || item.scrollOffset > 1e12) invalid();
     }
     if (!value.selectedPath.empty() && !paths.contains(value.selectedPath)) invalid();
@@ -57,9 +78,48 @@ struct Reader {
     bool boolean() { const auto value = number(1); if (value > 1) invalid(); return value != 0; }
 };
 }
+bool Session::canParent(CategoryID id, CategoryID parent) const {
+    for (std::size_t steps = 0; parent; ++steps) {
+        if (steps >= categories.size() || parent == id) return false;
+        auto it = std::find_if(categories.begin(), categories.end(), [&](auto const& c) { return c.id == parent; });
+        if (it == categories.end()) return false;
+        parent = it->parent;
+    }
+    return true;
+}
+CategoryID Session::createCategory(CategoryID parent, std::string name) {
+    if (!validName(name) || categories.size() >= MaxCategories || !canParent(0, parent))
+        throw std::invalid_argument("Choose a nonempty category name (up to 160 characters) and a valid parent.");
+    CategoryID id = 1;
+    while (std::any_of(categories.begin(), categories.end(), [&](auto const& c) { return c.id == id; })) ++id;
+    categories.push_back({id, parent, std::move(name), true}); return id;
+}
+void Session::renameCategory(CategoryID id, std::string name) {
+    if (!validName(name)) throw std::invalid_argument("Choose a nonempty category name up to 160 characters.");
+    for (auto& c : categories) if (c.id == id) { c.name = std::move(name); return; }
+    throw std::invalid_argument("Category no longer exists.");
+}
+void Session::moveCategory(CategoryID id, CategoryID parent) {
+    if (!canParent(id, parent)) throw std::invalid_argument("A category cannot be moved into itself or its descendants.");
+    for (auto& c : categories) if (c.id == id) { c.parent = parent; return; }
+    throw std::invalid_argument("Category no longer exists.");
+}
+void Session::removeCategory(CategoryID id) {
+    auto it = std::find_if(categories.begin(), categories.end(), [&](auto const& c) { return c.id == id; });
+    if (it == categories.end()) return;
+    auto parent = it->parent;
+    for (auto& c : categories) if (c.parent == id) c.parent = parent;
+    for (auto& d : documents) if (d.category == id) d.category = parent;
+    categories.erase(it);
+}
+void Session::moveDocument(std::string const& path, CategoryID category) {
+    if (!canParent(0, category)) throw std::invalid_argument("Category no longer exists.");
+    for (auto& d : documents) if (d.path == path) { d.category = category; return; }
+    throw std::invalid_argument("Document no longer exists.");
+}
 std::string serializeSession(const Session& value) {
     validate(value);
-    std::string out(Magic);
+    std::string out(value.categories.empty() ? Magic : std::string_view("SSMVSES2"));
     number(out, value.theme, 4); number(out, std::bit_cast<std::uint64_t>(value.fontSize), 8);
     number(out, value.outlineEnabled, 1); number(out, value.sidebarVisible, 1);
     text(out, value.selectedPath); number(out, value.documents.size(), 4);
@@ -68,11 +128,19 @@ std::string serializeSession(const Session& value) {
     }
     number(out, value.expandedPaths.size(), 4);
     for (const auto& path : value.expandedPaths) text(out, path);
+    if (!value.categories.empty()) {
+        number(out, value.categories.size(), 4);
+        for (auto const& c : value.categories) {
+            number(out, c.id, 4); number(out, c.parent, 4); text(out, c.name); number(out, c.expanded, 1);
+        }
+        for (auto const& d : value.documents) number(out, d.category, 4);
+    }
     if (out.size() > MaxSessionBytes) invalid();
     return out;
 }
 Session parseSession(std::string_view bytes) {
-    if (bytes.size() > MaxSessionBytes || !bytes.starts_with(Magic)) invalid();
+    const bool categorized = bytes.starts_with("SSMVSES2");
+    if (bytes.size() > MaxSessionBytes || (!categorized && !bytes.starts_with(Magic))) invalid();
     Reader in{bytes.substr(Magic.size())}; Session value;
     value.theme = static_cast<std::uint32_t>(in.number(4)); value.fontSize = std::bit_cast<double>(in.number(8));
     value.outlineEnabled = in.boolean(); value.sidebarVisible = in.boolean(); value.selectedPath = in.text();
@@ -83,6 +151,15 @@ Session parseSession(std::string_view bytes) {
     }
     const auto expanded = in.number(4); if (expanded > MaxSessionDocuments) invalid();
     for (std::uint64_t i = 0; i < expanded; ++i) value.expandedPaths.push_back(in.text());
+    if (categorized) {
+        const auto count = in.number(4); if (!count || count > MaxCategories) invalid();
+        for (std::size_t i = 0; i < count; ++i) {
+            auto id = static_cast<CategoryID>(in.number(4)); auto parent = static_cast<CategoryID>(in.number(4));
+            auto name = in.text(); auto expanded = in.boolean();
+            value.categories.push_back({id, parent, std::move(name), expanded});
+        }
+        for (auto& d : value.documents) d.category = static_cast<CategoryID>(in.number(4));
+    }
     if (!in.bytes.empty()) invalid();
     validate(value); return value;
 }

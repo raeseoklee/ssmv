@@ -1,5 +1,8 @@
 #include "DocumentTree.hpp"
 #include <algorithm>
+#include <limits>
+#include <map>
+#include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
@@ -16,7 +19,9 @@ using Microsoft::UI::Xaml::Automation::AutomationProperties;
 namespace ssmv {
 struct DocumentTree::State {
     static constexpr std::size_t pageSize = 200;
-    enum class Kind { Document, Heading, Pager };
+    enum class Kind { Document, Heading, Pager, Category };
+    Target context;
+    std::optional<Target> drag;
     struct Entry {
         TreeViewNode node{nullptr};
         Kind kind;
@@ -51,7 +56,13 @@ struct DocumentTree::State {
     }
     void selectContextNode(TreeViewNode const& node) {
         auto entry = find(node);
+        context = {};
         if (!entry || entry->kind == Kind::Pager) return;
+        if (entry->kind == Kind::Category) {
+            context.category = static_cast<CategoryID>(entry->value);
+            owner.view.SelectedNode(node); return;
+        }
+        context.document = entry->document;
         owner.view.SelectedNode(node);
         activateDocument(entry->document);
     }
@@ -79,6 +90,34 @@ struct DocumentTree::State {
         entries.push_back({node, kind, document, value});
         return node;
     }
+    void enableDrag(FrameworkElement const& row, Target target) {
+        row.CanDrag(true);
+        auto guard = std::weak_ptr<int>(lifetime);
+        row.DragStarting([this, guard, target](auto const&, DragStartingEventArgs const& args) {
+            if (guard.expired()) return;
+            drag = target;
+            args.AllowedOperations(Windows::ApplicationModel::DataTransfer::DataPackageOperation::Move);
+            args.Data().SetText(L"SSMV sidebar item");
+        });
+        row.DropCompleted([this, guard](auto const&, auto const&) { if (!guard.expired()) drag.reset(); });
+    }
+    void enableDrop(UIElement const& row, CategoryID destination, bool background = false) {
+        row.AllowDrop(true);
+        auto guard = std::weak_ptr<int>(lifetime);
+        row.DragOver([this, guard, destination, background](auto const&, DragEventArgs const& args) {
+            if (guard.expired() || !drag || (background && nodeAt(args.OriginalSource().try_as<DependencyObject>()))) return;
+            args.AcceptedOperation(drag->category && !session->canParent(drag->category, destination)
+                ? Windows::ApplicationModel::DataTransfer::DataPackageOperation::None
+                : Windows::ApplicationModel::DataTransfer::DataPackageOperation::Move);
+            args.Handled(true);
+        });
+        row.Drop([this, guard, destination, background](auto const&, DragEventArgs const& args) {
+            if (guard.expired() || !drag || (background && nodeAt(args.OriginalSource().try_as<DependencyObject>()))) return;
+            auto target = *drag; drag.reset(); args.Handled(true);
+            if (owner.moved && (!target.category || session->canParent(target.category, destination))) owner.moved(target, destination);
+        });
+    }
+    Session const* session = nullptr;
     void clearChildren(TreeViewNode const& node, std::size_t document) {
         // Drop metadata before the controls: no retained outline nodes after a
         // collapse or page change, and no stale indices after a library update.
@@ -142,12 +181,16 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
     view.SelectionMode(TreeViewSelectionMode::Single);
     view.CanDragItems(false);
     view.CanReorderItems(false);
-    view.AllowDrop(false);
+    state->enableDrop(view, 0, true);
     AutomationProperties::SetAutomationId(view, L"DocumentTree");
     AutomationProperties::SetName(view, L"Documents");
     view.Expanding([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, TreeViewExpandingEventArgs const& args) {
         if (guard.expired() || state->updating) return;
         auto entry = state->find(args.Node());
+        if (entry && entry->kind == State::Kind::Category) {
+            if (categoryExpanded) categoryExpanded(static_cast<CategoryID>(entry->value), true);
+            return;
+        }
         if (!entry || entry->kind != State::Kind::Document) return;
         state->page(entry->document, 0);
         if (expanded) expanded(state->library->documents()[entry->document].path, true);
@@ -155,6 +198,10 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
     view.Collapsed([this, guard = std::weak_ptr<int>(state->lifetime)](auto const&, TreeViewCollapsedEventArgs const& args) {
         if (guard.expired() || state->updating) return;
         auto entry = state->find(args.Node());
+        if (entry && entry->kind == State::Kind::Category) {
+            if (categoryExpanded) categoryExpanded(static_cast<CategoryID>(entry->value), false);
+            return;
+        }
         if (!entry || entry->kind != State::Kind::Document) return;
         state->updating = true;
         state->clearChildren(args.Node(), entry->document);
@@ -206,15 +253,35 @@ DocumentTree::DocumentTree() : view(TreeView{}), state(std::make_unique<State>(*
     });
 }
 DocumentTree::~DocumentTree() = default;
+DocumentTree::Target DocumentTree::takeContext() { auto result = state->context; state->context = {}; return result; }
 
 void DocumentTree::update(DocumentLibrary const& library, std::optional<std::size_t> selectedIndex,
-                          bool outlineEnabled, std::set<std::filesystem::path> const& expandedPaths) {
+                          bool outlineEnabled, std::set<std::filesystem::path> const& expandedPaths, Session const& session) {
     state->updating = true;
-    state->library = &library;
+    state->library = &library; state->session = &session; state->drag.reset(); state->context = {};
     state->activeDocument = selectedIndex;
     state->outlines = outlineEnabled;
     state->entries.clear();
     view.RootNodes().Clear();
+    std::map<CategoryID, TreeViewNode> categories;
+    for (auto const& category : session.categories) {
+        auto name = to_hstring(category.name);
+        StackPanel row; row.Orientation(Orientation::Horizontal); row.Spacing(7); row.Padding({0, 4, 4, 4});
+        Viewbox icon; icon.Width(16); icon.Height(16); icon.Child(SymbolIcon{Symbol::Folder});
+        TextBlock title; title.Text(name); title.TextTrimming(TextTrimming::CharacterEllipsis);
+        row.Children().Append(icon); row.Children().Append(title);
+        auto node = state->makeNode(row, name, State::Kind::Category, std::numeric_limits<std::size_t>::max(), category.id);
+        categories.emplace(category.id, node);
+        state->enableDrag(row, {category.id, std::nullopt}); state->enableDrop(row, category.id);
+    }
+    auto append = [&](CategoryID parent, TreeViewNode const& node) {
+        auto it = categories.find(parent);
+        if (it == categories.end()) view.RootNodes().Append(node);
+        else it->second.Children().Append(node);
+    };
+    for (auto const& c : session.categories) append(c.parent, categories.at(c.id));
+    std::map<std::string, CategoryID> assignments;
+    for (auto const& d : session.documents) if (d.category) assignments.emplace(d.path, d.category);
     for (std::size_t i = 0; i < library.documents().size(); ++i) {
         auto const& document = library.documents()[i];
         Grid row;
@@ -248,12 +315,24 @@ void DocumentTree::update(DocumentLibrary const& library, std::optional<std::siz
         row.Children().Append(labels);
         auto node = state->makeNode(row, filename, State::Kind::Document, i);
         node.HasUnrealizedChildren(outlineEnabled && !document.markdown.headings.empty());
-        view.RootNodes().Append(node);
+        auto bytes = document.path.u8string();
+        auto assignment = assignments.find(std::string(reinterpret_cast<char const*>(bytes.data()), bytes.size()));
+        append(assignment == assignments.end() ? 0 : assignment->second, node);
+        state->enableDrag(row, {0, i});
         if (outlineEnabled && expandedPaths.contains(document.path) && !document.markdown.headings.empty()) {
             state->page(i, 0);
             node.IsExpanded(true);
         }
-        if (selectedIndex == i) view.SelectedNode(node);
+
+    }
+    for (auto const& c : session.categories) categories.at(c.id).IsExpanded(c.expanded);
+    if (selectedIndex) {
+        auto selectedNode = state->root(*selectedIndex);
+        if (selectedNode) {
+            auto visible = selectedNode;
+            for (auto p = selectedNode.Parent(); p; p = p.Parent()) if (!p.IsExpanded() && state->find(p)) visible = p;
+            view.SelectedNode(visible);
+        }
     }
     state->updating = false;
 }

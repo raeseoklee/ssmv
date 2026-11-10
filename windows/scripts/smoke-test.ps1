@@ -370,6 +370,30 @@ function Send-TestShortcut([Diagnostics.Process]$Target, [ushort]$Key, [switch]$
     Start-Sleep -Milliseconds 150
 }
 
+# Invoke the native keyboard context menu on a specific tree row.
+function Invoke-TreeCommand($Target, [string]$RowName, [string]$Command) {
+    $tree = Wait-AutomationElement $Target.Id 'DocumentTree' -AutomationId
+    $condition = [Windows.Automation.AndCondition]::new(
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TreeItem),
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $RowName))
+    $deadline = (Get-Date).AddSeconds(8)
+    do {
+        $row = $tree.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+        if ($null -ne $row) { break }
+        Start-Sleep -Milliseconds 150
+    } while ((Get-Date) -lt $deadline)
+    if ($null -eq $row) { throw "Sidebar row not found: $RowName" }
+    $row.SetFocus()
+    Send-TestShortcut $Target 0x5D -NoControl # VK_APPS: keyboard context menu.
+    Invoke-AutomationElement (Wait-AutomationElement $Target.Id $Command)
+}
+
+function Set-CategoryName($Target, [string]$Name, [string]$Button) {
+    $input = Wait-AutomationElement $Target.Id 'category.name' -AutomationId
+    $input.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($Name)
+    Invoke-AutomationElement (Wait-AutomationElement $Target.Id $Button)
+}
+
 function Wait-SavedPreference([string]$Preference, $Expected) {
     $deadline = (Get-Date).AddSeconds(10)
     do {
@@ -714,6 +738,41 @@ this is deliberately invalid diagram source
         Close-DocumentWindow $fixtureReader
     }
     Write-Output 'Mindmap, KaTeX math, and architecture diagram modules loaded from offline packaged resources.'
+    $env:SSMV_DATA_DIR = Join-Path $testDirectory 'category-state'
+    $beforeHash = (Get-FileHash $secondDocument).Hash
+    $filename = [IO.Path]::GetFileName($secondDocument)
+    $categoryReader = Start-Process -FilePath $executablePath -ArgumentList ('"' + $secondDocument + '"') -PassThru
+    $startedProcesses.Add($categoryReader)
+    Wait-DocumentWindow $categoryReader "$filename — SSMV"
+    Invoke-TreeCommand $categoryReader $filename 'New category…'
+    Set-CategoryName $categoryReader 'Projects' 'Create'
+    Invoke-TreeCommand $categoryReader 'Projects' 'New subcategory…'
+    Set-CategoryName $categoryReader 'Research' 'Create'
+    Invoke-TreeCommand $categoryReader $filename 'Move document to…'
+    $picker = Wait-AutomationElement $categoryReader.Id 'category.destination' -AutomationId
+    $picker.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+    $choice = Wait-AutomationElement $categoryReader.Id 'Projects / Research'
+    $choice.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Invoke-AutomationElement (Wait-AutomationElement $categoryReader.Id 'Move')
+    Invoke-TreeCommand $categoryReader 'Research' 'Rename category…'
+    Set-CategoryName $categoryReader 'Study' 'Rename'
+    $null = Wait-AutomationElement $categoryReader.Id 'Study'
+    Close-DocumentWindow $categoryReader
+    $categoryReader = Start-Process -FilePath $executablePath -PassThru
+    $startedProcesses.Add($categoryReader)
+    Wait-DocumentWindow $categoryReader "$filename — SSMV"
+    $null = Wait-AutomationElement $categoryReader.Id 'Study'
+    Invoke-TreeCommand $categoryReader 'Projects' 'Delete category…'
+    Invoke-AutomationElement (Wait-AutomationElement $categoryReader.Id 'Delete')
+    $null = Wait-AutomationElement $categoryReader.Id 'Study'
+    Invoke-TreeCommand $categoryReader 'Study' 'Delete category…'
+    Invoke-AutomationElement (Wait-AutomationElement $categoryReader.Id 'Delete')
+    $null = Wait-AutomationElement $categoryReader.Id $filename
+    Wait-DocumentWindow $categoryReader "$filename — SSMV"
+    Close-DocumentWindow $categoryReader
+    if ((Get-FileHash $secondDocument).Hash -ne $beforeHash) { throw 'Category changes modified the original file.' }
+    Write-Output 'Nested categories, move, rename, restart restoration, deletion/promotion, and source-file preservation passed.'
+
 
 
 } catch {
