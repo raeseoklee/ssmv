@@ -68,7 +68,7 @@ Ctrl+A를 사용하고 전체 화면은 F11을 기준으로 합니다. macOS 전
 기능 동등성이나 모든 조작을 보장하지는 않습니다. 이 당시에는 ARM64 실행을 검사하지 않았습니다.
 
 PDF는 Microsoft Print to PDF가 필요하며 인라인 강조와 클릭 가능한 링크는 보존하지 않습니다.
-다음에는 가져온 문서 관리와 CLI 전달을 진행합니다. Windows 미리 보기 설치 파일은 기존 [v0.6.0 릴리스](https://github.com/raeseoklee/ssmv/releases/tag/v0.6.0)에 연결하며 서명은 남아 있습니다. 검증을 통과한 기능만 지원한다고 안내하며,
+다음에는 가져온 문서 관리와 CLI 전달을 진행합니다. Windows 미리 보기 설치 파일은 기존 [v0.7.0 릴리스](https://github.com/raeseoklee/ssmv/releases/tag/v0.7.0)에 연결하며 서명은 남아 있습니다. 검증을 통과한 기능만 지원한다고 안내하며,
 문서 수정만으로 앱 버전을 올리지 않습니다.
 
 URL·PDF 추가 검증은 [Windows 실행 기록](https://github.com/raeseoklee/ssmv/actions/runs/35191012521)에 있습니다.

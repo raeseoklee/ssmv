@@ -13,10 +13,10 @@ Native x64 interface at `6c0d9c3`. [Dark appearance](../docs/images/ssmv-windows
 
 ## Install and open from Explorer
 
-Windows preview installers use the existing [v0.6.0 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.6.0):
+Windows preview installers use the existing [v0.7.0 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.7.0):
 
-- [x64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-x64-setup.exe)
-- [ARM64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-ARM64-setup.exe)
+- [x64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.7.0/SSMV-0.7.0-windows-x64-setup.exe)
+- [ARM64 installer](https://github.com/raeseoklee/ssmv/releases/download/v0.7.0/SSMV-0.7.0-windows-ARM64-setup.exe)
 
 Windows 10 build 19041 or newer, including Windows 11, is required. Check
 **Settings → System → About → System type** to choose the architecture.
@@ -194,7 +194,7 @@ Use the matching ARM64 installer on ARM64. The Windows workflow's manual
 retest; `full_reader_smoke` opts into the foreground-dependent reader checks.
 
 To publish Windows preview assets, manually run the Windows workflow with
-`release_tag` set to `v0.6.0` and leave `installer_run` empty. Publication requires
+`release_tag` set to `v0.7.0` and leave `installer_run` empty. Publication requires
 successful core tests, app builds and Windows 11 installer checks. The reuse-only
 `installer_run` mode cannot publish. This attaches versioned Windows installers to
 the existing release without moving its tag or replacing macOS assets.

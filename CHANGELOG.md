@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-11-10
 
 - Organize sidebar documents in nested, app-only categories without moving source files.
-
+- Switch documents in the macOS tab bar and search the shelf by name or content from the navigation rail. Command-F still finds text in the current document.
 - On macOS, show the complete document before generating Mermaid previews. Isolate preview rendering so WebKit startup cannot freeze the reader.
 
 - Open Mermaid diagrams in a separate viewer with zoom, pan, fit-to-window, and native full screen on macOS and Windows.

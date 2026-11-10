@@ -69,7 +69,7 @@ were visually reviewed. These checks do not establish complete macOS parity
 or cover every native interaction; that earlier run did not exercise ARM64 at runtime.
 
 PDF requires Microsoft Print to PDF; inline emphasis and clickable annotations are not retained.
-Next priorities are durable import management and CLI delivery. Windows preview installers target the existing [v0.6.0 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.6.0); signing remains pending. Publish feature
+Next priorities are durable import management and CLI delivery. Windows preview installers target the existing [v0.7.0 release](https://github.com/raeseoklee/ssmv/releases/tag/v0.7.0); signing remains pending. Publish feature
 claims only after their corresponding checks pass; documentation changes alone do
 not require a new application version.
 

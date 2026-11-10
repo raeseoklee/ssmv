@@ -9,7 +9,7 @@ SSMV는 **macOS와 Windows용 Markdown 뷰어**입니다. 로컬 파일과 공�
 | 플랫폼 | 지원 환경 | 설치 |
 | --- | --- | --- |
 | macOS | macOS 13 이상 · Apple Silicon 및 Intel | [Homebrew 또는 앱 다운로드](#설치) |
-| Windows 미리 보기 | Windows 10 빌드 19041 이상 및 Windows 11 · x64 및 ARM64 | [x64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-x64-setup.exe) · [ARM64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.6.0/SSMV-0.6.0-windows-ARM64-setup.exe) |
+| Windows 미리 보기 | Windows 10 빌드 19041 이상 및 Windows 11 · x64 및 ARM64 | [x64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.7.0/SSMV-0.7.0-windows-x64-setup.exe) · [ARM64 설치 파일](https://github.com/raeseoklee/ssmv/releases/download/v0.7.0/SSMV-0.7.0-windows-ARM64-setup.exe) |
 
 ![여러 문서와 제목별 목차를 표시하는 macOS용 SSMV 라이트 모드 화면](images/ssmv-sidebar-9450b1ce.png)
 
@@ -31,7 +31,7 @@ SSMV는 **macOS와 Windows용 Markdown 뷰어**입니다. 로컬 파일과 공�
 
 ### Windows
 
-위 표에서 PC에 맞는 v0.6.0 미리 보기 설치 파일을 받으세요. 아키텍처는 **설정 → 시스템 → 정보 → 시스템 종류**에서 확인할 수 있습니다. 설치 프로그램은 서명되지 않았으므로 Windows에서 게시자를 확인할 수 없다는 경고가 나올 수 있습니다.
+위 표에서 PC에 맞는 v0.7.0 미리 보기 설치 파일을 받으세요. 아키텍처는 **설정 → 시스템 → 정보 → 시스템 종류**에서 확인할 수 있습니다. 설치 프로그램은 서명되지 않았으므로 Windows에서 게시자를 확인할 수 없다는 경고가 나올 수 있습니다.
 
 설치하면 시작 메뉴와 탐색기의 **연결 프로그램**, **Open with SSMV**에 등록됩니다. Windows 11에서는 우클릭 명령이 **더 많은 옵션 표시** 안에 있을 수 있습니다. 기존 기본 앱은 바꾸지 않습니다. 설치 위치, 업데이트, 제거 방법은 [Windows 설치 안내](../windows/README.ko.md#설치와-탐색기에서-열기)를 참고하세요.
 
@@ -46,7 +46,7 @@ open -a SSMV
 
 직접 설치하려면 [GitHub Releases](https://github.com/raeseoklee/ssmv/releases)에서 앱을 받아 압축을 풀고 `SSMV.app`을 응용 프로그램 폴더로 옮기세요. Apple Silicon과 Intel에서 모두 실행할 수 있는 Universal 앱입니다.
 
-**0.6.0은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
+**0.7.0은 ad-hoc 서명 상태이며 Apple Developer ID 서명과 공증을 받지 않았습니다.** Homebrew cask는 압축 파일의 체크섬과 앱 서명을 확인한 뒤 SSMV.app의 격리 속성을 제거합니다. 이 과정에서 해당 앱의 Gatekeeper 최초 실행 검사를 건너뛰며, Apple 공증을 받는 것은 아닙니다. 직접 내려받은 앱은 처음 실행할 때 차단될 수 있습니다. 실행 여부를 결정하기 전에 [Apple의 앱 실행 안내](https://support.apple.com/en-gb/102445)를 확인하세요. 아래 안내에 따라 소스에서 직접 빌드할 수도 있습니다.
 
 Homebrew로 설치한 뒤 SSMV를 한 번 실행하면 Finder의 **다음으로 열기** 목록에 앱을 등록합니다.
 이전에 설치한 앱이 목록에 없다면 tap을 갱신한 뒤 다시 설치하세요.
