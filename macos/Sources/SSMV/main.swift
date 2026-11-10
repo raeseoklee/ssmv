@@ -266,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     add(edit, "Copy", #selector(NSText.copy(_:)), "c")
     add(edit, "Select All", #selector(NSText.selectAll(_:)), "a")
     let find = edit.addItem(
-      withTitle: "Find…", action: #selector(NSTextView.performFindPanelAction(_:)),
+      withTitle: "Find in Document…", action: #selector(NSTextView.performFindPanelAction(_:)),
       keyEquivalent: "f")
     find.tag = NSTextFinder.Action.showFindInterface.rawValue
     edit.addItem(.separator())
@@ -308,7 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 }
 
 @MainActor
-final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelegate, NSMenuItemValidation
+final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelegate, NSPopoverDelegate, NSMenuItemValidation
 {
   weak var appDelegate: AppDelegate?
   private var documentID: UUID?
@@ -320,6 +320,8 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private let textView = ReadingColumnTextView()
   private let tabs = ReaderTabs()
   private let rail = WorkspaceRail()
+  private var documentSearchPopover: NSPopover?
+  private var documentSearchTask: Task<Void, Never>?
   private let split = NSSplitViewController()
   private let sidebar = SidebarController()
   private var scrollPositions: [UUID: NSPoint] = [:]
@@ -453,13 +455,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       } catch { self.appDelegate?.presentInputError(error) }
     }
     rail.onSidebar = { [weak self] in self?.toggleSidebar(nil) }
-    rail.onFind = { [weak self] in
-      guard let self else { return }
-      self.window?.makeFirstResponder(self.textView)
-      let command = NSMenuItem()
-      command.tag = NSTextFinder.Action.showFindInterface.rawValue
-      self.textView.performFindPanelAction(command)
-    }
+    rail.onFind = { [weak self] in self?.showDocumentSearch() }
     rail.onOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
     split.splitView.setPosition(230, ofDividerAt: 0)
     sidebarItem.isCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed")
@@ -636,6 +632,56 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
       refreshDocuments()
       if let selected = store.selectedID, selected != documentID { openRecord(selected) }
     } catch { appDelegate?.presentInputError(error) }
+  }
+
+  // If focus is in a tab or the outline, the reader window still handles Edit → Find.
+  @objc func performFindPanelAction(_ sender: Any?) {
+    window?.makeFirstResponder(textView)
+    textView.performFindPanelAction(sender)
+  }
+
+  private func showDocumentSearch() {
+    if let popover = documentSearchPopover { popover.performClose(nil); return }
+    guard let store, let remote = appDelegate?.inputLoader?.remote else { return }
+    let entries = store.records.map {
+      DocumentSearchEntry(record: $0, file: store.fileURL(for: $0), location: $0.sourceLabel)
+    }
+    let panel = DocumentSearchPanel()
+    let popover = NSPopover()
+    popover.behavior = .transient
+    popover.delegate = self
+    popover.contentViewController = panel
+    documentSearchPopover = popover
+    panel.onDismiss = { [weak popover] in popover?.performClose(nil) }
+    panel.onSelect = { [weak self, weak popover] id in
+      popover?.performClose(nil)
+      self?.selectDocument(id)
+      if let self { self.window?.makeFirstResponder(self.textView) }
+    }
+    panel.onQuery = { [weak self, weak panel] query in
+      self?.documentSearchTask?.cancel()
+      panel?.update([], searching: true)
+      guard let panel else { return }
+      self?.documentSearchTask = Task.detached(priority: .utility) { [weak panel] in
+        do {
+          if !query.isEmpty { try await Task.sleep(for: .milliseconds(150)) }
+          try await DocumentSearch.run(entries, query: query, remote: remote) { @MainActor [weak panel] hits, busy in
+            guard !Task.isCancelled else { return }
+            panel?.update(hits, searching: busy)
+          }
+        } catch { /* Superseded by another query or a closed popover. */ }
+      }
+    }
+    popover.show(relativeTo: rail.searchAnchor.bounds, of: rail.searchAnchor, preferredEdge: .maxX)
+    panel.onQuery?("")
+    panel.focusSearch()
+  }
+
+  func popoverDidClose(_ notification: Notification) {
+    guard let closed = notification.object as? NSPopover, closed === documentSearchPopover else { return }
+    documentSearchTask?.cancel()
+    documentSearchTask = nil
+    documentSearchPopover = nil
   }
 
   private func selectDocument(_ id: UUID) {
@@ -954,6 +1000,8 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   func cancelPDFExport() { exportJob?.cancelExport() }
 
   func windowWillClose(_ notification: Notification) {
+    documentSearchTask?.cancel()
+    documentSearchPopover?.performClose(nil)
     sidebar.cancelAll()
     diagramViewer?.close()
     diagramViewer = nil

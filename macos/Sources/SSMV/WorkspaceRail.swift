@@ -11,6 +11,7 @@ final class WorkspaceRail: NSView {
   private var outlineShown = false
   private let sidebar = NSButton()
   private let find = NSButton()
+  var searchAnchor: NSView { find }
   private let outline = NSButton()
 
   override init(frame frameRect: NSRect) {
@@ -22,9 +23,9 @@ final class WorkspaceRail: NSView {
     addSubview(background)
 
     configure(sidebar, symbol: "sidebar.left", label: "Documents sidebar", action: #selector(toggleSidebar))
-    configure(find, symbol: "magnifyingglass", label: "Find in document", action: #selector(findText))
+    configure(find, symbol: "magnifyingglass", label: "Search documents", action: #selector(findText))
     configure(outline, symbol: "list.bullet.indent", label: "Document outline", action: #selector(toggleOutline))
-    find.toolTip = "Find in Document (⌘F)"
+    find.toolTip = "Search documents by name or content"
 
     let stack = NSStackView(views: [sidebar, find, outline])
     stack.orientation = .vertical

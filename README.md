@@ -82,7 +82,7 @@ The following instructions apply to macOS. For Windows, see the [Windows guide](
 
 Open `.md`, `.markdown`, or `.mdown` files with **Finder → Open With → SSMV**, or press **⌘O** in the app. To use SSMV on double-click, select a Markdown file in Finder, choose **Get Info → Open with → SSMV → Change All…**. SSMV does not change your default app automatically.
 
-- Switch documents using the tabs above the macOS reader. The left rail toggles the sidebar, searches the current document, and shows or hides its outline. Closing a tab removes it from the list without deleting the file.
+- Switch documents using the tabs above the macOS reader. The left rail toggles the sidebar, searches registered documents by name or content (cached text for URLs), and shows or hides its outline. Closing a tab removes it from the list without deleting the file.
 - Add multiple documents with **⌘O**, the **+** button, or drag Markdown files from Finder onto the document area or sidebar.
 - Select a document to read it; collapse the sidebar when you need more space.
 - Right-click the sidebar and choose **Sort By → Date Added / Name / Date Modified**. Added order is oldest first (the default), names use natural order, and modified order is newest first. The choice persists. Sorting applies when you change the sort order, add or remove files, or reopen the app; selecting a document or expanding its outline does not reorder files. Headings keep their order in the document.
