@@ -27,12 +27,14 @@ final class WorkspaceRail: NSView {
     configure(outline, symbol: "list.bullet.indent", label: "Document outline", action: #selector(toggleOutline))
     find.toolTip = "Search documents by name or content"
 
-    let stack = NSStackView(views: [sidebar, find, outline])
+    let stack = NSStackView(views: [sidebar, outline])
     stack.orientation = .vertical
     stack.alignment = .centerX
     stack.spacing = 5
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
+    find.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(find)
     let divider = NSBox()
     divider.boxType = .separator
     divider.translatesAutoresizingMaskIntoConstraints = false
@@ -42,6 +44,7 @@ final class WorkspaceRail: NSView {
       background.leadingAnchor.constraint(equalTo: leadingAnchor), background.trailingAnchor.constraint(equalTo: trailingAnchor),
       background.topAnchor.constraint(equalTo: topAnchor), background.bottomAnchor.constraint(equalTo: bottomAnchor),
       stack.centerXAnchor.constraint(equalTo: centerXAnchor), stack.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+      find.centerXAnchor.constraint(equalTo: centerXAnchor), find.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
       divider.trailingAnchor.constraint(equalTo: trailingAnchor), divider.topAnchor.constraint(equalTo: topAnchor),
       divider.bottomAnchor.constraint(equalTo: bottomAnchor), divider.widthAnchor.constraint(equalToConstant: 1),
     ])
