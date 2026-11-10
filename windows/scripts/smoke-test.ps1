@@ -11,6 +11,8 @@ $testDirectory = Join-Path ([IO.Path]::GetTempPath()) ('ssmv-smoke-' + [Guid]::N
 New-Item -ItemType Directory $testDirectory > $null
 $previousDataDirectory = $env:SSMV_DATA_DIR
 $previousMermaidLog = $env:SSMV_MERMAID_LOG
+$previousBrowserArgs = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+$previousBrowserData = $env:WEBVIEW2_USER_DATA_FOLDER
 $env:SSMV_DATA_DIR = Join-Path $testDirectory 'state'
 $secondDocument = Join-Path $testDirectory 'Warm activation 한글.md'
 [IO.File]::WriteAllText($secondDocument, "# Warm activation`n`nThe original process opens this second document.", [Text.UTF8Encoding]::new($false))
@@ -96,22 +98,6 @@ function Wait-AutomationElement([int]$ProcessId, [string]$Value, [switch]$Automa
         } catch { Write-Host "Menu diagnostics failed: $_" }
     }
     throw "Native UI control was not available: '$Value' (process $ProcessId)."
-}
-
-# WebView2 accessibility descendants may belong to its renderer process. Scope
-# to the test-owned native viewer window instead of filtering child process IDs.
-function Wait-DiagramControl($Viewer, [string]$Name) {
-    $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $Name)
-    $deadline = (Get-Date).AddSeconds(25)
-    do {
-        $controls = $Viewer.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
-        foreach ($control in $controls) {
-            if ($control.Current.IsEnabled -and !$control.Current.IsOffscreen) { return $control }
-        }
-        Start-Sleep -Milliseconds 200
-    } while ((Get-Date) -lt $deadline)
-    $Viewer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | Select-Object -First 60 | ForEach-Object { Write-Host ("Viewer tree: {0} / {1} / {2}" -f $_.Current.ControlType.ProgrammaticName, $_.Current.Name, $_.Current.AutomationId) }
-    throw "Diagram viewer control was not available: '$Name'."
 }
 
 function Invoke-AutomationElement($Element) {
@@ -680,6 +666,11 @@ flowchart TB
 this is deliberately invalid diagram source
 ```
 '@, [Text.UTF8Encoding]::new($false))
+    # Limit DevTools to this test-owned process/profile and a loopback port.
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $listener.Start(); $viewerPort = $listener.LocalEndpoint.Port; $listener.Stop()
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$viewerPort"
+    $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $testDirectory 'viewer-web-profile'
     $diagramReader = Start-Process -FilePath $executablePath -ArgumentList ('"' + $diagramDocument + '"') -PassThru
     $startedProcesses.Add($diagramReader)
     Wait-DocumentWindow $diagramReader 'Mermaid.md — SSMV'
@@ -691,24 +682,12 @@ this is deliberately invalid diagram source
     Save-WindowEvidence $diagramReader 'window-mermaid.png'
     Invoke-AutomationElement (Wait-AutomationElement $diagramReader.Id 'reader.openDiagram' -AutomationId)
     $viewer = Wait-AutomationElement $diagramReader.Id 'Diagram — SSMV'
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Zoom in')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Zoom out')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Actual size')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Fit')
-    $diagramSearch = Wait-DiagramControl $viewer 'Find in diagram'
-    $diagramSearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('에이전트')
-    $null = Wait-DiagramControl $viewer 'Matching label 1 of 1'
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Next matching label')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Previous matching label')
-    Save-WindowEvidence $diagramReader 'window-diagram-viewer.png' -WindowHandle ([IntPtr]::new($viewer.Current.NativeWindowHandle))
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Enter full screen')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Exit full screen')
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Close diagram')
-    # Opening again proves browser teardown does not leave a stale viewer.
+    & "$PSScriptRoot/test-diagram-viewer.ps1" -Port $viewerPort -Capture {
+        Save-WindowEvidence $diagramReader 'window-diagram-viewer.png' -WindowHandle ([IntPtr]::new($viewer.Current.NativeWindowHandle))
+    }
     Invoke-AutomationElement (Wait-AutomationElement $diagramReader.Id 'reader.openDiagram' -AutomationId)
     $viewer = Wait-AutomationElement $diagramReader.Id 'Diagram — SSMV'
-    $null = Wait-DiagramControl $viewer 'Zoom in'
-    Invoke-AutomationElement (Wait-DiagramControl $viewer 'Close diagram')
+    & "$PSScriptRoot/test-diagram-viewer.ps1" -Port $viewerPort -Reopen
     Wait-DocumentWindow $diagramReader 'Mermaid.md — SSMV'
     Close-DocumentWindow $diagramReader
     Write-Output 'Diagram window opened, zoomed, fitted, searched Korean labels, entered/exited full screen, closed and reopened.'
@@ -750,5 +729,7 @@ this is deliberately invalid diagram source
     }
     $env:SSMV_DATA_DIR = $previousDataDirectory
     $env:SSMV_MERMAID_LOG = $previousMermaidLog
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArgs
+    $env:WEBVIEW2_USER_DATA_FOLDER = $previousBrowserData
     Remove-Item -LiteralPath $testDirectory -Recurse -Force
 }
