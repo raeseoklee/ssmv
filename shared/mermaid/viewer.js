@@ -78,7 +78,8 @@ window.ssmvSetFullscreen = value => {
 };
 window.ssmvOpenDiagram = async (source, dark = false) => {
   if (opening) throw new Error('A diagram is already opening.');
-  opening = true; width = height = 0; labels = []; query.value = ''; search(); layout();
+  opening = true; width = height = 0; labels = []; query.value = '';
+  byId('diagram').replaceChildren(); search(); layout();
   document.documentElement.classList.toggle('dark', dark);
   byId('message').textContent = 'Loading diagram…';
   try {

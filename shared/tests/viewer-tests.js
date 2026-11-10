@@ -52,6 +52,9 @@ async function testMermaidViewer() {
   assert(rejected && el('message').textContent.includes('could not'), 'error feedback');
   await window.ssmvOpenDiagram(sources.flowchart, false);
   assert(Boolean(document.querySelector('#diagram svg')) && !el('message').textContent, 'recovery');
+  try { await window.ssmvOpenDiagram('x'.repeat(65537)); } catch {}
+  assert(!document.querySelector('#diagram svg') && el('message').textContent.includes('could not'), 'oversized input clears previous diagram');
+  await window.ssmvOpenDiagram(sources.flowchart, false);
   assert(!performance.getEntriesByType('resource').some(entry => !entry.name.startsWith(location.origin + '/')), 'offline resources');
   return {passed: checks.length, checks};
 }

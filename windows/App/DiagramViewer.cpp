@@ -28,10 +28,11 @@ std::shared_ptr<DiagramViewer> DiagramViewer::open(std::string source, bool dark
     root.RequestedTheme(dark ? ElementTheme::Dark : ElementTheme::Light);
     Automation::AutomationProperties::SetAutomationId(root, L"diagram.viewer");
     viewer->browser_ = WebView2();
-    viewer->browser_.Visibility(Visibility::Collapsed);
+    // WebView2 needs a visible, arranged host to initialize the composition controller.
     root.Children().Append(viewer->browser_);
     viewer->status_ = TextBlock();
     viewer->status_.Text(L"Loading diagram…");
+    viewer->status_.IsHitTestVisible(false);
     viewer->status_.TextWrapping(TextWrapping::Wrap);
     viewer->status_.Margin({24, 24, 24, 24});
     root.Children().Append(viewer->status_);

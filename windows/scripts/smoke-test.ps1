@@ -110,6 +110,7 @@ function Wait-DiagramControl($Viewer, [string]$Name) {
         }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
+    $Viewer.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | Select-Object -First 60 | ForEach-Object { Write-Host ("Viewer tree: {0} / {1} / {2}" -f $_.Current.ControlType.ProgrammaticName, $_.Current.Name, $_.Current.AutomationId) }
     throw "Diagram viewer control was not available: '$Name'."
 }
 
