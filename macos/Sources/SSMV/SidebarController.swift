@@ -430,7 +430,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   }
 
   func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-    (item as? Item)?.isFile == true ? 46 : 26
+    (item as? Item)?.isFile == true ? 28 : 24
   }
 
   func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
@@ -462,28 +462,18 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     icon.contentTintColor = .secondaryLabelColor
     let name = NSTextField(labelWithString: records[url]?.displayName ?? url.lastPathComponent)
     name.lineBreakMode = .byTruncatingMiddle
-    let path = NSTextField(
-      labelWithString: records[url]?.sourceLabel ?? url.deletingLastPathComponent().path)
-    path.font = .systemFont(ofSize: 10)
-    path.textColor = .secondaryLabelColor
-    path.lineBreakMode = .byTruncatingMiddle
-    let labels = NSStackView(views: [name, path])
-    labels.orientation = .vertical
-    labels.alignment = .leading
-    labels.spacing = 2
-    for child in [icon, labels] {
+    name.font = .systemFont(ofSize: 13)
+    for child in [icon, name] {
       child.translatesAutoresizingMaskIntoConstraints = false
       cell.addSubview(child)
     }
     NSLayoutConstraint.activate([
-      icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-      icon.centerYAnchor.constraint(equalTo: name.centerYAnchor),
-      icon.widthAnchor.constraint(equalToConstant: 18),
-      labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
-      labels.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-      labels.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-      name.widthAnchor.constraint(lessThanOrEqualTo: labels.widthAnchor),
-      path.widthAnchor.constraint(lessThanOrEqualTo: labels.widthAnchor),
+      icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 3),
+      icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+      icon.widthAnchor.constraint(equalToConstant: 15),
+      name.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+      name.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+      name.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
     ])
     cell.textField = name
     cell.imageView = icon

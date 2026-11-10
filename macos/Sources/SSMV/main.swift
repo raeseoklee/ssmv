@@ -308,8 +308,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 }
 
 @MainActor
-final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelegate,
-  NSToolbarDelegate, NSMenuItemValidation
+final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelegate, NSMenuItemValidation
 {
   weak var appDelegate: AppDelegate?
   private var documentID: UUID?
@@ -318,7 +317,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   private var snapshotBaseURL: URL?
   private var isLoading = false
   private let statusLabel = NSTextField(labelWithString: "")
-  private let textView = NSTextView()
+  private let textView = ReadingColumnTextView()
+  private let tabs = ReaderTabs()
+  private let rail = WorkspaceRail()
   private let split = NSSplitViewController()
   private let sidebar = SidebarController()
   private var scrollPositions: [UUID: NSPoint] = [:]
@@ -384,7 +385,6 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     textView.textContainer?.widthTracksTextView = true
     textView.textContainer?.containerSize = NSSize(
       width: scroll.contentSize.width, height: .greatestFiniteMagnitude)
-    textView.textContainerInset = NSSize(width: 36, height: 28)
     textView.backgroundColor = .textBackgroundColor
     textView.delegate = self
     textView.setAccessibilityLabel("Markdown document")
@@ -397,12 +397,16 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     statusLabel.font = .systemFont(ofSize: 11)
     statusLabel.textColor = .secondaryLabelColor
     statusLabel.lineBreakMode = .byTruncatingMiddle
-    for child in [scroll, statusLabel] {
+    for child in [tabs, scroll, statusLabel] {
       child.translatesAutoresizingMaskIntoConstraints = false
       readerView.addSubview(child)
     }
     NSLayoutConstraint.activate([
-      scroll.topAnchor.constraint(equalTo: readerView.topAnchor),
+      tabs.topAnchor.constraint(equalTo: readerView.topAnchor),
+      tabs.leadingAnchor.constraint(equalTo: readerView.leadingAnchor),
+      tabs.trailingAnchor.constraint(equalTo: readerView.trailingAnchor),
+      tabs.heightAnchor.constraint(equalToConstant: 36),
+      scroll.topAnchor.constraint(equalTo: tabs.bottomAnchor),
       scroll.leadingAnchor.constraint(equalTo: readerView.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: readerView.trailingAnchor),
       scroll.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -4),
@@ -420,7 +424,43 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     let readerItem = NSSplitViewItem(viewController: reader)
     readerItem.minimumThickness = 400
     split.addSplitViewItem(readerItem)
-    window.contentViewController = split
+    let workspace = NSViewController()
+    workspace.view = NSView()
+    workspace.addChild(split)
+    for child in [rail, split.view] {
+      child.translatesAutoresizingMaskIntoConstraints = false
+      workspace.view.addSubview(child)
+    }
+    NSLayoutConstraint.activate([
+      rail.leadingAnchor.constraint(equalTo: workspace.view.leadingAnchor),
+      rail.topAnchor.constraint(equalTo: workspace.view.topAnchor),
+      rail.bottomAnchor.constraint(equalTo: workspace.view.bottomAnchor),
+      rail.widthAnchor.constraint(equalToConstant: 40),
+      split.view.leadingAnchor.constraint(equalTo: rail.trailingAnchor),
+      split.view.topAnchor.constraint(equalTo: workspace.view.topAnchor),
+      split.view.bottomAnchor.constraint(equalTo: workspace.view.bottomAnchor),
+      split.view.trailingAnchor.constraint(equalTo: workspace.view.trailingAnchor),
+    ])
+    window.contentViewController = workspace
+    tabs.onSelect = { [weak self] in self?.selectDocument($0) }
+    tabs.onAdd = { [weak owner] in owner?.openDocument(nil) }
+    tabs.onClose = { [weak self] id in
+      guard let self else { return }
+      if id == self.documentID { self.removeSelectedDocument(); return }
+      do {
+        try self.store?.remove(id)
+        self.refreshDocuments()
+      } catch { self.appDelegate?.presentInputError(error) }
+    }
+    rail.onSidebar = { [weak self] in self?.toggleSidebar(nil) }
+    rail.onFind = { [weak self] in
+      guard let self else { return }
+      self.window?.makeFirstResponder(self.textView)
+      let command = NSMenuItem()
+      command.tag = NSTextFinder.Action.showFindInterface.rawValue
+      self.textView.performFindPanelAction(command)
+    }
+    rail.onOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
     split.splitView.setPosition(230, ofDividerAt: 0)
     sidebarItem.isCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed")
     sidebar.onSelect = { [weak self] key in
@@ -475,11 +515,9 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     sidebar.onSort = { order in
       UserDefaults.standard.set(order.rawValue, forKey: "documentSortOrder")
     }
-    let toolbar = NSToolbar(identifier: "ReaderToolbar")
-    toolbar.delegate = self
-    toolbar.displayMode = .iconOnly
-    window.toolbar = toolbar
-    window.toolbarStyle = .unified
+    window.toolbar = NSToolbar(identifier: "ReaderToolbar")
+    window.toolbarStyle = .unifiedCompact
+    rail.update(sidebarVisible: !sidebarItem.isCollapsed, outlineVisible: owner.outlineEnabled)
     refreshDocuments()
     window.makeFirstResponder(textView)
     showMessage(
@@ -509,6 +547,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   func refreshDocuments() {
     sidebar.update(records: store?.records ?? [], selectedID: store?.selectedID)
+    tabs.update(records: store?.records ?? [], selected: store?.selectedID)
   }
 
   func openRecord(_ id: UUID, reload: Bool = false, cachedOnly: Bool = false) {
@@ -524,6 +563,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     if pendingHeading?.documentID != id { pendingHeading = nil }
     documentID = id
     sidebar.selectDocument(record.sidebarKey)
+    tabs.update(records: store?.records ?? [], selected: id)
     window?.title = record.displayName
     window?.representedURL = record.originalURL?.isFileURL == true ? record.originalURL : nil
     generation += 1
@@ -671,37 +711,8 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
   @objc func toggleSidebar(_ sender: Any?) {
     let item = split.splitViewItems[0]
     item.isCollapsed.toggle()
+    rail.update(sidebarVisible: !item.isCollapsed, outlineVisible: appDelegate?.outlineEnabled ?? false)
     UserDefaults.standard.set(item.isCollapsed, forKey: "sidebarCollapsed")
-  }
-
-  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.init("sidebar"), .init("addDocument"), .flexibleSpace]
-  }
-
-  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.init("sidebar"), .init("addDocument"), .flexibleSpace]
-  }
-
-  func toolbar(
-    _ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
-    willBeInsertedIntoToolbar flag: Bool
-  ) -> NSToolbarItem? {
-    let item = NSToolbarItem(itemIdentifier: identifier)
-    if identifier.rawValue == "sidebar" {
-      item.label = "Toggle Sidebar"
-      item.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: item.label)
-      item.target = self
-      item.action = #selector(toggleSidebar(_:))
-    } else if identifier.rawValue == "addDocument" {
-      item.label = "Add Documents"
-      item.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: item.label)
-      item.target = appDelegate
-      item.action = #selector(AppDelegate.openDocument(_:))
-    } else {
-      return nil
-    }
-    item.toolTip = item.label
-    return item
   }
 
   private func render(restoring position: NSPoint? = nil) {
@@ -714,7 +725,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     let size = fontSize
     let dark = textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     renderingDark = dark
-    let diagramWidth = max(100, textView.bounds.width - 82)
+    let diagramWidth = max(100, textView.bounds.width - 2 * textView.textContainerInset.width - 10)
     isRendering = true
     renderTask = Task { [weak self] in
       var started = false
@@ -765,6 +776,7 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
 
   func setOutlineEnabled(_ enabled: Bool) {
     sidebar.setOutlineEnabled(enabled, document: parsed)
+    rail.update(sidebarVisible: !split.splitViewItems[0].isCollapsed, outlineVisible: enabled)
     if !enabled { pendingHeading = nil }
   }
 
