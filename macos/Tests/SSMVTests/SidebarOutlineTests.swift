@@ -52,6 +52,54 @@ struct SidebarOutlineTests {
     #expect(roots() == urls)
   }
 
+  @Test func categoryTreePreservesReaderSelectionAndSortsWithinEachFolder() async throws {
+    _ = NSApplication.shared
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = try DocumentStore(defaults: UserDefaults(suiteName: UUID().uuidString)!, directory: root)
+    let documents = try store.addLocal(["Zeta.md", "Alpha.md", "Loose.md"].map { root.appendingPathComponent($0) })
+    let parent = try store.createCategory(name: "Design")
+    let child = try store.createCategory(name: "Drafts", parentID: parent)
+    try store.moveDocument(documents[0].id, to: child)
+    try store.moveDocument(documents[1].id, to: child)
+    let sidebar = SidebarController()
+    sidebar.categoryStore = store
+    sidebar.update(records: documents, selectedID: documents[0].id)
+    sidebar.setSortOrder(.name)
+    let table = try #require(findOutline(in: sidebar.view))
+    let group = try #require(sidebar.outlineView(table, child: 0, ofItem: nil) as? SidebarController.CategoryNode)
+    let nested = try #require(group.children.first as? SidebarController.CategoryNode)
+    #expect(group.id == parent && nested.id == child)
+    #expect(nested.children.compactMap { ($0 as? SidebarController.Item)?.url } == [documents[1].sidebarKey, documents[0].sidebarKey])
+    let loose = try #require(sidebar.outlineView(table, child: 1, ofItem: nil) as? SidebarController.CategoryNode)
+    #expect(loose.id == nil && loose.children.count == 1)
+    var opened = [URL]()
+    sidebar.onSelect = { opened.append($0) }
+    table.collapseItem(group)
+    #expect(opened.isEmpty)
+    sidebar.update(records: documents, selectedID: documents[0].id)
+    #expect(!table.isItemExpanded(group))
+    table.expandItem(group)
+    try await waitUntil { table.selectedRow >= 0 }
+    #expect((table.item(atRow: table.selectedRow) as? SidebarController.Item)?.url == documents[0].sidebarKey)
+    let selected = try #require(table.item(atRow: table.selectedRow) as? SidebarController.Item)
+    let writer = try #require(sidebar.outlineView(table, pasteboardWriterForItem: selected) as? NSPasteboardItem)
+    #expect(sidebar.outlineView(table, shouldSelectItem: nested))
+    let drag = DocumentFileDropTests.Drag()
+    defer { drag.draggingPasteboard.releaseGlobally() }
+    drag.draggingPasteboard.writeObjects([writer])
+    #expect(!sidebar.outlineView(table, acceptDrop: drag, item: loose, childIndex: -1))
+    drag.draggingSource = table
+    drag.draggingSourceOperationMask = .move
+    var didChange = false
+    sidebar.onCategoriesChanged = { didChange = true }
+    #expect(sidebar.outlineView(table, acceptDrop: drag, item: loose, childIndex: -1))
+    #expect(didChange && store.categoryID(for: documents[0].id) == nil)
+    #expect(store.categoryID(for: documents[1].id) == child)
+    #expect(!writer.types.contains(.fileURL))
+    #expect(!table.registeredDraggedTypes.contains(.fileURL))
+  }
+
   @Test func headerButtonsHaveMatchingFrames() {
     let sidebar = SidebarController()
     sidebar.view.frame = NSRect(x: 0, y: 0, width: 240, height: 300)

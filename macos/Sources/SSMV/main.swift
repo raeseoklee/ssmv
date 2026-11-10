@@ -459,6 +459,13 @@ final class ViewerWindow: NSWindowController, NSWindowDelegate, NSTextViewDelega
     rail.onOutline = { [weak owner] in owner?.toggleDocumentOutline(nil) }
     split.splitView.setPosition(230, ofDividerAt: 0)
     sidebarItem.isCollapsed = UserDefaults.standard.bool(forKey: "sidebarCollapsed")
+    sidebar.categoryStore = owner.documentStore
+    sidebar.onCategoriesChanged = { [weak self, weak owner] in
+      self?.refreshDocuments()
+      for viewer in owner?.windows ?? [] where viewer !== self && !viewer.isClosing {
+        viewer.refreshDocuments()
+      }
+    }
     sidebar.onSelect = { [weak self] key in
       guard let id = key.host.flatMap(UUID.init(uuidString:)) else { return }
       self?.pendingHeading = nil

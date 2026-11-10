@@ -23,6 +23,7 @@ Both editions are read-only and use native text controls. Mermaid diagrams use a
 - **Read public Markdown URLs.** Open HTTPS Markdown files or supported GitHub file links.
 - **Keep documents together.** Switch files in a collapsible sidebar and navigate by heading.
 - **Read comfortably.** Choose light or dark mode and adjust text size.
+- **Organize documents into categories.** Right-click the sidebar to create a category or subcategory. Move a document using its context menu. Categories are local to SSMV: they do not create folders or move files. Removing a category promotes its contents to its parent.
 - **Read Mermaid diagrams offline.** Render fenced `mermaid` blocks and include diagrams in PDF exports.
 - **Save a PDF.** Export the document; Windows uses Microsoft Print to PDF.
 

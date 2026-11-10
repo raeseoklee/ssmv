@@ -13,7 +13,7 @@ struct DocumentFileDropTests {
     var draggingLocation = NSPoint.zero
     var draggedImageLocation = NSPoint.zero
     nonisolated var draggedImage: NSImage? { nil }
-    var draggingSource: Any? { nil }
+    var draggingSource: Any?
     var draggingSequenceNumber = 1
     var draggingFormation = NSDraggingFormation.default
     var animatesToDestination = false
@@ -76,7 +76,7 @@ struct DocumentFileDropTests {
     #expect(store.records.map(\.source) == [.localFile(a), .localFile(b)])
     #expect(store.selectedRecord?.source == .localFile(b))
     let table = try #require(views.compactMap { $0 as? NSOutlineView }.first)
-    #expect(table.registeredDraggedTypes.isEmpty)
+    #expect(!table.registeredDraggedTypes.contains(.fileURL))  // Internal category moves use a private type.
     // Repeated drops through the shared window entry point select existing records.
     #expect(window.performDragOperation(drag))
     #expect(store.records.count == 2)

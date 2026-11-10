@@ -3,8 +3,24 @@ import MarkdownCore
 
 @MainActor
 final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate,
-  NSMenuItemValidation
+  NSMenuItemValidation, NSMenuDelegate
 {
+  weak var categoryStore: DocumentStore?
+  var onCategoriesChanged: (() -> Void)?
+  final class CategoryNode {
+    let id: UUID?
+    var name: String
+    var children: [AnyObject] = []
+    init(_ id: UUID?, _ name: String) { self.id = id; self.name = name }
+  }
+  private let unclassified = CategoryNode(nil, "Uncategorized")
+  private var groups: [UUID: CategoryNode] = [:]
+  private var roots: [AnyObject] = []
+  private var collapsed = Set<UUID?>()
+  private var collapsingCategory: CategoryNode?
+  private var moveMenu = NSMenu()
+  private static let draggedDocument = NSPasteboard.PasteboardType("io.github.irae.ssmv.sidebar-document")
+
   var onSelect: ((URL) -> Void)?
   var onSelectHeading: ((URL, Int) -> Void)?
   var onToggleOutline: (() -> Void)?
@@ -65,7 +81,17 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     table.setAccessibilityLabel("Documents sidebar")
     // File opening is handled by the window across the entire sidebar.
     table.unregisterDraggedTypes()
+    table.registerForDraggedTypes([Self.draggedDocument])
+    table.setDraggingSourceOperationMask(.move, forLocal: true)
     let menu = NSMenu()
+    menu.delegate = self
+    for (title, action) in [("New Category…", #selector(newCategory)), ("New Subcategory…", #selector(newSubcategory)),
+      ("Rename Category…", #selector(renameCategory)), ("Delete Category…", #selector(deleteCategory))] {
+      menu.addItem(withTitle: title, action: action, keyEquivalent: "").target = self
+    }
+    let moveItem = menu.addItem(withTitle: "Move to Category", action: nil, keyEquivalent: "")
+    moveItem.submenu = moveMenu
+    menu.addItem(.separator())
     let remove = menu.addItem(
       withTitle: "Remove from Sidebar", action: #selector(removeClickedDocument), keyEquivalent: "")
     remove.target = self
@@ -166,8 +192,145 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   func selectDocument(_ key: URL) {
     guard selectedURL != key else { return }
     selectedURL = key
+    revealCategory(for: key)
     selectedHeadingID = nil
     refresh()
+  }
+
+  private func rebuildGroups() {
+    guard let store = categoryStore, !store.categories.isEmpty else {
+      groups = [:]; collapsed = []; roots = items; unclassified.children = []
+      return
+    }
+    let categories = store.categories
+    var next: [UUID: CategoryNode] = [:]
+    for category in categories {
+      let node = groups[category.id] ?? CategoryNode(category.id, category.name)
+      node.name = category.name; node.children = []; next[category.id] = node
+    }
+    groups = next
+    collapsed = collapsed.filter { id in id.map { groups[$0] != nil } ?? true }
+    roots = []; unclassified.children = []
+    for category in categories {
+      guard let node = groups[category.id] else { continue }
+      if let parent = category.parentID.flatMap({ groups[$0] }) { parent.children.append(node) }
+      else { roots.append(node) }
+    }
+    for item in items {
+      let group = records[item.url].flatMap { store.categoryID(for: $0.id) }.flatMap { groups[$0] }
+      (group ?? unclassified).children.append(item)
+    }
+    roots.append(unclassified)
+  }
+
+  private func revealCategory(for url: URL) {
+    guard let store = categoryStore, !groups.isEmpty, let record = records[url] else { return }
+    var id = store.categoryID(for: record.id)
+    collapsed.remove(id)
+    while let current = id {
+      id = store.categories.first { $0.id == current }?.parentID
+      if let id { collapsed.remove(id) }
+    }
+  }
+
+  private var clickedCategory: CategoryNode? {
+    table.clickedRow >= 0 ? table.item(atRow: table.clickedRow) as? CategoryNode : nil
+  }
+  private var clickedRecord: DocumentRecord? {
+    guard table.clickedRow >= 0, let item = table.item(atRow: table.clickedRow) as? Item else { return nil }
+    return records[item.url]
+  }
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    guard menu === table.menu else { return }
+    moveMenu.removeAllItems()
+    guard let store = categoryStore, let record = clickedRecord else { return }
+    let current = store.categoryID(for: record.id)
+    func option(_ name: String, id: UUID?, level: Int) {
+      let entry = moveMenu.addItem(withTitle: name, action: #selector(moveToCategory(_:)), keyEquivalent: "")
+      entry.representedObject = id
+      entry.target = self
+      entry.indentationLevel = min(15, level)
+      entry.state = id == current ? .on : .off
+    }
+    option(unclassified.name, id: nil, level: 0)
+    func append(_ node: CategoryNode, level: Int) {
+      option(node.name, id: node.id, level: level)
+      for case let child as CategoryNode in node.children { append(child, level: level + 1) }
+    }
+    for case let node as CategoryNode in roots where node.id != nil { append(node, level: 0) }
+  }
+
+  private func modifyCategories(_ operation: (DocumentStore) throws -> Void) {
+    guard let store = categoryStore else { return }
+    do { try operation(store); onCategoriesChanged?() }
+    catch { NSAlert(error: error).runModal() }
+  }
+  private func namePrompt(_ title: String, initial: String = "") -> String? {
+    let alert = NSAlert()
+    alert.messageText = title
+    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
+    field.stringValue = initial
+    field.placeholderString = "Category name"
+    field.setAccessibilityLabel("Category name")
+    alert.accessoryView = field
+    alert.addButton(withTitle: initial.isEmpty ? "Create" : "Rename")
+    alert.addButton(withTitle: "Cancel")
+    alert.window.initialFirstResponder = field
+    return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+  }
+  @objc private func newCategory() {
+    guard let name = namePrompt("New Category") else { return }
+    modifyCategories { _ = try $0.createCategory(name: name, parentID: nil) }
+  }
+  @objc private func newSubcategory() {
+    guard let parent = clickedCategory?.id, let name = namePrompt("New Subcategory") else { return }
+    modifyCategories { _ = try $0.createCategory(name: name, parentID: parent); collapsed.remove(parent) }
+  }
+  @objc private func renameCategory() {
+    guard let category = clickedCategory, let id = category.id,
+      let name = namePrompt("Rename Category", initial: category.name) else { return }
+    modifyCategories { try $0.renameCategory(id, name: name) }
+  }
+  @objc private func deleteCategory() {
+    guard let category = clickedCategory, let id = category.id else { return }
+    let alert = NSAlert()
+    alert.messageText = "Delete “\(category.name)”?"
+    alert.informativeText = "Documents stay in your library and their files stay on disk."
+    alert.addButton(withTitle: "Cancel")
+    alert.addButton(withTitle: "Delete Category")
+    guard alert.runModal() == .alertSecondButtonReturn else { return }
+    modifyCategories { try $0.removeCategory(id) }
+  }
+  @objc private func moveToCategory(_ sender: NSMenuItem) {
+    guard let record = clickedRecord else { return }
+    modifyCategories { try $0.moveDocument(record.id, to: sender.representedObject as? UUID) }
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+    guard !groups.isEmpty, let item = item as? Item, item.isFile, let record = records[item.url] else { return nil }
+    let writer = NSPasteboardItem()
+    writer.setString(record.id.uuidString, forType: Self.draggedDocument)
+    return writer
+  }
+  private func draggedDocumentID(_ info: NSDraggingInfo) -> UUID? {
+    guard (info.draggingSource as? NSOutlineView) === table,
+      let raw = info.draggingPasteboard.string(forType: Self.draggedDocument),
+      let id = UUID(uuidString: raw), categoryStore?.record(id) != nil else { return nil }
+    return id
+  }
+  func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo,
+    proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+    guard let node = item as? CategoryNode, let id = draggedDocumentID(info),
+      categoryStore?.categoryID(for: id) != node.id else { return [] }
+    table.setDropItem(node, dropChildIndex: NSOutlineViewDropOnItemIndex)
+    return .move
+  }
+  func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo,
+    item: Any?, childIndex index: Int) -> Bool {
+    guard let node = item as? CategoryNode, let id = draggedDocumentID(info),
+      let store = categoryStore else { return false }
+    do { try store.moveDocument(id, to: node.id); onCategoriesChanged?(); return true }
+    catch { NSAlert(error: error).runModal(); return false }
   }
 
   private func sortedKeys(_ urls: [URL]) -> [URL] {
@@ -203,7 +366,11 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     let old = Dictionary(uniqueKeysWithValues: items.map { ($0.url, $0) })
     addedURLs = urls
     items = sortedKeys(urls).map { old[$0] ?? Item(url: $0) }
-    if selectedURL != selected { selectedHeadingID = nil }
+    rebuildGroups()
+    if selectedURL != selected {
+      selectedHeadingID = nil
+      if let selected { revealCategory(for: selected) }
+    }
     selectedURL = selected
     expandedHeadings = expandedHeadings.filter { urls.contains($0.key) }
     refresh()
@@ -340,7 +507,15 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     } else {
       table.reloadData()
     }
-    if outlineEnabled { for item in expanded { table.expandItem(item) } }
+    if changedItem == nil {
+      func expand(_ node: CategoryNode) {
+        guard !collapsed.contains(node.id) else { table.collapseItem(node); return }
+        table.expandItem(node)
+        for case let child as CategoryNode in node.children { expand(child) }
+      }
+      for case let node as CategoryNode in roots { expand(node) }
+    }
+    if outlineEnabled { for item in expanded where table.row(forItem: item) >= 0 { table.expandItem(item) } }
     func restore(_ item: Item) {
       if let heading = item.heading, expandedHeadings[item.url]?.contains(heading.id) == true {
         table.expandItem(item)
@@ -378,13 +553,15 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   }
 
   func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-    guard let item = item as? Item else { return items.count }
+    if let node = item as? CategoryNode { return node.children.count }
+    guard let item = item as? Item else { return roots.count }
     if item.isFile { return outlineEnabled ? max(1, item.children.count) : 0 }
     return item.children.count
   }
 
   func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-    guard let item = item as? Item else { return items[index] }
+    if let node = item as? CategoryNode { return node.children[index] }
+    guard let item = item as? Item else { return roots[index] }
     if item.isFile && item.children.isEmpty {
       item.children = [Item(url: item.url, message: "Loading headings…")]
     }
@@ -392,11 +569,18 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   }
 
   func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+    if item is CategoryNode { return true }
     guard let item = item as? Item else { return false }
     return item.isFile ? outlineEnabled : !item.children.isEmpty
   }
 
   func outlineViewItemDidExpand(_ notification: Notification) {
+    if !updating, let node = notification.userInfo?["NSObject"] as? CategoryNode {
+      collapsed.remove(node.id)
+      // Let AppKit complete its nested row updates before restoring the selected file.
+      Task { @MainActor [weak self] in self?.refresh() }
+      return
+    }
     guard !updating, let item = notification.userInfo?["NSObject"] as? Item else { return }
     if item.isFile {
       requestOutline(item.url)
@@ -405,7 +589,18 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     }
   }
 
+  func outlineViewItemWillCollapse(_ notification: Notification) {
+    if !updating, collapsingCategory == nil, let node = notification.userInfo?["NSObject"] as? CategoryNode {
+      collapsingCategory = node
+      collapsed.insert(node.id)
+    }
+  }
+
   func outlineViewItemDidCollapse(_ notification: Notification) {
+    if !updating, let node = notification.userInfo?["NSObject"] as? CategoryNode {
+      if collapsingCategory === node { collapsingCategory = nil }
+      return
+    }
     guard !updating, let item = notification.userInfo?["NSObject"] as? Item,
       let heading = item.heading
     else { return }
@@ -413,11 +608,18 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   }
 
   func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-    (item as? Item)?.message == nil
+    if item is CategoryNode { return true }
+    guard let item = item as? Item else { return false }
+    return item.message == nil
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {
-    guard !updating, let item = table.item(atRow: table.selectedRow) as? Item, item.message == nil
+    guard !updating, collapsingCategory == nil else { return }
+    if table.selectedRow >= 0, table.item(atRow: table.selectedRow) is CategoryNode {
+      removeButton.isEnabled = false
+      return
+    }
+    guard let item = table.item(atRow: table.selectedRow) as? Item, item.message == nil
     else { return }
     selectedURL = item.url
     selectedHeadingID = item.heading?.id
@@ -436,6 +638,17 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
   func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
     -> NSView?
   {
+    if let node = item as? CategoryNode {
+      let label = NSTextField(labelWithString: node.name)
+      label.font = .systemFont(ofSize: 12, weight: .semibold)
+      label.lineBreakMode = .byTruncatingTail
+      let icon = NSImageView(image: NSImage(systemSymbolName: "folder", accessibilityDescription: nil)!)
+      icon.contentTintColor = .secondaryLabelColor
+      let row = NSStackView(views: [icon, label])
+      row.spacing = 5
+      row.toolTip = node.name
+      return row
+    }
     guard let item = item as? Item else { return nil }
     if item.isFile { return documentCell(item.url) }
     let cell = NSTableCellView()
@@ -525,7 +738,11 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
       return true
     }
     if menuItem.action == #selector(removeAllDocuments) { return !items.isEmpty }
-    if menuItem.action == #selector(removeClickedDocument) { return table.clickedRow >= 0 }
+    if menuItem.action == #selector(removeClickedDocument) { return clickedRecord != nil || (table.clickedRow >= 0 && table.item(atRow: table.clickedRow) is Item) }
+    if menuItem.action == #selector(newCategory) { return categoryStore != nil }
+    if [#selector(newSubcategory), #selector(renameCategory), #selector(deleteCategory)].contains(menuItem.action) {
+      return clickedCategory?.id != nil
+    }
     return true
   }
   @objc private func removeButtonHeld(_ recognizer: NSPressGestureRecognizer) {

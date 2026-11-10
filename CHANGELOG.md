@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Organize sidebar documents in nested, app-only categories without moving source files.
+
 - On macOS, show the complete document before generating Mermaid previews. Isolate preview rendering so WebKit startup cannot freeze the reader.
 
 - Open Mermaid diagrams in a separate viewer with zoom, pan, fit-to-window, and native full screen on macOS and Windows.

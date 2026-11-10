@@ -60,3 +60,50 @@ import Testing
   #expect(store.record(selected) == nil)
   #expect(FileManager.default.fileExists(atPath: urls[1].path))
 }
+
+@Test @MainActor func categoryChangesKeepTheCurrentDocumentAndTabsOpen() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  let suite = "SSMV.CategoryWindow." + UUID().uuidString
+  let defaults = UserDefaults(suiteName: suite)!
+  let store = try DocumentStore(defaults: defaults, directory: root.appendingPathComponent("store"))
+  defer {
+    defaults.removePersistentDomain(forName: suite)
+    try? FileManager.default.removeItem(at: root)
+  }
+  let file = root.appendingPathComponent("Engine.md")
+  try "# Engine\n\nDocument text.".write(to: file, atomically: false, encoding: .utf8)
+  let document = try #require(try store.addLocal([file]).first)
+  let project = try store.createCategory(name: "Projects", parentID: nil)
+  let research = try store.createCategory(name: "Research", parentID: project)
+  let owner = AppDelegate(store: store)
+  let viewer = ViewerWindow(owner: owner)
+  defer { viewer.close() }
+  let content = try #require(viewer.window?.contentView)
+  func all(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(all) }
+  let text = try #require(all(content).compactMap { $0 as? ReadingColumnTextView }.first)
+  let limit = ContinuousClock.now.advanced(by: .seconds(3))
+  while !text.string.contains("Document text."),
+    ContinuousClock.now < limit { try await Task.sleep(for: .milliseconds(10)) }
+  try store.moveDocument(document.id, to: research)
+  viewer.refreshDocuments()
+  #expect(text.string.contains("Document text."))
+  #expect(store.selectedID == document.id)
+  if let path = ProcessInfo.processInfo.environment["SSMV_CATEGORY_CAPTURE"],
+    let table = all(content).compactMap({ $0 as? NSOutlineView }).first {
+    viewer.window?.setContentSize(NSSize(width: 1050, height: 550))
+    table.expandItem(nil, expandChildren: true)
+    content.layoutSubtreeIfNeeded()
+    if let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
+      content.cacheDisplay(in: content.bounds, to: rep)
+      try rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+    }
+  }
+  try store.removeCategory(project)
+  viewer.refreshDocuments()
+  #expect(store.categoryID(for: document.id) == research)
+  #expect(store.selectedID == document.id)
+  #expect(store.records.map(\.id) == [document.id])
+  #expect(text.string.contains("Document text."))
+  #expect(try String(contentsOf: file, encoding: .utf8) == "# Engine\n\nDocument text.")
+}

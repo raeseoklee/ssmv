@@ -6,8 +6,12 @@ import Foundation
 public final class DocumentStore {
   public enum StoreError: LocalizedError {
     case emptyText, tooLarge, quotaExceeded, invalidURL, invalidStore, listedImport
+    case invalidCategoryName, missingCategory, missingDocument
     public var errorDescription: String? {
       switch self {
+      case .invalidCategoryName: "Enter a category name of 1 to 160 characters on one line."
+      case .missingCategory: "The selected category is no longer available."
+      case .missingDocument: "The selected document is no longer in the sidebar."
       case .emptyText: "No Markdown text."
       case .tooLarge: "Markdown text exceeds the 16 MiB limit."
       case .quotaExceeded:
@@ -25,6 +29,9 @@ public final class DocumentStore {
     var selectedID: UUID?
     var imports: [DocumentRecord] = []
     var nextOrdinal = 0
+    // Old v2 shelves omit both fields. A missing assignment means the root of the sidebar.
+    var categories: [DocumentCategory]?
+    var membership: [UUID: UUID]?
   }
 
   public static let persistenceKey = "documentStoreV2"
@@ -92,6 +99,68 @@ public final class DocumentStore {
   }
 
   public func record(_ id: UUID) -> DocumentRecord? { state.records.first { $0.id == id } }
+
+  public var categories: [DocumentCategory] { state.categories ?? [] }
+
+  public func categoryID(for documentID: UUID) -> UUID? { state.membership?[documentID] }
+
+  @discardableResult
+  public func createCategory(name: String, parentID: UUID? = nil) throws -> UUID {
+    if let parentID, !categories.contains(where: { $0.id == parentID }) {
+      throw StoreError.missingCategory
+    }
+    let category = DocumentCategory(name: try Self.categoryName(name), parentID: parentID)
+    var next = state
+    next.categories = categories + [category]
+    try commit(next)
+    return category.id
+  }
+
+  public func renameCategory(_ id: UUID, name: String) throws {
+    guard let index = categories.firstIndex(where: { $0.id == id }) else {
+      throw StoreError.missingCategory
+    }
+    var next = state
+    next.categories?[index].name = try Self.categoryName(name)
+    try commit(next)
+  }
+
+  public func removeCategory(_ id: UUID) throws {
+    guard let category = categories.first(where: { $0.id == id }) else {
+      throw StoreError.missingCategory
+    }
+    var next = state
+    next.categories = categories.filter { $0.id != id }.map { child in
+      var child = child
+      if child.parentID == id { child.parentID = category.parentID }
+      return child
+    }
+    for (documentID, categoryID) in state.membership ?? [:] where categoryID == id {
+      next.membership?[documentID] = category.parentID
+    }
+    try commit(next)
+  }
+
+  public func moveDocument(_ id: UUID, to categoryID: UUID?) throws {
+    guard record(id) != nil else { throw StoreError.missingDocument }
+    if let categoryID, !categories.contains(where: { $0.id == categoryID }) {
+      throw StoreError.missingCategory
+    }
+    guard state.membership?[id] != categoryID else { return }
+    var next = state
+    var membership = next.membership ?? [:]
+    membership[id] = categoryID
+    next.membership = membership
+    try commit(next)
+  }
+
+  private static func categoryName(_ text: String) throws -> String {
+    let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty, value.count <= 160,
+      value.rangeOfCharacter(from: .controlCharacters.union(.newlines)) == nil
+    else { throw StoreError.invalidCategoryName }
+    return value
+  }
 
   public func fileURL(for record: DocumentRecord) -> URL? {
     switch record.source {
@@ -202,6 +271,7 @@ public final class DocumentStore {
     guard let index = state.records.firstIndex(where: { $0.id == id }) else { return }
     var next = state
     next.records.remove(at: index)
+    next.membership?[id] = nil
     if next.selectedID == id {
       next.selectedID =
         next.records.isEmpty ? nil : next.records[min(index, next.records.count - 1)].id
@@ -212,6 +282,7 @@ public final class DocumentStore {
   public func removeAllReferences() throws {
     var next = state
     next.records = []
+    next.membership = nil
     next.selectedID = nil
     try commit(next)
   }
@@ -301,6 +372,31 @@ public final class DocumentStore {
       Set(saved.imports.map(\.id)).count == saved.imports.count,
       saved.selectedID == nil || saved.records.contains(where: { $0.id == saved.selectedID })
     else { throw StoreError.invalidStore }
+    if let categories = saved.categories {
+      let ids = Set(categories.map(\.id))
+      guard ids.count == categories.count else { throw StoreError.invalidStore }
+      let byID = Dictionary(uniqueKeysWithValues: categories.map { ($0.id, $0) })
+      var verified = Set<UUID>()
+      for category in categories {
+        guard (try? Self.categoryName(category.name)) == category.name else {
+          throw StoreError.invalidStore
+        }
+        var path = Set<UUID>()
+        var nextID: UUID? = category.id
+        while let id = nextID, !verified.contains(id) {
+          guard let node = byID[id], path.insert(id).inserted else { throw StoreError.invalidStore }
+          nextID = node.parentID
+        }
+        verified.formUnion(path)
+      }
+    }
+    if let membership = saved.membership, !membership.isEmpty {
+      let categoryIDs = Set((saved.categories ?? []).map(\.id))
+      let documentIDs = Set(saved.records.map(\.id))
+      guard
+        membership.allSatisfy({ documentIDs.contains($0.key) && categoryIDs.contains($0.value) })
+      else { throw StoreError.invalidStore }
+    }
     for record in saved.imports {
       guard case .imported(let path) = record.source, validImportPath(path) else {
         throw StoreError.invalidStore
